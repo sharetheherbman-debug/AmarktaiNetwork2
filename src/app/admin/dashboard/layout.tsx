@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  LayoutDashboard, Package, Key, Plug, Mail, Users, LogOut, Zap, Menu, X, ChevronRight
+  LayoutDashboard, Package, Key, Plug, Mail, Users, LogOut, Zap, Menu, X, ChevronRight, Server
 } from 'lucide-react'
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/admin/dashboard/products', label: 'Products', icon: Package },
   { href: '/admin/dashboard/api-keys', label: 'API Keys', icon: Key },
   { href: '/admin/dashboard/integrations', label: 'Integrations', icon: Plug },
+  { href: '/admin/dashboard/vps', label: 'VPS Monitor', icon: Server },
   { href: '/admin/dashboard/contacts', label: 'Contacts', icon: Mail },
   { href: '/admin/dashboard/waitlist', label: 'Waitlist', icon: Users },
 ]

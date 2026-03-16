@@ -5,10 +5,35 @@ import { motion } from 'framer-motion'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import StatusBadge from '@/components/ui/StatusBadge'
-import { Search, Filter, Star, ArrowRight, Globe, TrendingUp, BookOpen, Briefcase, Heart, Users, Brain, Smartphone } from 'lucide-react'
+import {
+  Search, Filter, Star, ArrowRight, Globe, TrendingUp, BookOpen, Briefcase,
+  Heart, Users, Shield, Camera, Lock, ExternalLink,
+} from 'lucide-react'
 import Link from 'next/link'
 
-const allApps = [
+type AppStatus = 'live' | 'invite_only' | 'in_development' | 'coming_soon' | 'concept'
+type AccessType = 'public' | 'invite_only' | 'internal'
+
+interface AppEntry {
+  id: number
+  name: string
+  slug: string
+  category: string
+  categoryKey: string
+  status: AppStatus
+  accessType: AccessType
+  featured: boolean
+  icon: React.ElementType
+  iconGradient: string
+  iconColor: string
+  shortDescription: string
+  longDescription: string
+  primaryUrl?: string
+  hostingScope: string
+  tags: string[]
+}
+
+const allApps: AppEntry[] = [
   {
     id: 1,
     name: 'Amarktai Crypto',
@@ -16,12 +41,16 @@ const allApps = [
     category: 'Finance & AI',
     categoryKey: 'finance',
     status: 'invite_only',
+    accessType: 'invite_only',
     featured: true,
     icon: TrendingUp,
-    iconColor: 'from-blue-500/20 to-cyan-500/20',
-    iconTextColor: 'text-blue-400',
+    iconGradient: 'from-blue-500/20 to-cyan-500/20',
+    iconColor: 'text-blue-400',
     shortDescription: 'Advanced cryptocurrency intelligence platform with real-time AI signals and portfolio analytics.',
-    longDescription: 'Amarktai Crypto is an institutional-grade cryptocurrency intelligence platform. Our proprietary AI models analyze on-chain data, social sentiment, order book dynamics, and macroeconomic signals to deliver high-confidence trading insights. Features include real-time signal alerts, portfolio risk analysis, automated rebalancing strategies, and an AI-powered research assistant.',
+    longDescription:
+      'Amarktai Crypto is an institutional-grade cryptocurrency intelligence platform. Our proprietary AI models analyse on-chain data, social sentiment, order book dynamics, and macroeconomic signals to deliver high-confidence trading insights. Features include real-time signal alerts, portfolio risk analysis, automated rebalancing strategies, and an AI-powered research assistant.',
+    primaryUrl: 'https://crypto.amarktai.com',
+    hostingScope: 'subdomain',
     tags: ['Crypto', 'AI Signals', 'Portfolio', 'Real-time'],
   },
   {
@@ -31,12 +60,16 @@ const allApps = [
     category: 'Finance & AI',
     categoryKey: 'finance',
     status: 'invite_only',
+    accessType: 'invite_only',
     featured: true,
     icon: Globe,
-    iconColor: 'from-emerald-500/20 to-cyan-500/20',
-    iconTextColor: 'text-emerald-400',
+    iconGradient: 'from-emerald-500/20 to-cyan-500/20',
+    iconColor: 'text-emerald-400',
     shortDescription: 'Institutional-grade forex analysis powered by proprietary AI models and market intelligence.',
-    longDescription: 'Amarktai Forex brings institutional-level market intelligence to retail and professional traders. Our AI engine processes millions of data points per second — news sentiment, technical patterns, interbank flows, and economic indicators — to surface high-probability trade setups with defined risk parameters.',
+    longDescription:
+      'Amarktai Forex brings institutional-level market intelligence to retail and professional traders. Our AI engine processes millions of data points per second — news sentiment, technical patterns, interbank flows, and economic indicators — to surface high-probability trade setups with defined risk parameters.',
+    primaryUrl: 'https://forex.amarktai.com',
+    hostingScope: 'subdomain',
     tags: ['Forex', 'AI Analysis', 'Trading', 'Risk Management'],
   },
   {
@@ -46,12 +79,16 @@ const allApps = [
     category: 'Community',
     categoryKey: 'community',
     status: 'in_development',
+    accessType: 'public',
     featured: false,
     icon: Heart,
-    iconColor: 'from-rose-500/20 to-pink-500/20',
-    iconTextColor: 'text-rose-400',
+    iconGradient: 'from-rose-500/20 to-pink-500/20',
+    iconColor: 'text-rose-400',
     shortDescription: 'A digital space for faith communities to connect, grow, and build meaningful relationships.',
-    longDescription: 'Faith Haven is a purpose-built digital community platform for faith organizations and individuals. Features include live streaming for services, community groups, devotional content, prayer request management, event coordination, and a giving platform. AI features include personalized spiritual content recommendations and community health analytics.',
+    longDescription:
+      'Faith Haven is a purpose-built digital community platform for faith organisations and individuals. Features include live streaming for services, community groups, devotional content, prayer request management, event coordination, and a giving platform. AI features include personalised spiritual content recommendations and community health analytics.',
+    primaryUrl: 'https://faithhaven.co.za',
+    hostingScope: 'external_domain',
     tags: ['Community', 'Live Streaming', 'Events', 'PWA'],
   },
   {
@@ -61,12 +98,16 @@ const allApps = [
     category: 'Education',
     categoryKey: 'education',
     status: 'in_development',
+    accessType: 'public',
     featured: false,
     icon: BookOpen,
-    iconColor: 'from-amber-500/20 to-yellow-500/20',
-    iconTextColor: 'text-amber-400',
+    iconGradient: 'from-amber-500/20 to-yellow-500/20',
+    iconColor: 'text-amber-400',
     shortDescription: 'Adaptive digital learning platform designed for the next generation of technology professionals.',
-    longDescription: 'Learn Digital is an AI-powered education platform focused on digital technology skills for African learners. The platform features adaptive learning paths that adjust to individual progress, project-based curriculum, peer collaboration tools, mentorship matching, and career placement support. AI drives personalized content delivery and competency assessment.',
+    longDescription:
+      'Learn Digital is an AI-powered education platform focused on digital technology skills for African learners. The platform features adaptive learning paths that adjust to individual progress, project-based curriculum, peer collaboration tools, mentorship matching, and career placement support.',
+    primaryUrl: 'https://learndigital.co.za',
+    hostingScope: 'external_domain',
     tags: ['Education', 'AI Learning', 'Skills', 'Certification'],
   },
   {
@@ -76,12 +117,15 @@ const allApps = [
     category: 'Employment',
     categoryKey: 'employment',
     status: 'coming_soon',
+    accessType: 'public',
     featured: false,
     icon: Briefcase,
-    iconColor: 'from-violet-500/20 to-purple-500/20',
-    iconTextColor: 'text-violet-400',
+    iconGradient: 'from-violet-500/20 to-purple-500/20',
+    iconColor: 'text-violet-400',
     shortDescription: 'South Africa-focused intelligent job matching platform connecting talent with opportunity.',
-    longDescription: 'Jobs SA is a next-generation employment platform designed specifically for the South African market. Our AI matching engine goes beyond keyword matching — it analyzes skills, culture fit, career trajectory, and growth potential to connect the right people with the right opportunities. Features include AI resume optimization, interview preparation, and salary intelligence.',
+    longDescription:
+      'Jobs SA is a next-generation employment platform designed specifically for the South African market. Our AI matching engine goes beyond keyword matching — it analyses skills, culture fit, career trajectory, and growth potential to connect the right people with the right opportunities.',
+    hostingScope: 'external_domain',
     tags: ['Jobs', 'AI Matching', 'South Africa', 'Career'],
   },
   {
@@ -91,43 +135,53 @@ const allApps = [
     category: 'Social',
     categoryKey: 'social',
     status: 'in_development',
+    accessType: 'public',
     featured: false,
     icon: Users,
-    iconColor: 'from-pink-500/20 to-rose-500/20',
-    iconTextColor: 'text-pink-400',
+    iconGradient: 'from-pink-500/20 to-rose-500/20',
+    iconColor: 'text-pink-400',
     shortDescription: 'Community-driven platform fostering meaningful connections and shared experiences.',
-    longDescription: 'Kinship is a social platform built around meaningful connection rather than engagement metrics. Using AI to surface genuine compatibility and shared interests, Kinship creates small, intimate community spaces where real relationships form. No algorithmic manipulation — just authentic human connection powered by intelligent matching.',
+    longDescription:
+      'Kinship is a social platform built around meaningful connection rather than engagement metrics. Using AI to surface genuine compatibility and shared interests, Kinship creates small, intimate community spaces where real relationships form.',
+    hostingScope: 'external_domain',
     tags: ['Social', 'Community', 'AI Matching', 'Connections'],
   },
   {
     id: 7,
-    name: 'Amarktai Intelligence',
-    slug: 'amarktai-intelligence',
-    category: 'AI Platform',
-    categoryKey: 'ai',
-    status: 'concept',
+    name: 'Amarktai Secure',
+    slug: 'amarktai-secure',
+    category: 'Security',
+    categoryKey: 'security',
+    status: 'in_development',
+    accessType: 'invite_only',
     featured: false,
-    icon: Brain,
-    iconColor: 'from-blue-500/20 to-purple-500/20',
-    iconTextColor: 'text-blue-400',
-    shortDescription: 'The unified AI intelligence layer powering all Amarktai Network applications.',
-    longDescription: 'Amarktai Intelligence is the backbone AI platform that powers every application in our ecosystem. It provides unified model serving, real-time inference APIs, model training infrastructure, and intelligence orchestration. Third-party developers will eventually access this layer to build AI-powered applications.',
-    tags: ['AI', 'Platform', 'API', 'Infrastructure'],
+    icon: Shield,
+    iconGradient: 'from-slate-500/20 to-blue-500/20',
+    iconColor: 'text-slate-300',
+    shortDescription: 'Enterprise-grade cybersecurity intelligence and threat monitoring for the African digital economy.',
+    longDescription:
+      'Amarktai Secure provides continuous threat intelligence, vulnerability scanning, and security posture management for businesses operating across Africa. Powered by AI-driven anomaly detection, it surfaces actionable threats before they escalate into incidents.',
+    primaryUrl: 'https://secure.amarktai.com',
+    hostingScope: 'subdomain',
+    tags: ['Security', 'Threat Intel', 'AI Detection', 'Enterprise'],
   },
   {
     id: 8,
-    name: 'Amarktai Pay',
-    slug: 'amarktai-pay',
-    category: 'Fintech',
-    categoryKey: 'finance',
-    status: 'concept',
+    name: 'Crowd Lens',
+    slug: 'crowd-lens',
+    category: 'Media & Insights',
+    categoryKey: 'media',
+    status: 'coming_soon',
+    accessType: 'public',
     featured: false,
-    icon: Smartphone,
-    iconColor: 'from-emerald-500/20 to-teal-500/20',
-    iconTextColor: 'text-emerald-400',
-    shortDescription: 'Borderless digital payments and financial services for African markets.',
-    longDescription: 'Amarktai Pay is a fintech platform designed for seamless, low-cost cross-border payments across Africa. Built on modern payment rails with AI fraud detection, the platform enables individuals and businesses to send, receive, and manage money across borders without traditional banking friction.',
-    tags: ['Payments', 'Fintech', 'Africa', 'Cross-border'],
+    icon: Camera,
+    iconGradient: 'from-cyan-500/20 to-teal-500/20',
+    iconColor: 'text-cyan-400',
+    shortDescription: 'AI-powered crowd-sourced media intelligence platform for real-time African market sentiment.',
+    longDescription:
+      'Crowd Lens aggregates and analyses real-time social signals, user-submitted reports, and media streams to produce actionable sentiment and trend intelligence. Designed for researchers, journalists, and market analysts seeking ground-truth data on African markets.',
+    hostingScope: 'external_domain',
+    tags: ['Media', 'Sentiment', 'Crowd-sourced', 'Market Intel'],
   },
 ]
 
@@ -138,8 +192,71 @@ const categories = [
   { key: 'education', label: 'Education' },
   { key: 'employment', label: 'Employment' },
   { key: 'social', label: 'Social' },
-  { key: 'ai', label: 'AI Platform' },
+  { key: 'security', label: 'Security' },
+  { key: 'media', label: 'Media' },
 ]
+
+function AppCTA({ app }: { app: AppEntry }) {
+  if (app.accessType === 'invite_only' || app.status === 'invite_only') {
+    return (
+      <Link
+        href="/contact"
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium"
+      >
+        <Star className="w-3 h-3 fill-blue-400" />
+        Request Invitation
+      </Link>
+    )
+  }
+  if (app.status === 'coming_soon' || app.status === 'concept') {
+    return (
+      <Link
+        href="/contact"
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white font-medium"
+      >
+        Join Waitlist
+        <ArrowRight className="w-3 h-3" />
+      </Link>
+    )
+  }
+  if (app.primaryUrl) {
+    return (
+      <a
+        href={app.primaryUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+      >
+        <ExternalLink className="w-3 h-3" />
+        Visit App
+      </a>
+    )
+  }
+  return (
+    <Link
+      href="/contact"
+      onClick={(e) => e.stopPropagation()}
+      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white font-medium"
+    >
+      Learn More
+      <ArrowRight className="w-3 h-3" />
+    </Link>
+  )
+}
+
+function AppBadge({ app }: { app: AppEntry }) {
+  if (app.accessType === 'invite_only' || app.status === 'invite_only') {
+    return (
+      <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/25 text-blue-400 text-xs rounded-full">
+        <Lock className="w-2.5 h-2.5" /> Private Beta
+      </span>
+    )
+  }
+  return null
+}
 
 export default function AppsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -148,7 +265,8 @@ export default function AppsPage() {
 
   const filtered = allApps.filter((app) => {
     const matchesCategory = selectedCategory === 'all' || app.categoryKey === selectedCategory
-    const matchesSearch = !searchQuery ||
+    const matchesSearch =
+      !searchQuery ||
       app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.shortDescription.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesCategory && matchesSearch
@@ -164,10 +282,7 @@ export default function AppsPage() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-blue-600/5 rounded-full blur-3xl" />
         </div>
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <div className="inline-flex items-center gap-2 px-3 py-1 glass rounded-full text-xs text-blue-400 mb-6 border border-blue-500/20">
               <Globe className="w-3 h-3" />
               The Ecosystem
@@ -186,7 +301,6 @@ export default function AppsPage() {
       <section className="px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            {/* Search */}
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
@@ -197,8 +311,6 @@ export default function AppsPage() {
                 className="w-full pl-10 pr-4 py-2.5 glass rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 border border-transparent"
               />
             </div>
-
-            {/* Category Filter */}
             <div className="flex items-center gap-2 flex-wrap">
               <Filter className="w-4 h-4 text-slate-400" />
               {categories.map((cat) => (
@@ -235,15 +347,18 @@ export default function AppsPage() {
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${app.iconColor} flex items-center justify-center`}>
-                      <app.icon className={`w-5 h-5 ${app.iconTextColor}`} />
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${app.iconGradient} flex items-center justify-center`}>
+                      <app.icon className={`w-5 h-5 ${app.iconColor}`} />
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">{app.category}</p>
                       <h3 className="font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>{app.name}</h3>
                     </div>
                   </div>
-                  <StatusBadge status={app.status} />
+                  <div className="flex flex-col items-end gap-1.5">
+                    <StatusBadge status={app.status} />
+                    <AppBadge app={app} />
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -254,34 +369,16 @@ export default function AppsPage() {
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1.5">
                   {app.tags.map((tag) => (
-                    <span key={tag} className="px-2 py-0.5 bg-white/5 rounded-full text-xs text-slate-500">{tag}</span>
+                    <span key={tag} className="px-2 py-0.5 bg-white/5 rounded-full text-xs text-slate-500">
+                      {tag}
+                    </span>
                   ))}
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                  {app.status === 'invite_only' ? (
-                    <Link
-                      href="/contact"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium"
-                    >
-                      <Star className="w-3 h-3 fill-blue-400" />
-                      Request Invitation
-                    </Link>
-                  ) : app.status === 'coming_soon' || app.status === 'concept' ? (
-                    <Link
-                      href="/contact"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white font-medium"
-                    >
-                      Join Waitlist
-                      <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  ) : (
-                    <span className="text-xs text-emerald-400 font-medium">Coming Soon</span>
-                  )}
-                  <button className="text-xs text-slate-500 hover:text-slate-300">
+                  <AppCTA app={app} />
+                  <button className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
                     {expandedApp === app.id ? 'Less info' : 'Learn more'}
                   </button>
                 </div>
@@ -297,7 +394,7 @@ export default function AppsPage() {
         </div>
       </section>
 
-      {/* Waitlist CTA */}
+      {/* Invite-only CTA */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div
@@ -313,7 +410,7 @@ export default function AppsPage() {
               Early Access Available
             </h2>
             <p className="text-slate-400 mb-8">
-              Amarktai Crypto and Forex are available by invitation. Contact us to apply for early access to our flagship AI platforms.
+              Amarktai Crypto, Forex, and Secure are available by invitation only. Contact us to apply for early access to our flagship platforms.
             </p>
             <Link
               href="/contact"
