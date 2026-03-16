@@ -3,13 +3,7 @@ import { getIronSession } from 'iron-session'
 import type { SessionData } from '@/lib/session'
 
 const sessionOptions = {
-  password: (() => {
-    const secret = process.env.SESSION_SECRET
-    if (!secret && process.env.NODE_ENV === 'production') {
-      throw new Error('SESSION_SECRET environment variable is required in production')
-    }
-    return secret || 'dev-fallback-secret-32-chars-minimum!!'
-  })(),
+  password: process.env.SESSION_SECRET || 'dev-fallback-secret-32-chars-minimum!!',
   cookieName: 'amarktai-admin-session',
   cookieOptions: {
     secure: process.env.NODE_ENV === 'production',

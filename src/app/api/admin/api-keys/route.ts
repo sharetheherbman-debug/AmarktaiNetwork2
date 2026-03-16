@@ -23,7 +23,6 @@ export async function GET() {
       isActive: true,
       createdAt: true,
       updatedAt: true,
-      apiKey: false,
     },
   })
   return NextResponse.json(keys)
