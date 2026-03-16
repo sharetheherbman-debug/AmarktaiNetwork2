@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model Product {
+  id               Int      @id @default(autoincrement())
+  name             String
+  slug             String   @unique
+  category         String   @default("app")
+  shortDescription String   @map("short_description")
+  longDescription  String   @default("") @map("long_description")
+  status           String   @default("coming_soon")
+  accessType       String   @default("public") @map("access_type")
+  featured         Boolean  @default(false)
+  primaryUrl       String   @default("") @map("primary_url")
+  hostedHere       Boolean  @default(false) @map("hosted_here")
+  sortOrder        Int      @default(99) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  integration      AppIntegration?
+  metricDefinitions AppMetricDefinition[]
+  metricPoints     AppMetricPoint[]
+  events           AppEvent[]
+  widgetConfigs    DashboardWidgetConfig[]
+
+  @@map("products")
+}
+
+model ApiKey {
+  id        Int      @id @default(autoincrement())
+  provider  String
+  label     String
+  apiKey    String   @map("api_key")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("api_keys")
+}
+
+model AppIntegration {
+  id                Int       @id @default(autoincrement())
+  productId         Int       @unique @map("product_id")
+  integrationToken  String    @unique @map("integration_token")
+  heartbeatEnabled  Boolean   @default(true) @map("heartbeat_enabled")
+  metricsEnabled    Boolean   @default(true) @map("metrics_enabled")
+  eventsEnabled     Boolean   @default(true) @map("events_enabled")
+  lastHeartbeatAt   DateTime? @map("last_heartbeat_at")
+  healthStatus      String    @default("unknown") @map("health_status")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  product           Product   @relation(fields: [productId], references: [id])
+
+  @@map("app_integrations")
+}
+
+model AppMetricDefinition {
+  id             Int     @id @default(autoincrement())
+  productId      Int     @map("product_id")
+  metricKey      String  @map("metric_key")
+  metricLabel    String  @map("metric_label")
+  metricType     String  @default("number") @map("metric_type")
+  defaultChartType String @default("line") @map("default_chart_type")
+  isEnabled      Boolean @default(true) @map("is_enabled")
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  product        Product @relation(fields: [productId], references: [id])
+
+  @@map("app_metric_definitions")
+}
+
+model AppMetricPoint {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  metricKey   String   @map("metric_key")
+  metricValue Float    @map("metric_value")
+  metricLabel String   @default("") @map("metric_label")
+  timestamp   DateTime @default(now())
+
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@map("app_metric_points")
+}
+
+model AppEvent {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  eventType String   @map("event_type")
+  severity  String   @default("info")
+  title     String
+  message   String   @default("")
+  timestamp DateTime @default(now())
+
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@map("app_events")
+}
+
+model DashboardWidgetConfig {
+  id           Int     @id @default(autoincrement())
+  productId    Int?    @map("product_id")
+  widgetKey    String  @map("widget_key")
+  widgetType   String  @map("widget_type")
+  isVisible    Boolean @default(true) @map("is_visible")
+  sortOrder    Int     @default(0) @map("sort_order")
+  settingsJson String  @default("{}") @map("settings_json")
+
+  product      Product? @relation(fields: [productId], references: [id])
+
+  @@map("dashboard_widget_configs")
+}
+
+model ContactSubmission {
+  id               Int      @id @default(autoincrement())
+  name             String
+  email            String
+  companyOrProject String   @default("") @map("company_or_project")
+  message          String
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("contact_submissions")
+}
+
+model WaitlistEntry {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  interest  String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist_entries")
+}
