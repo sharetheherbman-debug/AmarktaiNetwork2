@@ -257,7 +257,7 @@ export default function HomePage() {
       {/* ── HERO ──────────────────────────────────────────────── */}
       <section
         ref={heroRef}
-        className="relative min-h-screen flex items-center justify-center overflow-hidden"
+        className="relative min-h-[90vh] flex items-end justify-center overflow-hidden pb-12 sm:pb-16"
       >
         {/* Network canvas */}
         <NetworkCanvas className="absolute inset-0 w-full h-full" />
@@ -284,14 +284,14 @@ export default function HomePage() {
         {/* Content — parallax wrapper */}
         <motion.div
           style={{ y: heroY, opacity: heroOpacity }}
-          className="relative z-10 container mx-auto px-6 text-center"
+          className="relative z-10 container mx-auto px-6 text-center pt-24 lg:pt-28"
         >
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="inline-flex items-center gap-2.5 glass px-5 py-2.5 rounded-full mb-10 border border-blue-500/20"
+            className="inline-flex items-center gap-2.5 glass px-5 py-2.5 rounded-full mb-6 border border-blue-500/20"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
             <span className="text-sm font-medium text-blue-200 tracking-wide">
@@ -305,10 +305,10 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-[clamp(3.5rem,10vw,7.5rem)] font-black leading-[0.92] tracking-tight mb-8"
+            className="text-[clamp(2.5rem,6.5vw,5rem)] font-black leading-[0.93] tracking-tight mb-5"
           >
             <span className="block text-white/85">Intelligence</span>
-            <span className="block gradient-text-blue-cyan py-2">Engineered</span>
+            <span className="block gradient-text-blue-cyan py-1">Engineered</span>
             <span className="block text-white/85">for Impact</span>
           </motion.h1>
 
@@ -317,7 +317,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.65 }}
-            className="max-w-2xl mx-auto text-lg md:text-xl text-blue-100/60 mb-12 leading-relaxed"
+            className="max-w-2xl mx-auto text-base md:text-lg text-blue-100/60 mb-7 leading-relaxed"
           >
             Amarktai Network is an AI technology ecosystem — 8 interconnected
             applications built to transform how Africa works, learns, trades, and connects.
@@ -328,7 +328,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.85 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-24"
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-10"
           >
             <Link
               href="/apps"
