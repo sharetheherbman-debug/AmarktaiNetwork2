@@ -1,12 +1,6 @@
 import Link from 'next/link'
 import { Zap, Twitter, Linkedin, Github, ArrowRight } from 'lucide-react'
 
-const apps = [
-  'Amarktai Crypto', 'Amarktai Forex', 'Faith Haven', 'Learn Digital',
-  'Jobs SA', 'Kinship', 'Amarktai Secure', 'Crowd Lens',
-  'Amarktai Marketing', 'EquiProfile',
-]
-
 export default function Footer() {
   return (
     <footer className="border-t border-white/5 bg-[#050816] relative overflow-hidden">
@@ -17,7 +11,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
           {/* Brand */}
-          <div className="md:col-span-4">
+          <div className="md:col-span-6">
             <Link href="/" className="flex items-center gap-2.5 mb-5 group w-fit">
               <div className="relative">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 flex items-center justify-center">
@@ -53,7 +47,7 @@ export default function Footer() {
           </div>
 
           {/* Company */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Company</h4>
             <ul className="space-y-2.5">
               {[
@@ -71,14 +65,22 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Network */}
-          <div className="md:col-span-6">
-            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Network</h4>
-            <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
-              {apps.map(app => (
-                <span key={app} className="text-xs text-slate-600 font-mono">{app}</span>
+          {/* Legal */}
+          <div className="md:col-span-3">
+            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Legal</h4>
+            <ul className="space-y-2.5">
+              {[
+                { href: '/privacy', label: 'Privacy Policy' },
+                { href: '/terms', label: 'Terms of Service' },
+              ].map(l => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-sm text-slate-500 hover:text-white transition-colors group flex items-center gap-1">
+                    {l.label}
+                    <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </div>
 
@@ -88,10 +90,6 @@ export default function Footer() {
           <p className="text-xs text-slate-600 font-mono">
             © {new Date().getFullYear()} Amarktai Network. All rights reserved.
           </p>
-          <div className="flex items-center gap-6">
-            <Link href="/privacy" className="text-xs text-slate-500 font-mono hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="text-xs text-slate-500 font-mono hover:text-white transition-colors">Terms of Service</Link>
-          </div>
         </div>
       </div>
     </footer>
