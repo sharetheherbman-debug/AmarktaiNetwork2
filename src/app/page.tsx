@@ -55,20 +55,22 @@ function resolveText(t: string | (() => string)): string {
 interface LogLine { id: number; time: string; label: string; text: string; color: string }
 
 function LiveTerminal() {
-  const [lines, setLines] = useState<LogLine[]>(() =>
-    logPool.slice(0, 6).map((l, i) => ({
-      id: i,
-      time: getTimestamp(),
-      label: l.label,
-      text: resolveText(l.text),
-      color: l.color,
-    }))
-  )
+  const [lines, setLines] = useState<LogLine[]>([])
   const [cursor, setCursor] = useState(true)
   const idRef = useRef(100)
   const poolIdxRef = useRef(6)
 
   useEffect(() => {
+    // Populate initial lines on the client only to avoid hydration mismatch
+    setLines(
+      logPool.slice(0, 6).map((l, i) => ({
+        id: i,
+        time: getTimestamp(),
+        label: l.label,
+        text: resolveText(l.text),
+        color: l.color,
+      }))
+    )
     const cursorInterval = setInterval(() => setCursor(v => !v), 530)
     const lineInterval = setInterval(() => {
       const entry = logPool[poolIdxRef.current % logPool.length]
@@ -101,25 +103,28 @@ function LiveTerminal() {
           </span>
         </div>
       </div>
-      <div className="p-5 font-mono text-[11px] space-y-2.5 min-h-[300px] overflow-hidden">
-        <AnimatePresence initial={false}>
-          {lines.map((line) => (
-            <motion.div
-              key={line.id}
-              initial={{ opacity: 0, x: -10, height: 0 }}
-              animate={{ opacity: 1, x: 0, height: 'auto' }}
-              transition={{ duration: 0.25 }}
-              className="flex gap-3"
-            >
-              <span className="text-blue-500/35 shrink-0">[{line.time}]</span>
-              <span className={`font-bold shrink-0 w-[4.5rem] ${line.color}`}>{line.label}</span>
-              <span className="text-blue-100/65">{line.text}</span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        <div className="flex gap-3 pt-1">
-          <span className="text-blue-500/35">{'>'}</span>
-          <span className={`text-cyan-400 font-bold transition-opacity duration-100 ${cursor ? 'opacity-100' : 'opacity-0'}`}>█</span>
+      <div className="p-5 font-mono text-[11px] h-[300px] overflow-hidden flex flex-col justify-end">
+        <div className="space-y-2.5">
+          <AnimatePresence initial={false} mode="popLayout">
+            {lines.map((line) => (
+              <motion.div
+                key={line.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex gap-3"
+              >
+                <span className="text-blue-500/35 shrink-0">[{line.time}]</span>
+                <span className={`font-bold shrink-0 w-[4.5rem] ${line.color}`}>{line.label}</span>
+                <span className="text-blue-100/65">{line.text}</span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          <div className="flex gap-3 pt-1">
+            <span className="text-blue-500/35">{'>'}</span>
+            <span className={`text-cyan-400 font-bold transition-opacity duration-100 ${cursor ? 'opacity-100' : 'opacity-0'}`}>█</span>
+          </div>
         </div>
       </div>
     </div>
@@ -225,73 +230,6 @@ const aiFeatures = [
     icon: CheckCircle,
     title: 'Explainable AI',
     description: 'Every decision is transparent, auditable, and fully traceable.',
-  },
-]
-
-const ecosystemApps = [
-  {
-    name: 'Amarktai Crypto',
-    tag: 'Finance · AI',
-    description: 'AI-driven cryptocurrency trading intelligence with real-time signal generation.',
-    gradient: 'from-blue-600 to-cyan-500',
-    letter: 'AC',
-    href: null,
-  },
-  {
-    name: 'Amarktai Forex',
-    tag: 'Finance · AI',
-    description: 'Institutional-grade forex analysis powered by proprietary AI prediction models.',
-    gradient: 'from-violet-600 to-blue-500',
-    letter: 'AF',
-    href: null,
-  },
-  {
-    name: 'Faith Haven',
-    tag: 'Community · Web',
-    description: 'A digital sanctuary connecting faith communities worldwide.',
-    gradient: 'from-amber-500 to-orange-500',
-    letter: 'FH',
-    href: null,
-  },
-  {
-    name: 'Learn Digital',
-    tag: 'EdTech · AI',
-    description: 'Personalized AI learning journeys for Africa\'s digital economy.',
-    gradient: 'from-emerald-600 to-teal-500',
-    letter: 'LD',
-    href: null,
-  },
-  {
-    name: 'Jobs SA',
-    tag: 'HR Tech · AI',
-    description: 'AI-powered job matching for the South African workforce.',
-    gradient: 'from-cyan-600 to-blue-500',
-    letter: 'JS',
-    href: null,
-  },
-  {
-    name: 'Kinship',
-    tag: 'Social · AI',
-    description: 'Intelligent social networking built around meaningful, lasting connections.',
-    gradient: 'from-pink-600 to-violet-500',
-    letter: 'KS',
-    href: null,
-  },
-  {
-    name: 'Amarktai Marketing',
-    tag: 'MarTech · AI',
-    description: 'AI-powered marketing intelligence and automation for modern growth teams.',
-    gradient: 'from-rose-600 to-pink-500',
-    letter: 'AM',
-    href: null,
-  },
-  {
-    name: 'EquiProfile',
-    tag: 'Finance · Web',
-    description: 'Professional equity profiling and financial intelligence for investors.',
-    gradient: 'from-indigo-600 to-blue-500',
-    letter: 'EP',
-    href: 'https://equiprofile.online',
   },
 ]
 
@@ -639,81 +577,95 @@ export default function HomePage() {
 
       <div className="section-divider" />
 
-      {/* ── THE ECOSYSTEM ─────────────────────────────────────── */}
+      {/* ── ONE NETWORK. ONE VISION. ──────────────────────────── */}
       <motion.section
         ref={ecosystemRef}
         variants={sectionVariants}
         initial="hidden"
         animate={ecosystemInView ? 'visible' : 'hidden'}
-        className="relative py-32 px-6"
+        className="relative py-40 px-6 overflow-hidden"
       >
-        <div className="relative container mx-auto max-w-6xl">
-          <div className="text-center mb-20">
-            <motion.div
-              variants={itemVariants}
-              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-blue-500/20"
-            >
-              <span className="text-[11px] font-bold text-blue-400 uppercase tracking-[0.18em]">
-                The Ecosystem
-              </span>
-            </motion.div>
+        {/* Multi-layered aurora background */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[500px] bg-blue-600/8 rounded-full blur-[140px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-violet-600/8 rounded-full blur-[120px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[200px] bg-cyan-500/6 rounded-full blur-[80px]" />
+        </div>
 
-            <motion.h2
-              variants={itemVariants}
-              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
-            >
-              One Network.{' '}
-              <span className="gradient-text">One Vision.</span>
-            </motion.h2>
+        {/* Subtle grid overlay */}
+        <div className="absolute inset-0 grid-bg opacity-10 pointer-events-none" />
 
-            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
-              Every application is a node in a larger intelligence network — each one stronger together.
-            </motion.p>
-          </div>
+        <div className="relative container mx-auto max-w-5xl text-center">
+          {/* Eyebrow */}
+          <motion.div
+            variants={itemVariants}
+            className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-10 border border-blue-500/20"
+          >
+            <motion.span
+              className="w-1.5 h-1.5 rounded-full bg-cyan-400"
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-[0.18em]">
+              The Vision
+            </span>
+          </motion.div>
 
-          {/* App cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
-            {ecosystemApps.map((app) => {
-              const Card = app.href ? 'a' : 'div'
-              const cardProps = app.href
-                ? { href: app.href, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `${app.name} — opens in new window` }
-                : {}
-              return (
-                <motion.div
-                  key={app.name}
-                  variants={itemVariants}
-                  whileHover={{ y: -5, boxShadow: '0 24px 48px rgba(0,0,0,0.45)' }}
-                  className={`glass-card p-6 rounded-2xl border border-white/[0.06] transition-all duration-300 group ${app.href ? 'cursor-pointer' : 'cursor-default'}`}
-                >
-                  <Card {...cardProps} className="block">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div
-                        className={`w-12 h-12 rounded-xl bg-gradient-to-br ${app.gradient} flex items-center justify-center text-white font-bold text-[11px] tracking-wide shrink-0`}
-                      >
-                        {app.letter}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-white text-sm leading-tight">{app.name}</h3>
-                        <span className="text-[11px] text-blue-400/55 mt-0.5 block">{app.tag}</span>
-                      </div>
-                    </div>
-                    <p className="text-[13px] text-blue-100/45 leading-relaxed">{app.description}</p>
-                  </Card>
-                </motion.div>
-              )
-            })}
-          </div>
+          {/* Main statement */}
+          <motion.h2
+            variants={itemVariants}
+            className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-tight mb-8"
+          >
+            <span className="block text-white/90">One Network.</span>
+            <span className="block gradient-text-blue-cyan py-2">One Vision.</span>
+          </motion.h2>
 
-          <motion.div variants={itemVariants} className="text-center">
+          {/* Supporting copy */}
+          <motion.p
+            variants={itemVariants}
+            className="text-lg md:text-xl text-blue-100/55 max-w-2xl mx-auto leading-relaxed mb-6"
+          >
+            Every application we build is a node in a single, unified intelligence network.
+            Each product is stronger for every other product that exists — compounding intelligence,
+            compounding impact.
+          </motion.p>
+
+          <motion.p
+            variants={itemVariants}
+            className="text-base text-blue-100/40 max-w-xl mx-auto leading-relaxed mb-14"
+          >
+            From finance to education, social connection to cybersecurity — one ecosystem,
+            one underlying intelligence layer, one unstoppable vision.
+          </motion.p>
+
+          {/* Premium divider treatment */}
+          <motion.div variants={itemVariants} className="flex items-center justify-center gap-6 mb-14">
+            <div className="h-px w-24 bg-gradient-to-r from-transparent to-blue-500/40" />
+            <div className="w-2 h-2 rounded-full bg-blue-500/60" />
+            <div className="h-px w-8 bg-blue-500/40" />
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/70" />
+            <div className="h-px w-8 bg-violet-500/40" />
+            <div className="w-2 h-2 rounded-full bg-violet-500/60" />
+            <div className="h-px w-24 bg-gradient-to-l from-transparent to-violet-500/40" />
+          </motion.div>
+
+          {/* CTA */}
+          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/apps"
-              className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-semibold transition-colors duration-200 group"
+              className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
             >
-              View full ecosystem
+              Explore the Ecosystem
               <ArrowRight
-                size={15}
+                size={17}
                 className="group-hover:translate-x-1 transition-transform duration-200"
               />
+            </Link>
+            <Link
+              href="/about"
+              className="btn-ghost px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center"
+            >
+              Our Story
             </Link>
           </motion.div>
         </div>
