@@ -7,12 +7,12 @@ import Footer from '@/components/layout/Footer'
 import NetworkCanvas from '@/components/NetworkCanvas'
 import {
   TrendingUp, Globe, Heart, BookOpen, Briefcase, Users, Shield, Camera,
-  Sparkles, ArrowRight, Lock, Zap, Star,
+  Sparkles, ArrowRight, Lock, Zap, Star, Megaphone, BarChart2,
 } from 'lucide-react'
 import Link from 'next/link'
 
 type AppStatus = 'invite_only' | 'in_development' | 'coming_soon' | 'live'
-type Category = 'all' | 'finance' | 'community' | 'education' | 'employment' | 'social' | 'security'
+type Category = 'all' | 'finance' | 'community' | 'education' | 'employment' | 'social' | 'security' | 'marketing'
 
 interface App {
   id: number
@@ -29,6 +29,7 @@ interface App {
   description: string
   longDescription: string
   tags: string[]
+  href?: string
 }
 
 interface HeroStat {
@@ -168,6 +169,39 @@ const apps: App[] = [
     longDescription: 'Crowd Lens is a collaborative visual storytelling platform that combines the power of community with the art of photography and visual media. Events, stories, and moments — captured together.',
     tags: ['Visual Storytelling', 'Photography', 'Community Events', 'Collaboration'],
   },
+  {
+    id: 9,
+    name: 'Amarktai Marketing',
+    code: 'AMKN-009',
+    category: 'Marketing & AI',
+    categoryKey: 'marketing',
+    status: 'coming_soon',
+    featured: false,
+    Icon: Megaphone,
+    gradient: 'from-rose-900/40 to-pink-950/40',
+    glowColor: 'rgba(244,63,94,0.4)',
+    borderColor: 'border-rose-500/30',
+    description: 'AI-powered marketing intelligence and automation for modern growth teams.',
+    longDescription: 'Amarktai Marketing brings AI-driven campaign intelligence, audience segmentation, and automated growth workflows to teams that demand results. Built for performance marketers operating at scale.',
+    tags: ['AI Campaigns', 'Audience Intelligence', 'Automation', 'Growth Analytics'],
+  },
+  {
+    id: 10,
+    name: 'EquiProfile',
+    code: 'AMKN-010',
+    category: 'Finance & Web',
+    categoryKey: 'finance',
+    status: 'live',
+    featured: false,
+    Icon: BarChart2,
+    gradient: 'from-indigo-900/40 to-blue-950/40',
+    glowColor: 'rgba(99,102,241,0.4)',
+    borderColor: 'border-indigo-500/30',
+    description: 'Professional equity profiling and financial intelligence for serious investors.',
+    longDescription: 'EquiProfile delivers deep equity analysis and financial profiling tools for investors who demand precision. Comprehensive company profiles, financial metrics, and investment intelligence in one clean platform.',
+    tags: ['Equity Analysis', 'Financial Profiles', 'Investment Intelligence', 'Market Data'],
+    href: 'https://equiprofile.online',
+  },
 ]
 
 const statusConfig: Record<AppStatus, { label: string; dotColor: string; textColor: string; bg: string }> = {
@@ -185,10 +219,11 @@ const categoryFilters: { key: Category; label: string }[] = [
   { key: 'employment', label: 'Employment' },
   { key: 'social', label: 'Social' },
   { key: 'security', label: 'Security' },
+  { key: 'marketing', label: 'Marketing' },
 ]
 
 const heroStats: HeroStat[] = [
-  { value: '8', label: 'Platforms', IconComp: Zap },
+  { value: '10+', label: 'Platforms', IconComp: Zap },
   { value: '1', label: 'Network', IconComp: null },
   { value: 'AI', label: 'Powered', IconComp: null },
 ]
@@ -316,8 +351,8 @@ function AppCard({ app, featured = false, index }: { app: App; featured?: boolea
           ))}
         </div>
 
-        {/* Request access CTA */}
-        {app.status === 'invite_only' && (
+        {/* Request access / visit CTA */}
+        {app.status === 'invite_only' && !app.href && (
           <div className="relative z-10 pt-4 mt-4 border-t border-white/[0.08]">
             <Link
               href="/contact"
@@ -326,6 +361,19 @@ function AppCard({ app, featured = false, index }: { app: App; featured?: boolea
               <span>Request Access</span>
               <ArrowRight className="w-4 h-4 group-hover/cta:translate-x-1 transition-transform duration-200" />
             </Link>
+          </div>
+        )}
+        {app.href && (
+          <div className="relative z-10 pt-4 mt-4 border-t border-white/[0.08]">
+            <a
+              href={app.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-white transition-colors duration-200 group/cta"
+            >
+              <span>Visit Site</span>
+              <ArrowRight className="w-4 h-4 group-hover/cta:translate-x-1 transition-transform duration-200" />
+            </a>
           </div>
         )}
       </motion.div>
@@ -366,7 +414,7 @@ export default function AppsPage() {
             className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-xs font-semibold text-blue-400 mb-8 border border-blue-500/20"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            8 Platforms · 1 Network · Limitless Potential
+            Connected by One Vision · AI-Powered Network
           </motion.div>
 
           {/* Title */}

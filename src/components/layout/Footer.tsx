@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { Zap, Twitter, Linkedin, Github, ArrowRight } from 'lucide-react'
 
-const ecosystem = [
-  'Amarktai Crypto', 'Amarktai Forex', 'Faith Haven',
-  'Learn Digital', 'Jobs SA', 'Kinship', 'Amarktai Secure', 'Crowd Lens',
+const apps = [
+  'Amarktai Crypto', 'Amarktai Forex', 'Faith Haven', 'Learn Digital',
+  'Jobs SA', 'Kinship', 'Amarktai Secure', 'Crowd Lens',
+  'Amarktai Marketing', 'EquiProfile',
 ]
 
 export default function Footer() {
@@ -29,7 +30,6 @@ export default function Footer() {
                   <span className="gradient-text-blue-cyan">Amarktai</span>
                   <span className="text-slate-400 ml-1.5 font-light">Network</span>
                 </span>
-                <span className="text-[10px] text-slate-600 font-mono tracking-widest uppercase">AI Ecosystem</span>
               </div>
             </Link>
             <p className="text-slate-500 text-sm leading-relaxed max-w-xs mb-6">
@@ -71,12 +71,12 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Ecosystem */}
+          {/* Network */}
           <div className="md:col-span-6">
-            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Ecosystem</h4>
+            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Network</h4>
             <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
-              {ecosystem.map(app => (
-                <span key={app} className="text-sm text-slate-600 font-mono text-xs">{app}</span>
+              {apps.map(app => (
+                <span key={app} className="text-xs text-slate-600 font-mono">{app}</span>
               ))}
             </div>
           </div>
@@ -89,8 +89,8 @@ export default function Footer() {
             © {new Date().getFullYear()} Amarktai Network. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
-            <span className="text-xs text-slate-700 font-mono cursor-default hover:text-slate-500 transition-colors">Privacy Policy</span>
-            <span className="text-xs text-slate-700 font-mono cursor-default hover:text-slate-500 transition-colors">Terms of Service</span>
+            <Link href="/privacy" className="text-xs text-slate-500 font-mono hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="text-xs text-slate-500 font-mono hover:text-white transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>

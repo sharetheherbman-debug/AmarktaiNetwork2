@@ -97,7 +97,7 @@ export default function Header() {
                   <span className="gradient-text-blue-cyan">Amarktai</span>
                   <span className="text-slate-300 ml-1.5 font-light">Network</span>
                 </span>
-                <span className="text-[10px] text-slate-600 tracking-widest uppercase font-mono">AI Ecosystem</span>
+
               </div>
             </Link>
 

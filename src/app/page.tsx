@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { motion, useScroll, useTransform, useInView } from 'framer-motion'
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
@@ -13,7 +13,6 @@ import {
   Shield,
   BarChart2,
   Server,
-  ChevronDown,
   ArrowRight,
   Cpu,
   Lock,
@@ -23,34 +22,108 @@ import {
   Database,
   CheckCircle,
   Sparkles,
+  Wifi,
 } from 'lucide-react'
 
-/* ─── Animated Counter ──────────────────────────────────────── */
-function AnimatedCounter({ target, suffix = '' }: { target: number; suffix?: string }) {
-  const [count, setCount] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const inView = useInView(ref, { once: true })
+/* ─── Live Terminal Feed ────────────────────────────────────── */
+const logPool = [
+  { label: 'MODEL', text: 'GPT-4 inference engine — online', color: 'text-cyan-400' },
+  { label: 'DATA', text: () => `Real-time market feed — ${(Math.floor(Math.random()*400)+600)} signals/s`, color: 'text-blue-400' },
+  { label: 'RISK', text: () => `Portfolio risk model — accuracy ${(93+Math.random()*3).toFixed(1)}%`, color: 'text-green-400' },
+  { label: 'PATTERN', text: 'Anomaly detected in BTC/USD — flagging', color: 'text-yellow-400' },
+  { label: 'NLP', text: () => `Sentiment scan — ${(11000+Math.floor(Math.random()*3000)).toLocaleString()} docs indexed`, color: 'text-violet-400' },
+  { label: 'ALERT', text: 'Threat signature matched — quarantine applied', color: 'text-red-400' },
+  { label: 'LEARN', text: () => `Checkpoint saved — epoch ${Math.floor(Math.random()*200)+800} / 1000`, color: 'text-cyan-400' },
+  { label: 'SYS', text: () => `All systems nominal — uptime ${(99.9+Math.random()*0.09).toFixed(2)}%`, color: 'text-green-400' },
+  { label: 'API', text: () => `${Math.floor(Math.random()*500)+1200} req/s — p99: ${Math.floor(Math.random()*30)+18}ms`, color: 'text-blue-400' },
+  { label: 'SYNC', text: 'Cross-app data layer synced — 6 nodes active', color: 'text-teal-400' },
+  { label: 'AUTH', text: () => `${Math.floor(Math.random()*40)+120} auth events processed`, color: 'text-violet-400' },
+  { label: 'INFER', text: () => `Sub-${Math.floor(Math.random()*30)+55}ms inference — batch complete`, color: 'text-cyan-400' },
+  { label: 'CACHE', text: () => `Cache hit ratio: ${(87+Math.random()*10).toFixed(1)}%`, color: 'text-emerald-400' },
+  { label: 'SCHED', text: 'Training job scheduled — queue position 1', color: 'text-yellow-400' },
+]
+
+function getTimestamp() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+}
+
+function resolveText(t: string | (() => string)): string {
+  return typeof t === 'function' ? t() : t
+}
+
+interface LogLine { id: number; time: string; label: string; text: string; color: string }
+
+function LiveTerminal() {
+  const [lines, setLines] = useState<LogLine[]>(() =>
+    logPool.slice(0, 6).map((l, i) => ({
+      id: i,
+      time: getTimestamp(),
+      label: l.label,
+      text: resolveText(l.text),
+      color: l.color,
+    }))
+  )
+  const [cursor, setCursor] = useState(true)
+  const idRef = useRef(100)
+  const poolIdxRef = useRef(6)
 
   useEffect(() => {
-    if (!inView) return
-    const duration = 1800
-    const steps = 60
-    const stepMs = duration / steps
-    const increment = target / steps
-    let current = 0
-    const timer = setInterval(() => {
-      current += increment
-      if (current >= target) {
-        setCount(target)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(current))
+    const cursorInterval = setInterval(() => setCursor(v => !v), 530)
+    const lineInterval = setInterval(() => {
+      const entry = logPool[poolIdxRef.current % logPool.length]
+      poolIdxRef.current += 1
+      const newLine: LogLine = {
+        id: idRef.current++,
+        time: getTimestamp(),
+        label: entry.label,
+        text: resolveText(entry.text),
+        color: entry.color,
       }
-    }, stepMs)
-    return () => clearInterval(timer)
-  }, [inView, target])
+      setLines(prev => [...prev.slice(-9), newLine])
+    }, 1600)
+    return () => { clearInterval(cursorInterval); clearInterval(lineInterval) }
+  }, [])
 
-  return <span ref={ref}>{count}{suffix}</span>
+  return (
+    <div className="terminal rounded-2xl overflow-hidden ring-1 ring-blue-500/15">
+      <div className="terminal-header">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500/70" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
+          <div className="w-3 h-3 rounded-full bg-green-500/70" />
+          <span className="ml-4 text-xs text-blue-400/50 font-mono flex items-center gap-2">
+            amarktai-ai v2.4.1
+            <span className="inline-flex items-center gap-1 text-green-400/70">
+              <Wifi size={10} />
+              <span className="text-[10px]">live</span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div className="p-5 font-mono text-[11px] space-y-2.5 min-h-[300px] overflow-hidden">
+        <AnimatePresence initial={false}>
+          {lines.map((line) => (
+            <motion.div
+              key={line.id}
+              initial={{ opacity: 0, x: -10, height: 0 }}
+              animate={{ opacity: 1, x: 0, height: 'auto' }}
+              transition={{ duration: 0.25 }}
+              className="flex gap-3"
+            >
+              <span className="text-blue-500/35 shrink-0">[{line.time}]</span>
+              <span className={`font-bold shrink-0 w-[4.5rem] ${line.color}`}>{line.label}</span>
+              <span className="text-blue-100/65">{line.text}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        <div className="flex gap-3 pt-1">
+          <span className="text-blue-500/35">{'>'}</span>
+          <span className={`text-cyan-400 font-bold transition-opacity duration-100 ${cursor ? 'opacity-100' : 'opacity-0'}`}>█</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /* ─── Data ──────────────────────────────────────────────────── */
@@ -132,17 +205,6 @@ const differentiators = [
   },
 ]
 
-const terminalLines = [
-  { time: '09:42:01', label: 'MODEL', text: 'GPT-4 inference engine — online', color: 'text-cyan-400' },
-  { time: '09:42:03', label: 'DATA', text: 'Real-time market feed — 847 signals/s', color: 'text-blue-400' },
-  { time: '09:42:05', label: 'RISK', text: 'Portfolio risk model — accuracy 94.3%', color: 'text-green-400' },
-  { time: '09:42:07', label: 'PATTERN', text: 'Anomaly detected in BTC/USD — flagging', color: 'text-yellow-400' },
-  { time: '09:42:09', label: 'NLP', text: 'Sentiment scan complete — 12,400 docs indexed', color: 'text-violet-400' },
-  { time: '09:42:11', label: 'ALERT', text: 'Threat signature matched — quarantine applied', color: 'text-red-400' },
-  { time: '09:42:13', label: 'LEARN', text: 'Checkpoint saved — epoch 847 / 1000', color: 'text-cyan-400' },
-  { time: '09:42:15', label: 'SYS', text: 'All systems nominal — uptime 99.97%', color: 'text-green-400' },
-]
-
 const aiFeatures = [
   {
     icon: Activity,
@@ -173,6 +235,7 @@ const ecosystemApps = [
     description: 'AI-driven cryptocurrency trading intelligence with real-time signal generation.',
     gradient: 'from-blue-600 to-cyan-500',
     letter: 'AC',
+    href: null,
   },
   {
     name: 'Amarktai Forex',
@@ -180,6 +243,7 @@ const ecosystemApps = [
     description: 'Institutional-grade forex analysis powered by proprietary AI prediction models.',
     gradient: 'from-violet-600 to-blue-500',
     letter: 'AF',
+    href: null,
   },
   {
     name: 'Faith Haven',
@@ -187,6 +251,7 @@ const ecosystemApps = [
     description: 'A digital sanctuary connecting faith communities worldwide.',
     gradient: 'from-amber-500 to-orange-500',
     letter: 'FH',
+    href: null,
   },
   {
     name: 'Learn Digital',
@@ -194,6 +259,7 @@ const ecosystemApps = [
     description: 'Personalized AI learning journeys for Africa\'s digital economy.',
     gradient: 'from-emerald-600 to-teal-500',
     letter: 'LD',
+    href: null,
   },
   {
     name: 'Jobs SA',
@@ -201,6 +267,7 @@ const ecosystemApps = [
     description: 'AI-powered job matching for the South African workforce.',
     gradient: 'from-cyan-600 to-blue-500',
     letter: 'JS',
+    href: null,
   },
   {
     name: 'Kinship',
@@ -208,6 +275,23 @@ const ecosystemApps = [
     description: 'Intelligent social networking built around meaningful, lasting connections.',
     gradient: 'from-pink-600 to-violet-500',
     letter: 'KS',
+    href: null,
+  },
+  {
+    name: 'Amarktai Marketing',
+    tag: 'MarTech · AI',
+    description: 'AI-powered marketing intelligence and automation for modern growth teams.',
+    gradient: 'from-rose-600 to-pink-500',
+    letter: 'AM',
+    href: null,
+  },
+  {
+    name: 'EquiProfile',
+    tag: 'Finance · Web',
+    description: 'Professional equity profiling and financial intelligence for investors.',
+    gradient: 'from-indigo-600 to-blue-500',
+    letter: 'EP',
+    href: 'https://equiprofile.online',
   },
 ]
 
@@ -257,7 +341,7 @@ export default function HomePage() {
       {/* ── HERO ──────────────────────────────────────────────── */}
       <section
         ref={heroRef}
-        className="relative min-h-[90vh] flex items-end justify-center overflow-hidden pb-12 sm:pb-16"
+        className="relative min-h-[90vh] flex items-end justify-center overflow-hidden pb-16 sm:pb-20"
       >
         {/* Network canvas */}
         <NetworkCanvas className="absolute inset-0 w-full h-full" />
@@ -267,9 +351,21 @@ export default function HomePage() {
 
         {/* Aurora blobs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[15%] left-[15%] w-[700px] h-[700px] bg-blue-600/12 rounded-full blur-[140px] animate-float" />
-          <div className="absolute top-[30%] right-[10%] w-[550px] h-[550px] bg-violet-600/12 rounded-full blur-[120px] animate-float-reverse" />
-          <div className="absolute bottom-[10%] left-[45%] w-[450px] h-[450px] bg-cyan-500/8 rounded-full blur-[100px] animate-float" />
+          <motion.div
+            className="absolute top-[15%] left-[15%] w-[700px] h-[700px] bg-blue-600/12 rounded-full blur-[140px]"
+            animate={{ scale: [1, 1.08, 1], opacity: [0.12, 0.18, 0.12] }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute top-[30%] right-[10%] w-[550px] h-[550px] bg-violet-600/12 rounded-full blur-[120px]"
+            animate={{ scale: [1, 1.06, 1], opacity: [0.12, 0.17, 0.12] }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+          />
+          <motion.div
+            className="absolute bottom-[10%] left-[45%] w-[450px] h-[450px] bg-cyan-500/8 rounded-full blur-[100px]"
+            animate={{ scale: [1, 1.1, 1], opacity: [0.08, 0.13, 0.08] }}
+            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          />
         </div>
 
         {/* Radial vignette */}
@@ -293,9 +389,13 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="inline-flex items-center gap-2.5 glass px-5 py-2.5 rounded-full mb-6 border border-blue-500/20"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <motion.span
+              className="w-1.5 h-1.5 rounded-full bg-cyan-400"
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1.8, repeat: Infinity }}
+            />
             <span className="text-sm font-medium text-blue-200 tracking-wide">
-              Building Africa&apos;s Most Advanced AI Ecosystem
+              Building Africa&apos;s Most Advanced AI Platform
             </span>
             <Sparkles size={13} className="text-cyan-400" />
           </motion.div>
@@ -317,10 +417,11 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.65 }}
-            className="max-w-2xl mx-auto text-base md:text-lg text-blue-100/60 mb-7 leading-relaxed"
+            className="max-w-2xl mx-auto text-base md:text-lg text-blue-100/60 mb-10 leading-relaxed"
           >
-            Amarktai Network is an AI technology ecosystem — 8 interconnected
-            applications built to transform how Africa works, learns, trades, and connects.
+            Amarktai Network is an interconnected portfolio of AI applications built to
+            transform how Africa works, learns, trades, and connects — and export that
+            intelligence to the world.
           </motion.p>
 
           {/* CTAs */}
@@ -328,13 +429,13 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.85 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-10"
+            className="flex flex-col sm:flex-row gap-4 justify-center"
           >
             <Link
               href="/apps"
               className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
             >
-              Explore the Ecosystem
+              Explore the Network
               <ArrowRight
                 size={17}
                 className="group-hover:translate-x-1 transition-transform duration-200"
@@ -346,51 +447,6 @@ export default function HomePage() {
             >
               Learn About Us
             </Link>
-          </motion.div>
-
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 1.05 }}
-            className="grid grid-cols-3 gap-6 max-w-sm mx-auto"
-          >
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-black gradient-text-blue-cyan mb-1 tabular-nums">
-                <AnimatedCounter target={8} suffix="+" />
-              </div>
-              <div className="text-[10px] text-blue-300/50 uppercase tracking-[0.2em]">Apps</div>
-            </div>
-
-            <div className="text-center border-x border-blue-500/15">
-              <div className="text-3xl md:text-4xl font-black gradient-text-blue-cyan mb-1">
-                AI
-              </div>
-              <div className="text-[10px] text-blue-300/50 uppercase tracking-[0.2em]">First</div>
-            </div>
-
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-black gradient-text-blue-cyan mb-1 tabular-nums">
-                <AnimatedCounter target={2025} />
-              </div>
-              <div className="text-[10px] text-blue-300/50 uppercase tracking-[0.2em]">Launch</div>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.8 }}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        >
-          <span className="text-[10px] text-blue-400/35 uppercase tracking-[0.25em]">Scroll</span>
-          <motion.div
-            animate={{ y: [0, 7, 0] }}
-            transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-          >
-            <ChevronDown size={18} className="text-blue-400/35" />
           </motion.div>
         </motion.div>
       </section>
@@ -556,46 +612,9 @@ export default function HomePage() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-14 items-center">
-            {/* Terminal */}
+            {/* Live Terminal */}
             <motion.div variants={itemVariants}>
-              <div className="terminal rounded-2xl overflow-hidden ring-1 ring-blue-500/15">
-                <div className="terminal-header">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/70" />
-                    <span className="ml-4 text-xs text-blue-400/50 font-mono">
-                      amarktai-ai v2.4.1 — live feed
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-5 font-mono text-[11px] space-y-2.5 max-h-[300px] overflow-hidden">
-                  {terminalLines.map((line, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={aiInView ? { opacity: 1, x: 0 } : {}}
-                      transition={{ delay: 0.3 + i * 0.12, duration: 0.35 }}
-                      className="flex gap-3"
-                    >
-                      <span className="text-blue-500/35 shrink-0">[{line.time}]</span>
-                      <span className={`font-bold shrink-0 w-16 ${line.color}`}>{line.label}</span>
-                      <span className="text-blue-100/65">{line.text}</span>
-                    </motion.div>
-                  ))}
-
-                  {/* Blinking cursor */}
-                  <motion.div
-                    animate={aiInView ? { opacity: [0, 1, 0] } : {}}
-                    transition={{ delay: 1.8, repeat: Infinity, duration: 0.9 }}
-                    className="flex gap-3 pt-1"
-                  >
-                    <span className="text-blue-500/35">{'>'}</span>
-                    <span className="text-cyan-400 font-bold">_</span>
-                  </motion.div>
-                </div>
-              </div>
+              <LiveTerminal />
             </motion.div>
 
             {/* Features list */}
@@ -643,7 +662,7 @@ export default function HomePage() {
               variants={itemVariants}
               className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
             >
-              8 Apps.{' '}
+              One Network.{' '}
               <span className="gradient-text">One Vision.</span>
             </motion.h2>
 
@@ -654,27 +673,35 @@ export default function HomePage() {
 
           {/* App cards */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
-            {ecosystemApps.map((app) => (
-              <motion.div
-                key={app.name}
-                variants={itemVariants}
-                whileHover={{ y: -5, boxShadow: '0 24px 48px rgba(0,0,0,0.45)' }}
-                className="glass-card p-6 rounded-2xl border border-white/[0.06] transition-all duration-300 cursor-default group"
-              >
-                <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className={`w-12 h-12 rounded-xl bg-gradient-to-br ${app.gradient} flex items-center justify-center text-white font-bold text-[11px] tracking-wide shrink-0`}
-                  >
-                    {app.letter}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-sm leading-tight">{app.name}</h3>
-                    <span className="text-[11px] text-blue-400/55 mt-0.5 block">{app.tag}</span>
-                  </div>
-                </div>
-                <p className="text-[13px] text-blue-100/45 leading-relaxed">{app.description}</p>
-              </motion.div>
-            ))}
+            {ecosystemApps.map((app) => {
+              const Card = app.href ? 'a' : 'div'
+              const cardProps = app.href
+                ? { href: app.href, target: '_blank', rel: 'noopener noreferrer' }
+                : {}
+              return (
+                <motion.div
+                  key={app.name}
+                  variants={itemVariants}
+                  whileHover={{ y: -5, boxShadow: '0 24px 48px rgba(0,0,0,0.45)' }}
+                  className={`glass-card p-6 rounded-2xl border border-white/[0.06] transition-all duration-300 group ${app.href ? 'cursor-pointer' : 'cursor-default'}`}
+                >
+                  <Card {...cardProps} className="block">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div
+                        className={`w-12 h-12 rounded-xl bg-gradient-to-br ${app.gradient} flex items-center justify-center text-white font-bold text-[11px] tracking-wide shrink-0`}
+                      >
+                        {app.letter}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-sm leading-tight">{app.name}</h3>
+                        <span className="text-[11px] text-blue-400/55 mt-0.5 block">{app.tag}</span>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-blue-100/45 leading-relaxed">{app.description}</p>
+                  </Card>
+                </motion.div>
+              )
+            })}
           </div>
 
           <motion.div variants={itemVariants} className="text-center">

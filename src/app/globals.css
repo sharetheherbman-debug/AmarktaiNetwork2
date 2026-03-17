@@ -131,13 +131,13 @@ code, pre, .font-mono {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.75rem;
-  background: linear-gradient(135deg, #3B82F6, #22D3EE);
+  background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
   color: white;
   font-weight: 600;
   font-size: 0.875rem;
   border-radius: 0.75rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 20px rgba(29, 78, 216, 0.45);
   position: relative;
   overflow: hidden;
 }
@@ -146,7 +146,7 @@ code, pre, .font-mono {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #60A5FA, #38BDF8);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -157,7 +157,7 @@ code, pre, .font-mono {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(59, 130, 246, 0.5), 0 0 0 1px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 30px rgba(29, 78, 216, 0.55), 0 0 0 1px rgba(37, 99, 235, 0.3);
 }
 
 .btn-ghost {
