@@ -51,8 +51,8 @@ const navGroups: NavGroup[] = [
   {
     label: 'Administration',
     items: [
+      { href: '/admin/dashboard/config', label: 'Setup Matrix', icon: Settings, color: 'text-amber-400' },
       { href: '/admin/dashboard/api-keys', label: 'API Keys', icon: Key, color: 'text-violet-400' },
-      { href: '/admin/dashboard/config', label: 'Configuration', icon: Settings, color: 'text-slate-400' },
       { href: '/admin/dashboard/contacts', label: 'Contacts', icon: Mail, color: 'text-pink-400' },
       { href: '/admin/dashboard/waitlist', label: 'Waitlist', icon: Users, color: 'text-indigo-400' },
     ],
@@ -82,7 +82,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-lg opacity-30 group-hover:opacity-50 transition-opacity" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+            <p className="text-sm font-bold text-white font-heading">
               <span className="gradient-text-blue-cyan">Amarktai</span>
             </p>
             <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Super Brain</p>
@@ -221,7 +221,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {currentPage && (
               <>
                 <currentPage.icon className={`w-4 h-4 ${currentPage.color}`} />
-                <span className="text-sm font-medium text-white" style={{ fontFamily: 'Space Grotesk' }}>{currentPage.label}</span>
+                <span className="text-sm font-medium text-white font-heading">{currentPage.label}</span>
               </>
             )}
           </div>

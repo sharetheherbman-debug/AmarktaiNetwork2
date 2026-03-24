@@ -74,7 +74,7 @@ export default function WaitlistPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>Waitlist</h1>
+          <h1 className="text-2xl font-bold text-white font-heading">Waitlist</h1>
           <p className="text-sm text-slate-400 mt-1">{entries.length} total signups</p>
         </div>
         {entries.length > 0 && (
@@ -93,7 +93,7 @@ export default function WaitlistPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {Object.entries(interestCounts).map(([key, count]) => (
             <div key={key} className="glass rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>{count}</p>
+              <p className="text-lg font-bold text-white font-heading">{count}</p>
               <p className="text-xs text-slate-400 mt-0.5 truncate">{interestLabels[key] || key}</p>
             </div>
           ))}

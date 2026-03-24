@@ -120,8 +120,7 @@ export default function AIUsagePage() {
       >
         <div>
           <h1
-            className="text-2xl font-bold text-white"
-            style={{ fontFamily: 'Space Grotesk' }}
+            className="text-2xl font-bold text-white font-heading"
           >
             AI Usage
           </h1>
@@ -183,7 +182,7 @@ export default function AIUsagePage() {
           className="glass rounded-2xl p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+            <h2 className="text-sm font-semibold text-white font-heading">
               Execution Mode Distribution
             </h2>
             <BarChart3 className="w-4 h-4 text-slate-600" />
@@ -211,7 +210,7 @@ export default function AIUsagePage() {
         className="glass rounded-2xl p-6"
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+          <h2 className="text-sm font-semibold text-white font-heading">
             Request Trace Log
           </h2>
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/50 border border-slate-700/50">

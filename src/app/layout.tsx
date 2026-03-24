@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
+import '@fontsource-variable/space-grotesk'
 import CommandBar from '@/components/CommandBar'
 
 const geistSans = localFont({
@@ -18,9 +19,9 @@ const geistMono = localFont({
 })
 
 export const metadata: Metadata = {
-  title: 'Amarktai Network — The AI Command Center',
-  description: "Amarktai Network is the central nervous system for AI operations. Multi-model orchestration, shared memory, monitoring, and automation across connected apps. Africa's premier AI operations platform.",
-  keywords: ['AI operations', 'AI orchestration', 'multi-model AI', 'AI operating layer', 'Africa', 'connected apps', 'AI monitoring'],
+  title: 'Amarktai Network — One Brain. Multiple Apps.',
+  description: "Amarktai Network is the AI operating layer for a connected ecosystem of apps. Multi-model orchestration, shared intelligence, centralized monitoring, and self-healing automation — one brain powering everything.",
+  keywords: ['AI operations', 'AI orchestration', 'multi-model AI', 'AI operating layer', 'Africa', 'connected apps', 'AI monitoring', 'shared intelligence'],
   authors: [{ name: 'Amarktai Network' }],
   robots: 'index, follow',
 }

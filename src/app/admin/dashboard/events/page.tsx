@@ -99,8 +99,7 @@ export default function EventsPage() {
       >
         <div>
           <h1
-            className="text-2xl font-bold text-white"
-            style={{ fontFamily: 'Space Grotesk' }}
+            className="text-2xl font-bold text-white font-heading"
           >
             Events & Logs
           </h1>

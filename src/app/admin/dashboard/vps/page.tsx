@@ -99,7 +99,7 @@ function AppCard({ product, series }: { product: VpsProduct; series: VpsSeries |
         <div className="flex items-center gap-2.5">
           {healthIcon(product.integration?.healthStatus ?? 'unknown')}
           <div>
-            <p className="font-semibold text-white text-sm" style={{ fontFamily: 'Space Grotesk' }}>{product.name}</p>
+            <p className="font-semibold text-white text-sm font-heading">{product.name}</p>
             <p className="text-xs text-slate-500">
               {hostingScopeLabel[product.hostingScope] ?? product.hostingScope}
               {product.integration?.uptime !== null && product.integration?.uptime !== undefined && (
@@ -258,7 +258,7 @@ export default function VpsMonitorPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Server className="w-5 h-5 text-blue-400" />
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>VPS Monitor</h1>
+            <h1 className="text-2xl font-bold text-white font-heading">VPS Monitor</h1>
           </div>
           <p className="text-sm text-slate-400">
             Real-time resource usage across all connected applications
@@ -302,7 +302,7 @@ export default function VpsMonitorPage() {
             <div key={label} className="glass rounded-xl p-4 flex items-center gap-3">
               {icon}
               <div>
-                <p className="text-xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>{value}</p>
+                <p className="text-xl font-bold text-white font-heading">{value}</p>
                 <p className="text-xs text-slate-500">{label}</p>
               </div>
             </div>

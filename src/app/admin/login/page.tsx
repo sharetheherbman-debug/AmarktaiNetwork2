@@ -72,7 +72,7 @@ export default function AdminLoginPage() {
               <Shield className="w-7 h-7 text-white" />
             </div>
           </motion.div>
-          <h1 className="text-2xl font-extrabold text-white mb-1" style={{ fontFamily: 'Space Grotesk' }}>
+          <h1 className="text-2xl font-extrabold text-white mb-1 font-heading">
             Secure Access
           </h1>
           <p className="text-slate-500 text-sm font-mono">amarktai.network / admin</p>

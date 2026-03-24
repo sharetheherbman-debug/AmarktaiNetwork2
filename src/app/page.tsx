@@ -25,6 +25,10 @@ import {
   GitBranch,
   Workflow,
   Radio,
+  Megaphone,
+  Plane,
+  User,
+  ShoppingBag,
 } from 'lucide-react'
 
 /* ─── System Architecture Visualisation ─────────────────────── */
@@ -97,37 +101,37 @@ const capabilities = [
   {
     icon: Brain,
     title: 'AI Orchestration',
-    description: 'A central command layer that routes AI requests, manages model selection, and coordinates intelligence across every connected app.',
+    description: 'An intelligent routing engine that classifies every AI request, selects the optimal model, and coordinates intelligence across every connected app — all in real time.',
     color: 'text-blue-400',
   },
   {
     icon: Database,
     title: 'Shared Memory Layer',
-    description: 'Unified context store that lets apps share knowledge, user preferences, and learned insights — so every app gets smarter together.',
+    description: 'A unified context store that lets every connected app share knowledge, user context, and learned patterns — so the entire ecosystem gets smarter together.',
     color: 'text-cyan-400',
   },
   {
     icon: Route,
     title: 'Multi-Model Routing',
-    description: 'Dynamically route each AI task to the right model based on capability, cost, and latency. Not locked to a single provider.',
+    description: 'Dynamically route every AI task to the right model based on capability, cost, and latency. OpenAI, Gemini, Grok, Qwen, NVIDIA — all managed from one layer.',
     color: 'text-violet-400',
   },
   {
     icon: Eye,
-    title: 'Centralized Monitoring',
-    description: 'Observe every AI operation, model call, and data flow across the entire network from a single operations dashboard.',
+    title: 'Live Operations Monitoring',
+    description: 'Observe every AI operation, model call, latency metric, and data flow across the entire network from a single real-time operations interface.',
     color: 'text-teal-400',
   },
   {
     icon: Workflow,
-    title: 'Workflow Automation',
-    description: 'Chain AI operations across apps with intelligent triggers, pipelines, and event-driven automation — all managed centrally.',
+    title: 'Event-Driven Automation',
+    description: 'Chain AI operations across apps with intelligent triggers, configurable pipelines, and event-driven workflows — all orchestrated centrally.',
     color: 'text-emerald-400',
   },
   {
     icon: Shield,
     title: 'Security & Access Control',
-    description: 'Centralized authentication, encryption, and granular permissions governing all AI operations across the ecosystem.',
+    description: 'Centralized authentication, end-to-end encryption, and granular permissions govern every AI operation and integration across the network.',
     color: 'text-blue-400',
   },
 ]
@@ -146,7 +150,7 @@ const differentiators = [
     icon: Layers,
     title: 'Multi-Model Ecosystem',
     description:
-      'Not locked to one AI provider. The Super Brain routes to the best model for each task — OpenAI, local models, or custom-trained — always choosing the optimal path.',
+      'Not locked to one AI provider. Every request is routed to the best model for the task — OpenAI, Gemini, Grok, Qwen, NVIDIA — always choosing the optimal path.',
     color: 'text-violet-400',
     borderColor: 'border-violet-500/25',
     glowColor: 'rgba(139,92,246,0.06)',
@@ -175,7 +179,7 @@ const aiFeatures = [
   {
     icon: Cpu,
     title: 'Intelligent Model Routing',
-    description: 'Each AI request is analysed and routed to the optimal model — balancing capability, speed, and cost in real time.',
+    description: 'Each AI request is classified and routed to the optimal model — balancing capability, speed, and cost in real time.',
     status: 'Rolling out',
   },
   {
@@ -187,7 +191,7 @@ const aiFeatures = [
   {
     icon: GitBranch,
     title: 'Operations Dashboard',
-    description: 'Every model call, latency metric, and cost is tracked and visualised from a single operations dashboard — live in admin.',
+    description: 'Every model call, latency metric, and cost is tracked and visualised from a single real-time operations interface.',
     status: 'Live in admin',
   },
   {
@@ -195,6 +199,64 @@ const aiFeatures = [
     title: 'Full Audit Trail',
     description: 'Complete traceability for every AI decision across the network — built for transparency and compliance.',
     status: 'Rolling out',
+  },
+]
+
+const ecosystemApps = [
+  {
+    icon: Brain,
+    name: 'Amarktai Network',
+    domain: 'amarktai.network',
+    href: 'https://amarktai.network',
+    description: 'The AI operating layer. Brain, orchestration, and shared intelligence for the entire ecosystem.',
+    color: 'text-blue-400',
+    border: 'border-blue-500/20',
+    status: 'Live',
+    statusColor: 'text-emerald-400',
+  },
+  {
+    icon: Megaphone,
+    name: 'Amarktai Marketing',
+    domain: 'amarktai.com',
+    href: 'https://amarktai.com',
+    description: 'AI-powered marketing intelligence and campaign management platform.',
+    color: 'text-violet-400',
+    border: 'border-violet-500/20',
+    status: 'Live',
+    statusColor: 'text-emerald-400',
+  },
+  {
+    icon: Plane,
+    name: 'Amarktai Travel',
+    domain: 'travel.amarktai.com',
+    href: 'https://travel.amarktai.com',
+    description: 'Smart travel planning and itinerary management powered by the shared brain.',
+    color: 'text-cyan-400',
+    border: 'border-cyan-500/20',
+    status: 'Live',
+    statusColor: 'text-emerald-400',
+  },
+  {
+    icon: User,
+    name: 'EquiProfile',
+    domain: 'equiprofile.online',
+    href: 'https://equiprofile.online',
+    description: 'Professional profiling and talent intelligence platform connected to the network.',
+    color: 'text-teal-400',
+    border: 'border-teal-500/20',
+    status: 'Live',
+    statusColor: 'text-emerald-400',
+  },
+  {
+    icon: ShoppingBag,
+    name: 'Amarktai Online',
+    domain: 'amarktai.online',
+    href: 'https://amarktai.online',
+    description: 'E-commerce and digital marketplace platform within the Amarktai ecosystem.',
+    color: 'text-amber-400',
+    border: 'border-amber-500/20',
+    status: 'Live',
+    statusColor: 'text-emerald-400',
   },
 ]
 
@@ -324,9 +386,9 @@ export default function HomePage() {
             transition={{ duration: 0.6, delay: 0.65 }}
             className="max-w-2xl mx-auto text-base md:text-lg text-blue-100/60 mb-10 leading-relaxed"
           >
-            Amarktai Network is the orchestration and intelligence layer that connects every app
-            in the ecosystem. One brain for AI routing, shared memory, monitoring,
-            and automation — built in Africa, engineered for the world.
+            Amarktai Network is the AI operating layer that powers an entire ecosystem of
+            connected apps. Self-learning. Self-healing. One brain shared across multiple
+            machines — built in Africa, engineered for the world.
           </motion.p>
 
           {/* CTAs */}
@@ -387,8 +449,8 @@ export default function HomePage() {
               variants={itemVariants}
               className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
             >
-              What the{' '}
-              <span className="gradient-text">Super Brain</span>
+              What{' '}
+              <span className="gradient-text">Amarktai Network</span>
               {' '}Does
             </motion.h2>
 
@@ -551,6 +613,77 @@ export default function HomePage() {
 
       <div className="section-divider" />
 
+      {/* ── THE LIVE ECOSYSTEM ───────────────────────────────── */}
+      <motion.section
+        variants={sectionVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-80px' }}
+        className="relative py-28 px-6"
+      >
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 right-0 w-[500px] h-[500px] bg-violet-600/5 rounded-full blur-[120px]" />
+        </div>
+
+        <div className="relative container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <motion.div
+              variants={itemVariants}
+              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-emerald-500/20"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+              </span>
+              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-[0.18em]">
+                Live Ecosystem
+              </span>
+            </motion.div>
+
+            <motion.h2
+              variants={itemVariants}
+              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
+            >
+              Five Apps.{' '}
+              <span className="gradient-text-aurora">One Brain.</span>
+            </motion.h2>
+
+            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
+              Every app in the Amarktai ecosystem connects to the same shared intelligence layer.
+              Shared setup. Shared health. Shared orchestration.
+            </motion.p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ecosystemApps.map((app, i) => (
+              <motion.a
+                key={app.name}
+                variants={itemVariants}
+                href={app.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.015, boxShadow: '0 16px 48px rgba(59,130,246,0.08)' }}
+                className={`glass-card p-6 rounded-2xl border ${app.border} transition-all duration-300 cursor-pointer block ${i === 0 ? 'sm:col-span-2 lg:col-span-1' : ''}`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-xl glass flex items-center justify-center ${app.color}`}>
+                    <app.icon size={19} />
+                  </div>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${app.statusColor} glass px-2 py-1 rounded-full border border-emerald-500/20`}>
+                    {app.status}
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1">{app.name}</h3>
+                <p className={`text-[11px] font-mono mb-3 ${app.color} opacity-70`}>{app.domain}</p>
+                <p className="text-xs text-blue-100/50 leading-relaxed">{app.description}</p>
+              </motion.a>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      <div className="section-divider" />
+
       {/* ── ONE NETWORK. ONE BRAIN. ───────────────────────────── */}
       <motion.section
         ref={ecosystemRef}
@@ -600,16 +733,16 @@ export default function HomePage() {
             className="text-lg md:text-xl text-blue-100/55 max-w-2xl mx-auto leading-relaxed mb-6"
           >
             Every application in the Amarktai ecosystem is a node connected to a single,
-            central intelligence layer. The Super Brain orchestrates AI across all of
-            them — shared memory, unified routing, centralized control.
+            evolving intelligence layer. AI routing, shared memory, unified orchestration,
+            and centralized control — one brain, multiple apps, compounding intelligence.
           </motion.p>
 
           <motion.p
             variants={itemVariants}
             className="text-base text-blue-100/40 max-w-xl mx-auto leading-relaxed mb-14"
           >
-            Marketing, travel, finance, community — {appCount} apps and growing,
-            all powered by one shared intelligence layer.
+            Marketing, travel, commerce, identity — {appCount} live apps,
+            all wired to one evolving, self-learning intelligence layer.
           </motion.p>
 
           {/* Premium divider treatment */}

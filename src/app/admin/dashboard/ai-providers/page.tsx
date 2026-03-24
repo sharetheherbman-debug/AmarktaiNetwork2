@@ -130,7 +130,7 @@ function ConfigModal({ provider, onClose, onSaved }: ConfigModalProps) {
               {(() => { const Icon = meta.icon; return <Icon className={`w-4.5 h-4.5 ${meta.color}`} /> })()}
             </div>
             <div>
-              <h2 className="text-base font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+              <h2 className="text-base font-bold text-white font-heading">
                 Configure {provider.displayName}
               </h2>
               <p className="text-xs text-slate-500">{provider.providerKey}</p>
@@ -287,7 +287,7 @@ function ProviderCard({ provider, index, onConfigure, onHealthCheck, checking }:
               <Icon className={`w-5 h-5 ${meta.color}`} />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+              <h3 className="text-sm font-semibold text-white font-heading">
                 {provider.displayName}
               </h3>
               <p className="text-[11px] text-slate-500 font-mono">{provider.providerKey}</p>
@@ -431,7 +431,7 @@ export default function AIProvidersPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+          <h1 className="text-2xl font-bold text-white font-heading">
             AI Provider Vault
           </h1>
           <p className="text-sm text-slate-400 mt-1">
@@ -501,7 +501,7 @@ export default function AIProvidersPage() {
             <ShieldCheck className="w-4 h-4 text-blue-400" />
           </div>
           <div className="flex-1 space-y-1">
-            <h3 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+            <h3 className="text-sm font-semibold text-white font-heading">
               Security — Server-Side Key Storage
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed">

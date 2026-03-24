@@ -199,7 +199,7 @@ export default function IntegrationsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>Integrations</h1>
+          <h1 className="text-2xl font-bold text-white font-heading">Integrations</h1>
           <p className="text-sm text-slate-400 mt-1">Connect apps and manage monitoring feeds</p>
         </div>
         <button
@@ -239,7 +239,7 @@ export default function IntegrationsPage() {
                 <div className="flex items-center gap-3">
                   {healthIcon(integration.healthStatus)}
                   <div>
-                    <p className="font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+                    <p className="font-semibold text-white font-heading">
                       {integration.product.name}
                     </p>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -381,7 +381,7 @@ export default function IntegrationsPage() {
             className="relative bg-[#0B1020] border border-white/10 rounded-2xl p-6 w-full max-w-md"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>New Integration</h2>
+              <h2 className="text-lg font-bold text-white font-heading">New Integration</h2>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>

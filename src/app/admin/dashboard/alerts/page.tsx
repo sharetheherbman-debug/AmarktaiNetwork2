@@ -56,8 +56,7 @@ export default function AlertsPage() {
         transition={{ delay: 0 }}
       >
         <h1
-          className="text-2xl font-bold text-white"
-          style={{ fontFamily: 'Space Grotesk' }}
+          className="text-2xl font-bold text-white font-heading"
         >
           Alerts & Notifications
         </h1>
@@ -79,8 +78,7 @@ export default function AlertsPage() {
           </div>
           <div>
             <h3
-              className="text-sm font-semibold text-white"
-              style={{ fontFamily: 'Space Grotesk' }}
+              className="text-sm font-semibold text-white font-heading"
             >
               Centralized Alert Hub
             </h3>
@@ -101,8 +99,7 @@ export default function AlertsPage() {
         transition={{ delay: 0.1 }}
       >
         <h2
-          className="text-sm font-semibold text-white mb-3"
-          style={{ fontFamily: 'Space Grotesk' }}
+          className="text-sm font-semibold text-white mb-3 font-heading"
         >
           Alert Severity Levels
         </h2>
@@ -124,7 +121,6 @@ export default function AlertsPage() {
                   <Icon className={`w-4 h-4 ${item.textColor}`} />
                   <span
                     className={`text-sm font-semibold ${item.textColor}`}
-                    style={{ fontFamily: 'Space Grotesk' }}
                   >
                     {item.level}
                   </span>
@@ -147,8 +143,7 @@ export default function AlertsPage() {
       >
         <div className="flex items-center justify-between mb-5">
           <h2
-            className="text-sm font-semibold text-white"
-            style={{ fontFamily: 'Space Grotesk' }}
+            className="text-sm font-semibold text-white font-heading"
           >
             Alert Feed
           </h2>
@@ -179,8 +174,7 @@ export default function AlertsPage() {
         transition={{ delay: 0.35 }}
       >
         <h2
-          className="text-sm font-semibold text-white mb-3"
-          style={{ fontFamily: 'Space Grotesk' }}
+          className="text-sm font-semibold text-white mb-3 font-heading"
         >
           Notification Channels
         </h2>

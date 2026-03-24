@@ -180,7 +180,7 @@ export default function BrainChatPage() {
               <Brain className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+              <h1 className="text-sm font-semibold text-white font-heading">
                 Super Brain Gateway
               </h1>
               <div className="flex items-center gap-1.5">
@@ -316,7 +316,7 @@ export default function BrainChatPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-slate-400" />
-                  <h3 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+                  <h3 className="text-sm font-semibold text-white font-heading">
                     Gateway Stats
                   </h3>
                 </div>
@@ -349,7 +349,7 @@ export default function BrainChatPage() {
 
             {/* Recent Events */}
             <div className="glass rounded-2xl p-5 space-y-3 flex-1 min-h-0">
-              <h3 className="text-sm font-semibold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+              <h3 className="text-sm font-semibold text-white font-heading">
                 Recent Events
               </h3>
               <div className="space-y-2 overflow-y-auto">

@@ -75,7 +75,7 @@ export default function ApiKeysPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>API Keys</h1>
+          <h1 className="text-2xl font-bold text-white font-heading">API Keys</h1>
           <p className="text-sm text-slate-400 mt-1">Manage third-party service credentials</p>
         </div>
         <button
@@ -164,7 +164,7 @@ export default function ApiKeysPage() {
             className="relative bg-[#0B1020] border border-white/10 rounded-2xl p-6 w-full max-w-md"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>Add API Key</h2>
+              <h2 className="text-lg font-bold text-white font-heading">Add API Key</h2>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>

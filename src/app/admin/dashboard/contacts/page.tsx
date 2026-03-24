@@ -37,7 +37,7 @@ export default function ContactsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>Contacts</h1>
+          <h1 className="text-2xl font-bold text-white font-heading">Contacts</h1>
           <p className="text-sm text-slate-400 mt-1">{contacts.length} total submissions</p>
         </div>
       </div>

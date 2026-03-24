@@ -243,7 +243,7 @@ function OnboardingWizard({ initial, onClose, onSaved }: WizardProps) {
             <Zap className="w-4 h-4 text-white" fill="white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>
+            <h2 className="text-base font-bold text-white font-heading">
               {initial ? 'Configure App' : 'Register New App'}
             </h2>
             <p className="text-xs text-slate-500">{initial?.name ?? 'New application'}</p>
@@ -575,7 +575,7 @@ function QuickEditModal({ app, onClose, onSaved }: QuickEditProps) {
         className="relative bg-[#0B1020] border border-white/10 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>Quick Edit</h2>
+          <h2 className="text-base font-bold text-white font-heading">Quick Edit</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSave} className="space-y-4">
@@ -672,7 +672,7 @@ export default function AppRegistryPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Space Grotesk' }}>App Registry</h1>
+          <h1 className="text-2xl font-bold text-white font-heading">App Registry</h1>
           <p className="text-sm text-slate-400 mt-1">Single source of truth for the Amarktai ecosystem</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
