@@ -9,7 +9,7 @@ const productSchema = z.object({
   category: z.string().optional(),
   shortDescription: z.string().max(500).optional(),
   longDescription: z.string().optional(),
-  status: z.enum(['live', 'invite_only', 'in_development', 'coming_soon', 'concept']).optional(),
+  status: z.enum(['live', 'ready_to_deploy', 'invite_only', 'in_development', 'coming_soon', 'concept', 'offline']).optional(),
   accessType: z.enum(['public', 'invite', 'private']).optional(),
   featured: z.boolean().optional(),
   primaryUrl: z.string().optional(),
@@ -21,6 +21,14 @@ const productSchema = z.object({
   publicVisibility: z.boolean().optional(),
   monitoringEnabled: z.boolean().optional(),
   integrationEnabled: z.boolean().optional(),
+  appType: z.string().optional(),
+  readyToDeploy: z.boolean().optional(),
+  aiEnabled: z.boolean().optional(),
+  connectedToBrain: z.boolean().optional(),
+  onboardingStatus: z.enum(['unconfigured', 'discovered', 'configuring', 'configured', 'connected']).optional(),
+  onboardingCompletedAt: z.string().datetime().optional().nullable(),
+  appSecret: z.string().optional(),
+  customInstructions: z.string().optional(),
   sortOrder: z.number().int().optional(),
 })
 

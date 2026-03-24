@@ -1,34 +1,30 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useSpring, useInView } from 'framer-motion'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import NetworkCanvas from '@/components/NetworkCanvas'
 import {
   TrendingUp, Globe, Heart, BookOpen, Briefcase, Users, Megaphone, BarChart2,
-  Sparkles, ArrowRight, Lock, Zap, Brain, type LucideIcon,
+  Sparkles, ArrowRight, Lock, Zap, Brain, Shield, type LucideIcon,
 } from 'lucide-react'
 import Link from 'next/link'
-import {
-  ECOSYSTEM_APPS, STATUS_CONFIG, getAppsByStatus,
-  type AmarktaiApp,
-} from '@/lib/apps'
+import { STATUS_CONFIG, type AmarktaiApp } from '@/lib/apps'
 
-// ── Icon lookup ──────────────────────────────────────────
-const ICON_MAP: Record<string, LucideIcon> = {
-  TrendingUp,
-  Globe,
-  Heart,
-  BookOpen,
-  Briefcase,
-  Users,
-  Megaphone,
-  BarChart2,
-}
-
-function resolveIcon(name: string): LucideIcon {
-  return ICON_MAP[name] ?? Sparkles
+// ── Icon lookup (derived from category) ─────────────────────
+function iconForCategory(category: string): LucideIcon {
+  const lower = category.toLowerCase()
+  if (lower.includes('finance') || lower.includes('crypto') || lower.includes('forex')) return TrendingUp
+  if (lower.includes('social') || lower.includes('family')) return Users
+  if (lower.includes('community') || lower.includes('faith')) return Heart
+  if (lower.includes('education') || lower.includes('learn')) return BookOpen
+  if (lower.includes('employment') || lower.includes('job')) return Briefcase
+  if (lower.includes('marketing')) return Megaphone
+  if (lower.includes('media')) return Globe
+  if (lower.includes('security')) return Shield
+  if (lower.includes('analytics') || lower.includes('web')) return BarChart2
+  return Sparkles
 }
 
 // ── Visual config per app (deterministic from index) ─────
@@ -47,7 +43,6 @@ function getVisual(index: number) {
   return GRADIENTS[index % GRADIENTS.length]
 }
 
-// ── Spring config for 3D card ────────────────────────────
 const SPRING_CONFIG = { stiffness: 300, damping: 30 }
 
 // ── App Card ─────────────────────────────────────────────
@@ -60,9 +55,9 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
   const glowX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%'])
   const glowY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%'])
 
-  const status = STATUS_CONFIG[app.status]
-  const visual = getVisual(app.id - 1)
-  const Icon = resolveIcon(app.icon)
+  const status = STATUS_CONFIG[app.status] ?? STATUS_CONFIG['in_development']
+  const visual = getVisual(index)
+  const Icon = iconForCategory(app.category)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!wrapperRef.current) return
@@ -88,7 +83,7 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: index * 0.07 }}
         whileHover={{ y: -12 }}
-        className={`glass-card relative overflow-hidden rounded-2xl border ${visual.border} bg-gradient-to-br ${visual.gradient} flex flex-col group cursor-default p-6 min-h-[380px]`}
+        className={`glass-card relative overflow-hidden rounded-2xl border ${visual.border} bg-gradient-to-br ${visual.gradient} flex flex-col group cursor-default p-6 min-h-[340px]`}
         style={{
           rotateX,
           rotateY,
@@ -132,9 +127,8 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
           </div>
         </div>
 
-        {/* Code + status row */}
-        <div className="relative z-10 flex items-center justify-between mb-2">
-          <span className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">{app.code}</span>
+        {/* Status row */}
+        <div className="relative z-10 flex items-center justify-end mb-2">
           <span className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${status.bg} ${status.textColor}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${status.dotColor}`} />
             {status.label}
@@ -153,22 +147,29 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
         <p className="relative z-10 text-xs text-slate-500 font-medium tracking-wide mb-4">{app.category}</p>
 
         {/* Description */}
-        <p className="relative z-10 text-sm text-slate-400 leading-relaxed flex-1">{app.description}</p>
+        <p className="relative z-10 text-sm text-slate-400 leading-relaxed flex-1">{app.shortDescription}</p>
 
-        {/* Capabilities */}
+        {/* Indicators */}
         <div className="relative z-10 flex flex-wrap gap-1.5 mt-4">
-          {app.capabilities.map(tag => (
-            <span
-              key={tag}
-              className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 font-mono tracking-wide"
-            >
-              {tag}
+          {app.aiEnabled && (
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 font-mono tracking-wide">
+              AI Enabled
             </span>
-          ))}
+          )}
+          {app.monitoringEnabled && (
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono tracking-wide">
+              Monitored
+            </span>
+          )}
+          {app.connectedToBrain && (
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono tracking-wide">
+              Brain Connected
+            </span>
+          )}
         </div>
 
         {/* CTAs */}
-        {app.status === 'invite_only' && !app.publicUrl && (
+        {app.status === 'invite_only' && !app.primaryUrl && (
           <div className="relative z-10 pt-4 mt-4 border-t border-white/[0.08]">
             <Link
               href="/contact"
@@ -179,10 +180,10 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
             </Link>
           </div>
         )}
-        {app.publicUrl && (
+        {app.primaryUrl && (
           <div className="relative z-10 pt-4 mt-4 border-t border-white/[0.08]">
             <a
-              href={app.publicUrl}
+              href={app.primaryUrl}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Visit ${app.name} (opens in new window)`}
@@ -216,15 +217,44 @@ function SectionHeading({ label, color = 'blue' }: { label: string; color?: 'blu
   )
 }
 
+function SkeletonCard() {
+  return (
+    <div className="glass-card rounded-2xl border border-white/5 p-6 min-h-[340px] animate-pulse">
+      <div className="w-16 h-16 rounded-2xl bg-white/5 mb-5" />
+      <div className="h-4 bg-white/5 rounded w-2/3 mb-3" />
+      <div className="h-3 bg-white/5 rounded w-1/3 mb-4" />
+      <div className="h-3 bg-white/5 rounded w-full mb-2" />
+      <div className="h-3 bg-white/5 rounded w-4/5" />
+    </div>
+  )
+}
+
 // ── Page ─────────────────────────────────────────────────
 export default function AppsPage() {
   const ctaRef = useRef<HTMLDivElement>(null)
   const ctaInView = useInView(ctaRef, { once: true })
 
-  const liveApps = getAppsByStatus('live')
-  const inviteApps = getAppsByStatus('invite_only')
-  const devApps = getAppsByStatus('in_development')
-  const totalCount = ECOSYSTEM_APPS.length
+  const [apps, setApps] = useState<AmarktaiApp[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/apps')
+      .then(res => res.json())
+      .then(data => {
+        setApps(Array.isArray(data) ? data : [])
+      })
+      .catch((err) => {
+        console.error('[/apps] Failed to fetch registry:', err)
+        setApps([])
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const liveApps = apps.filter(a => a.status === 'live')
+  const inviteApps = apps.filter(a => a.status === 'invite_only')
+  const readyApps = apps.filter(a => a.status === 'ready_to_deploy')
+  const devApps = apps.filter(a => ['in_development', 'coming_soon'].includes(a.status))
+  const totalCount = apps.length
 
   return (
     <div className="min-h-screen bg-[#050816]">
@@ -241,7 +271,6 @@ export default function AppsPage() {
         </div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -251,7 +280,6 @@ export default function AppsPage() {
             Connected by One Vision · AI-Powered Network
           </motion.div>
 
-          {/* Title */}
           <motion.h1
             initial={{ opacity: 0, y: 48 }}
             animate={{ opacity: 1, y: 0 }}
@@ -264,18 +292,22 @@ export default function AppsPage() {
             <span className="gradient-text">Ecosystem</span>
           </motion.h1>
 
-          {/* Subtitle */}
           <motion.p
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35, duration: 0.7 }}
             className="text-xl text-slate-400 max-w-2xl mx-auto mb-14 leading-relaxed"
           >
-            {totalCount} interconnected {totalCount === 1 ? 'platform' : 'platforms'}. Each built to dominate its domain.
-            All powered by the same AI intelligence layer.
+            {loading ? (
+              <span className="inline-block w-64 h-6 bg-white/5 rounded animate-pulse" />
+            ) : (
+              <>
+                {totalCount} interconnected {totalCount === 1 ? 'platform' : 'platforms'}. Each built to dominate its domain.
+                All powered by the same AI intelligence layer.
+              </>
+            )}
           </motion.p>
 
-          {/* Stats */}
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -284,7 +316,7 @@ export default function AppsPage() {
           >
             <div className="flex items-center gap-2.5 glass px-5 py-3 rounded-xl border border-white/[0.08]">
               <Zap className="w-4 h-4 text-blue-400" />
-              <span className="text-2xl font-extrabold gradient-text-blue-cyan">{totalCount}</span>
+              <span className="text-2xl font-extrabold gradient-text-blue-cyan">{loading ? '—' : totalCount}</span>
               <span className="text-sm text-slate-400">Platforms</span>
             </div>
             <div className="flex items-center gap-2.5 glass px-5 py-3 rounded-xl border border-white/[0.08]">
@@ -299,8 +331,19 @@ export default function AppsPage() {
         </div>
       </section>
 
+      {/* ── Loading Skeletons ── */}
+      {loading && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-20">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Live Now ── */}
-      {liveApps.length > 0 && (
+      {!loading && liveApps.length > 0 && (
         <section className="px-4 sm:px-6 lg:px-8 pb-20">
           <div className="max-w-7xl mx-auto">
             <SectionHeading label="Live Now" color="emerald" />
@@ -313,8 +356,22 @@ export default function AppsPage() {
         </section>
       )}
 
+      {/* ── Ready to Deploy ── */}
+      {!loading && readyApps.length > 0 && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-20">
+          <div className="max-w-7xl mx-auto">
+            <SectionHeading label="Ready to Deploy" color="blue" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {readyApps.map((app, i) => (
+                <AppCard key={app.id} app={app} index={i} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Invite Only ── */}
-      {inviteApps.length > 0 && (
+      {!loading && inviteApps.length > 0 && (
         <section className="px-4 sm:px-6 lg:px-8 pb-20">
           <div className="max-w-7xl mx-auto">
             <SectionHeading label="Invite Only" color="violet" />
@@ -328,7 +385,7 @@ export default function AppsPage() {
       )}
 
       {/* ── In Development ── */}
-      {devApps.length > 0 && (
+      {!loading && devApps.length > 0 && (
         <section className="px-4 sm:px-6 lg:px-8 pb-20">
           <div className="max-w-7xl mx-auto">
             <SectionHeading label="In Development" color="amber" />
@@ -337,6 +394,16 @@ export default function AppsPage() {
                 <AppCard key={app.id} app={app} index={i} />
               ))}
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Empty state ── */}
+      {!loading && apps.length === 0 && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-20">
+          <div className="max-w-7xl mx-auto text-center py-20">
+            <Sparkles className="w-10 h-10 text-slate-600 mx-auto mb-4" />
+            <p className="text-slate-500">The ecosystem is loading. Check back soon.</p>
           </div>
         </section>
       )}
@@ -355,7 +422,6 @@ export default function AppsPage() {
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-violet-600/5 rounded-full blur-[80px] pointer-events-none" />
-
             <div className="relative z-10">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-violet-500/40">
                 <Brain className="w-6 h-6 text-white" />
@@ -390,7 +456,6 @@ export default function AppsPage() {
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-blue-600/5 rounded-full blur-[80px] pointer-events-none" />
-
             <div className="relative z-10">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/40 glow-blue">
                 <Lock className="w-6 h-6 text-white" />

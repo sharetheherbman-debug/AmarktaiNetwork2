@@ -255,14 +255,16 @@ npm run db:studio
 
 | App | Status |
 |---|---|
+| EquiProfile | Live |
+| Amarktai Marketing | In Development |
 | Amarktai Crypto | Invite Only |
 | Amarktai Forex | Invite Only |
+| Amarktai Family | In Development |
 | Faith Haven | In Development |
 | Learn Digital | In Development |
-| Jobs SA | Coming Soon |
-| Kinship | In Development |
-| Amarktai Secure | Coming Soon |
-| Crowd Lens | Coming Soon |
+| Jobs SA | In Development |
+| Amarktai Secure | Concept |
+| Crowd Lens | Concept |
 
 ---
 

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Package, Key, Plug, Mail, Users, LogOut,
   Zap, Menu, X, ChevronRight, Server, Activity, Shield,
-  Brain, MessageSquare, Bell, FileText, Settings,
+  Brain, MessageSquare, Bell, FileText, Settings, AppWindow,
 } from 'lucide-react'
 
 interface NavItem {
@@ -27,8 +27,9 @@ const navGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { href: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard, color: 'text-blue-400' },
-      { href: '/admin/dashboard/products', label: 'Connected Apps', icon: Package, color: 'text-cyan-400' },
-      { href: '/admin/dashboard/integrations', label: 'App Registry', icon: Plug, color: 'text-emerald-400' },
+      { href: '/admin/dashboard/apps', label: 'App Registry', icon: AppWindow, color: 'text-cyan-400' },
+      { href: '/admin/dashboard/integrations', label: 'Integrations', icon: Plug, color: 'text-emerald-400' },
+      { href: '/admin/dashboard/products', label: 'Products (Legacy)', icon: Package, color: 'text-slate-500' },
     ],
   },
   {
