@@ -486,8 +486,8 @@ export default function SetupMatrixPage() {
           <div className="space-y-1">
             <p className="text-xs text-slate-500 leading-relaxed">
               Configuration is applied server-side via environment variables. Keys marked as
-              &ldquo;Pending&rdquo; are referenced in code but require deployment-time environment variables to activate.
-              Keys marked &ldquo;Not configured&rdquo; are reserved integration slots for future backend phases.
+              {' "'}Pending{'" '} are referenced in code but require deployment-time environment variables to activate.
+              Keys marked {'"'}Not configured{'" '} are reserved integration slots for future backend phases.
             </p>
             <p className="text-xs text-slate-600">
               AI provider keys are stored encrypted in the database and managed from the{' '}
