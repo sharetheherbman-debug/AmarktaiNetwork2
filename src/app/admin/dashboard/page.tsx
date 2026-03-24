@@ -2,9 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
-} from 'recharts'
 import MetricCard from '@/components/ui/MetricCard'
 import {
   Package, Mail, Users, Plug, Activity, AlertCircle, CheckCircle, Clock,

@@ -5,7 +5,6 @@ import { useState } from 'react'
 import {
   Brain,
   Send,
-  Mic,
   MicOff,
   PanelRightOpen,
   PanelRightClose,

@@ -11,7 +11,6 @@ import {
   Flame,
   Filter,
   RefreshCw,
-  Loader2,
   Package,
   Clock,
 } from 'lucide-react'
