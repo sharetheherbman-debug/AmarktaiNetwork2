@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
-import { motion, AnimatePresence, useInView } from 'framer-motion'
+import { useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
 import Link from 'next/link'
 import {
   Inbox,
@@ -11,55 +11,24 @@ import {
   GitMerge,
   CheckCircle2,
   ArrowRight,
-  Zap,
   Network,
   TrendingUp,
   Split,
   ChevronRight,
-  Check,
-  Loader2,
 } from 'lucide-react'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import NetworkCanvas from '@/components/NetworkCanvas'
 
-// ─── Execution flow data ────────────────────────────────────────────────────
-
-const STEP_DURATION_MS = 1200
-
-const EXECUTION_STEPS = [
-  'AmarktAI analyzing request...',
-  'AmarktAI building execution path...',
-  'AmarktAI executing across multiple intelligence layers...',
-  'AmarktAI merging outputs...',
-  'AmarktAI generating final result...',
-]
-
-const STEP_COLORS = [
-  'text-blue-400',
-  'text-cyan-400',
-  'text-violet-400',
-  'text-purple-400',
-  'text-teal-400',
-]
-
-const STEP_DOT_COLORS = [
-  'bg-blue-400',
-  'bg-cyan-400',
-  'bg-violet-400',
-  'bg-purple-400',
-  'bg-teal-400',
-]
-
 // ─── How it works data ─────────────────────────────────────────────────────
 
 const HOW_IT_WORKS = [
-  { icon: Inbox,        label: 'Request received',        color: 'text-blue-400',   ring: 'ring-blue-500/30',   bg: 'bg-blue-500/10' },
-  { icon: ScanSearch,   label: 'Intent analyzed',          color: 'text-cyan-400',   ring: 'ring-cyan-500/30',   bg: 'bg-cyan-500/10' },
-  { icon: GitBranch,    label: 'Execution path selected',  color: 'text-violet-400', ring: 'ring-violet-500/30', bg: 'bg-violet-500/10' },
-  { icon: Layers,       label: 'Multiple layers activated', color: 'text-purple-400', ring: 'ring-purple-500/30', bg: 'bg-purple-500/10' },
-  { icon: GitMerge,     label: 'Outputs synthesized',       color: 'text-teal-400',   ring: 'ring-teal-500/30',   bg: 'bg-teal-500/10' },
-  { icon: CheckCircle2, label: 'Result returned',           color: 'text-emerald-400',ring: 'ring-emerald-500/30',bg: 'bg-emerald-500/10' },
+  { icon: Inbox,        label: 'App sends a task',            color: 'text-blue-400',   ring: 'ring-blue-500/30',   bg: 'bg-blue-500/10' },
+  { icon: ScanSearch,   label: 'AmarktAI analyzes request',   color: 'text-cyan-400',   ring: 'ring-cyan-500/30',   bg: 'bg-cyan-500/10' },
+  { icon: GitBranch,    label: 'Best execution path selected', color: 'text-violet-400', ring: 'ring-violet-500/30', bg: 'bg-violet-500/10' },
+  { icon: Layers,       label: 'Multiple layers activated',    color: 'text-purple-400', ring: 'ring-purple-500/30', bg: 'bg-purple-500/10' },
+  { icon: GitMerge,     label: 'Outputs synthesized',          color: 'text-teal-400',   ring: 'ring-teal-500/30',   bg: 'bg-teal-500/10' },
+  { icon: CheckCircle2, label: 'Best result returned',         color: 'text-emerald-400',ring: 'ring-emerald-500/30',bg: 'bg-emerald-500/10' },
 ]
 
 // ─── Differentiators data ──────────────────────────────────────────────────
@@ -68,7 +37,7 @@ const DIFFERENTIATORS = [
   {
     icon: Split,
     title: 'Multi-Layer Execution',
-    body: "When you send a request, AmarktAI doesn't use one model. It fans out across multiple intelligence layers simultaneously, then synthesizes the strongest output.",
+    body: "When a connected app sends a task, AmarktAI doesn't rely on a single model. It fans out across multiple intelligence layers simultaneously, then synthesizes the strongest output.",
     accent: 'from-blue-500/20 to-cyan-500/10',
     glow: 'hover:shadow-blue-500/10',
     border: 'hover:border-blue-500/30',
@@ -77,8 +46,8 @@ const DIFFERENTIATORS = [
   },
   {
     icon: GitBranch,
-    title: 'Adaptive Decision Making',
-    body: 'AmarktAI selects which layers to activate based on request complexity. Simple tasks route fast. Complex tasks trigger full multi-layer orchestration.',
+    title: 'Adaptive Execution Routing',
+    body: 'AmarktAI selects which layers to activate based on task complexity. Simple requests route fast. Complex tasks trigger full multi-layer orchestration for maximum output quality.',
     accent: 'from-violet-500/20 to-purple-500/10',
     glow: 'hover:shadow-violet-500/10',
     border: 'hover:border-violet-500/30',
@@ -88,7 +57,7 @@ const DIFFERENTIATORS = [
   {
     icon: TrendingUp,
     title: 'Continuous Improvement',
-    body: 'Every execution updates the shared context layer. AmarktAI grows more precise with each interaction across the entire ecosystem.',
+    body: 'Every execution updates the shared context layer. AmarktAI grows more precise with each interaction across the entire ecosystem of connected apps.',
     accent: 'from-teal-500/20 to-cyan-500/10',
     glow: 'hover:shadow-teal-500/10',
     border: 'hover:border-teal-500/30',
@@ -97,8 +66,8 @@ const DIFFERENTIATORS = [
   },
   {
     icon: Network,
-    title: 'Cross-App Intelligence',
-    body: "Intelligence doesn't stay in one app. Insights and context flow across the entire connected ecosystem, making every app smarter.",
+    title: 'Ecosystem Intelligence',
+    body: "Intelligence doesn't stay in one app. Insights and context flow across the entire connected ecosystem — every app gets smarter as the network grows.",
     accent: 'from-purple-500/20 to-violet-500/10',
     glow: 'hover:shadow-purple-500/10',
     border: 'hover:border-purple-500/30',
@@ -136,65 +105,6 @@ function FadeUp({
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [query, setQuery] = useState('')
-  const [executing, setExecuting] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [done, setDone] = useState(false)
-  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
-
-  function clearTimers() {
-    timerRefs.current.forEach(clearTimeout)
-    timerRefs.current = []
-  }
-
-  function handleExecute(e: React.FormEvent) {
-    e.preventDefault()
-    if (!query.trim() || executing) return
-
-    clearTimers()
-    setExecuting(true)
-    setCurrentStep(1)
-    setCompletedSteps([])
-    setDone(false)
-
-    // Advance steps: step i completes after i * STEP_DURATION_MS, next step starts immediately after
-    for (let i = 1; i <= EXECUTION_STEPS.length; i++) {
-      const completeAt = i * STEP_DURATION_MS
-      timerRefs.current.push(
-        setTimeout(() => {
-          setCompletedSteps(prev => [...prev, i])
-          if (i < EXECUTION_STEPS.length) {
-            setCurrentStep(i + 1)
-          }
-        }, completeAt)
-      )
-    }
-
-    // All done
-    timerRefs.current.push(
-      setTimeout(() => {
-        setCurrentStep(0)
-        setDone(true)
-      }, EXECUTION_STEPS.length * STEP_DURATION_MS + 200)
-    )
-
-    // Reset
-    timerRefs.current.push(
-      setTimeout(() => {
-        setExecuting(false)
-        setCurrentStep(0)
-        setCompletedSteps([])
-        setDone(false)
-        setQuery('')
-      }, EXECUTION_STEPS.length * STEP_DURATION_MS + 4200)
-    )
-  }
-
-  useEffect(() => () => clearTimers(), [])
-
-  const showFlow = executing || done
-
   return (
     <>
       <div className="scanline" />
@@ -209,15 +119,15 @@ export default function HomePage() {
           <div className="absolute inset-0 z-0">
             <NetworkCanvas
               className="w-full h-full"
-              interactive={executing || done}
-              activationStep={currentStep}
+              interactive
+              activationStep={3}
             />
           </div>
 
           {/* Dark overlay */}
           <div className="absolute inset-0 z-10 bg-[#050816]/60" />
 
-          {/* Radial vignette so edges feel contained */}
+          {/* Radial vignette */}
           <div className="absolute inset-0 z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,transparent_30%,#050816_100%)]" />
 
           {/* Content */}
@@ -234,7 +144,7 @@ export default function HomePage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400" />
               </span>
-              AmarktAI · Live System
+              The Intelligence Layer · Live
             </motion.div>
 
             {/* H1 */}
@@ -254,119 +164,47 @@ export default function HomePage() {
               transition={{ duration: 0.7, delay: 0.35 }}
               className="text-[clamp(1rem,2.5vw,1.25rem)] text-slate-300 max-w-2xl leading-relaxed"
             >
-              The intelligence layer that thinks across multiple dimensions simultaneously.
+              The intelligence layer that routes, coordinates, and powers every connected app in the Amarktai Network ecosystem.
             </motion.p>
 
-            {/* Input form */}
-            <motion.form
+            {/* CTAs */}
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.5 }}
-              onSubmit={handleExecute}
-              className="w-full max-w-2xl"
+              className="flex flex-col sm:flex-row items-center gap-3"
             >
-              <div className="relative flex items-center glass rounded-2xl border border-blue-500/20 overflow-hidden focus-within:border-blue-500/50 focus-within:shadow-[0_0_30px_rgba(59,130,246,0.12)] transition-all duration-300">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  disabled={executing}
-                  placeholder="Ask AmarktAI anything..."
-                  className="flex-1 bg-transparent px-6 py-5 text-base text-white placeholder:text-slate-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
-                />
-                <div className="pr-3">
-                  <button
-                    type="submit"
-                    disabled={!query.trim() || executing}
-                    className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none relative z-10"
-                  >
-                    {executing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Running
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4" />
-                        Execute
-                      </>
-                    )}
-                  </button>
+              <Link href="/apps" className="btn-primary group">
+                Explore the Ecosystem
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link
+                href="/about"
+                className="px-6 py-3 text-sm font-semibold text-slate-300 border border-white/10 rounded-xl hover:bg-white/5 hover:text-white hover:border-white/20 transition-all duration-200 flex items-center gap-2"
+              >
+                How it Works
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </motion.div>
+
+            {/* Stats row */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.65 }}
+              className="flex flex-wrap items-center justify-center gap-6 pt-4"
+            >
+              {[
+                { value: '6', label: 'AI Providers' },
+                { value: '5+', label: 'Connected Apps' },
+                { value: '∞', label: 'Execution Paths' },
+              ].map((stat) => (
+                <div key={stat.label} className="flex flex-col items-center gap-1">
+                  <span className="text-2xl font-bold text-white font-heading">{stat.value}</span>
+                  <span className="text-xs text-slate-500 font-mono tracking-wider uppercase">{stat.label}</span>
                 </div>
-              </div>
-            </motion.form>
-
-            {/* Execution flow */}
-            <AnimatePresence>
-              {showFlow && (
-                <motion.div
-                  key="execution-flow"
-                  initial={{ opacity: 0, height: 0, y: -8 }}
-                  animate={{ opacity: 1, height: 'auto', y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full max-w-2xl glass rounded-2xl border border-slate-700/50 p-5 text-left space-y-3 overflow-hidden"
-                >
-                  {EXECUTION_STEPS.map((step, i) => {
-                    const stepNum = i + 1
-                    const isComplete = completedSteps.includes(stepNum)
-                    const isActive = currentStep === stepNum && !isComplete
-                    const isPending = !isComplete && !isActive
-                    const shouldShowStep = isActive || isComplete || (executing && stepNum <= currentStep)
-
-                    return (
-                      <AnimatePresence key={step}>
-                        {shouldShowStep && (
-                          <motion.div
-                            initial={{ opacity: 0, x: -12 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.35 }}
-                            className={`flex items-center gap-3 text-sm font-mono transition-opacity duration-300 ${isPending ? 'opacity-30' : 'opacity-100'}`}
-                          >
-                            {/* Status indicator */}
-                            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-                              {isComplete ? (
-                                <motion.div
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-                                >
-                                  <Check className="w-4 h-4 text-emerald-400" />
-                                </motion.div>
-                              ) : isActive ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                              ) : (
-                                <span className={`w-2 h-2 rounded-full ${STEP_DOT_COLORS[i]}`} />
-                              )}
-                            </div>
-
-                            {/* Step text */}
-                            <span className={isComplete ? 'text-slate-400 line-through' : isActive ? STEP_COLORS[i] : 'text-slate-500'}>
-                              {step}
-                            </span>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    )
-                  })}
-
-                  {/* Done message */}
-                  <AnimatePresence>
-                    {done && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="pt-2 border-t border-slate-700/50 flex items-center gap-2 text-sm font-mono text-emerald-400"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Execution complete. AmarktAI is ready.
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              ))}
+            </motion.div>
 
           </div>
 
@@ -396,8 +234,11 @@ export default function HomePage() {
                 System architecture
               </p>
               <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text-blue-cyan">
-                How AmarktAI Works
+                How <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span> Works
               </h2>
+              <p className="text-slate-400 mt-4 max-w-xl mx-auto text-sm leading-relaxed">
+                Every connected app sends tasks to AmarktAI. The system analyzes, routes, executes, and returns the best possible result — automatically.
+              </p>
             </FadeUp>
 
             {/* Flow row */}
@@ -437,7 +278,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── HOW IT THINKS DIFFERENTLY ─────────────────────────────────── */}
+        {/* ── WHAT MAKES AMARKTAI DIFFERENT ─────────────────────────────── */}
         <section className="relative py-32 px-6 overflow-hidden">
           <div className="section-divider mb-24" />
 
@@ -450,7 +291,7 @@ export default function HomePage() {
                 Cognitive architecture
               </p>
               <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text">
-                How AmarktAI Thinks Differently
+                What Makes <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span> Different
               </h2>
             </FadeUp>
 
@@ -491,18 +332,28 @@ export default function HomePage() {
 
           <FadeUp className="max-w-2xl mx-auto text-center flex flex-col items-center gap-8">
             <p className="text-xs font-mono tracking-widest uppercase text-emerald-400/70">
-              System online
+              Ecosystem online
             </p>
             <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text">
-              Experience AmarktAI
+              Join the Ecosystem
             </h2>
-            <p className="text-slate-400 text-lg">
-              The system is running. Interact with it above.
+            <p className="text-slate-400 text-lg max-w-md leading-relaxed">
+              Explore the connected apps powered by{' '}
+              <span className="text-white font-semibold">Amarkt</span><span className="text-blue-400 font-semibold">AI</span>{' '}
+              — and see what the intelligence layer makes possible.
             </p>
-            <Link href="/contact" className="btn-primary group">
-              Connect with the Team
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <Link href="/apps" className="btn-primary group">
+                Explore Apps
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link
+                href="/contact"
+                className="px-6 py-3 text-sm font-semibold text-slate-300 border border-white/10 rounded-xl hover:bg-white/5 hover:text-white hover:border-white/20 transition-all duration-200"
+              >
+                Contact the Team
+              </Link>
+            </div>
           </FadeUp>
         </section>
 
@@ -512,4 +363,3 @@ export default function HomePage() {
     </>
   )
 }
-

@@ -20,13 +20,13 @@ const milestones = [
   { year: '2023', title: 'Architecture Phase', description: 'Deep research phase. Designing the intelligence layer, system architecture, and product roadmap.', icon: Brain, color: 'from-cyan-500 to-violet-500' },
   { year: '2024', title: 'Development Sprint', description: 'Full-scale development begins. Crypto and Forex enter closed beta. Core platform built.', icon: Cpu, color: 'from-violet-500 to-purple-500' },
   { year: '2025', title: 'Platform Operational', description: 'Core platform architecture operational. First connected apps going live.', icon: Zap, color: 'from-purple-500 to-blue-500' },
-  { year: '2026', title: 'CNS Phase', description: 'AI orchestration, multi-model routing, and shared intelligence layer in active development.', icon: Network, color: 'from-blue-500 to-cyan-500' },
+  { year: '2026', title: 'Intelligence Layer', description: 'AmarktAI orchestration, multi-model routing, and shared intelligence layer in active development.', icon: Network, color: 'from-blue-500 to-cyan-500' },
 ]
 
 export default function AboutPage() {
   const pillars = [
     { icon: Cpu, title: 'AI Orchestration Layer', desc: 'Multi-model orchestration, shared memory, real-time monitoring, and automation — the shared intelligence layer powering every connected app.' },
-    { icon: Network, title: 'Connected Ecosystem', desc: `A growing network of connected apps, all sharing one intelligence layer — each platform feeds data and context back into the CNS.` },
+    { icon: Network, title: 'Connected Ecosystem', desc: `A growing network of connected apps, all sharing one intelligence layer — each platform feeds data and context back into AmarktAI.` },
     { icon: Layers, title: 'Full-Stack Ownership', desc: 'We own every layer: from model routing to UI polish. No handoffs. No compromises.' },
   ]
 
@@ -90,11 +90,11 @@ export default function AboutPage() {
               </div>
               <h2 className="text-4xl lg:text-5xl font-extrabold text-white mb-6" style={{ fontFamily: 'Space Grotesk' }}>
                 The{' '}
-                <span className="gradient-text-blue-cyan">Central Nervous System</span>{' '}
+                <span className="gradient-text-blue-cyan">Intelligence Layer</span>{' '}
                 of the Ecosystem
               </h2>
               <p className="text-slate-400 leading-relaxed mb-5">
-                Amarktai Network is the central nervous system for AI operations across every connected app in our ecosystem. We handle multi-model orchestration, shared memory, real-time monitoring, and intelligent automation — so each app operates with the full power of the network behind it.
+                Amarktai Network is the intelligence layer powering AI operations across every connected app in the ecosystem. AmarktAI handles multi-model orchestration, adaptive execution, real-time monitoring, and intelligent automation — so each app operates with the full power of the network behind it.
               </p>
               <p className="text-slate-400 leading-relaxed mb-8">
                 Engineered to a premium global standard. We are not building another AI wrapper — we are building the operations platform that makes a growing constellation of intelligent apps think, learn, and act as one.
