@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Package, Key, Plug, Mail, Users, LogOut,
-  Zap, Menu, X, ChevronRight, Server, Activity, Shield,
+  Menu, X, ChevronRight, Server, Activity, Shield,
   Brain, MessageSquare, Bell, FileText, Settings, AppWindow,
 } from 'lucide-react'
 
@@ -75,17 +76,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="p-6 border-b border-white/5">
         <Link href="/" className="flex items-center gap-2.5 group" onClick={onClose}>
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 flex items-center justify-center glow-blue transition-all duration-300">
-              <Zap className="w-4.5 h-4.5 text-white" fill="white" />
-            </div>
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-lg opacity-30 group-hover:opacity-50 transition-opacity" />
+          <div className="relative w-9 h-9 flex-shrink-0">
+            <Image
+              src="/Amarktai-logo.png"
+              alt="AmarktAI Network"
+              width={36}
+              height={36}
+              className="rounded-xl object-contain"
+            />
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
           </div>
           <div>
             <p className="text-sm font-bold text-white font-heading">
               <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span>
             </p>
-            <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">CNS</p>
+            <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Network</p>
           </div>
         </Link>
       </div>
@@ -96,7 +101,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
         </span>
-        <span className="text-xs text-emerald-400 font-mono">CNS NETWORK ACTIVE</span>
+        <span className="text-xs text-emerald-400 font-mono">AMARKTAI NETWORK ACTIVE</span>
         <div className="ml-auto flex gap-0.5 items-end">
           {[8, 12, 6, 10, 7].map((h, b) => (
             <div key={b} className="w-1 bg-emerald-500/70 rounded-sm" style={{ height: `${h}px` }} />

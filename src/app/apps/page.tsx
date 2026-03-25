@@ -229,6 +229,118 @@ function SkeletonCard() {
   )
 }
 
+// ── Hardcoded fallback apps ───────────────────────────────
+const FALLBACK_APPS: AmarktaiApp[] = [
+  {
+    id: 1,
+    name: 'Amarktai Network',
+    slug: 'amarktai-network',
+    category: 'Platform',
+    shortDescription: 'The intelligence layer and operating platform powering the entire Amarktai ecosystem. AmarktAI coordinates AI execution across all connected apps.',
+    longDescription: '',
+    status: 'live',
+    featured: true,
+    primaryUrl: '',
+    hostedHere: true,
+    aiEnabled: true,
+    monitoringEnabled: true,
+    readyToDeploy: true,
+    connectedToBrain: true,
+    onboardingStatus: 'connected',
+    sortOrder: 1,
+  },
+  {
+    id: 2,
+    name: 'Amarktai Marketing',
+    slug: 'amarktai-marketing',
+    category: 'Marketing',
+    shortDescription: 'AI-powered marketing intelligence. Campaign creation, audience targeting, and performance analytics — all driven by AmarktAI.',
+    longDescription: '',
+    status: 'live',
+    featured: true,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: true,
+    monitoringEnabled: true,
+    readyToDeploy: true,
+    connectedToBrain: true,
+    onboardingStatus: 'connected',
+    sortOrder: 2,
+  },
+  {
+    id: 3,
+    name: 'Amarktai Travel',
+    slug: 'amarktai-travel',
+    category: 'Travel',
+    shortDescription: 'Intelligent travel planning and booking powered by AmarktAI. Personalised itineraries, smart recommendations, and real-time insights.',
+    longDescription: '',
+    status: 'live',
+    featured: true,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: true,
+    monitoringEnabled: true,
+    readyToDeploy: true,
+    connectedToBrain: true,
+    onboardingStatus: 'connected',
+    sortOrder: 3,
+  },
+  {
+    id: 4,
+    name: 'EquiProfile',
+    slug: 'equiprofile',
+    category: 'Employment',
+    shortDescription: 'AI-driven professional profiling and talent matching. Connecting the right people to the right opportunities with precision.',
+    longDescription: '',
+    status: 'live',
+    featured: true,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: true,
+    monitoringEnabled: true,
+    readyToDeploy: true,
+    connectedToBrain: true,
+    onboardingStatus: 'connected',
+    sortOrder: 4,
+  },
+  {
+    id: 5,
+    name: 'Amarktai Online',
+    slug: 'amarktai-online',
+    category: 'Media',
+    shortDescription: 'A next-generation online platform powered by AmarktAI — intelligent content, community, and commerce in one place.',
+    longDescription: '',
+    status: 'live',
+    featured: true,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: true,
+    monitoringEnabled: true,
+    readyToDeploy: true,
+    connectedToBrain: true,
+    onboardingStatus: 'connected',
+    sortOrder: 5,
+  },
+  {
+    id: 6,
+    name: 'Amarktai Crypto',
+    slug: 'amarktai-crypto',
+    category: 'Finance',
+    shortDescription: 'AI-powered crypto intelligence and portfolio management. Real-time signals, pattern recognition, and execution insights — invite only.',
+    longDescription: '',
+    status: 'invite_only',
+    featured: false,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: true,
+    monitoringEnabled: false,
+    readyToDeploy: false,
+    connectedToBrain: true,
+    onboardingStatus: 'configuring',
+    sortOrder: 6,
+  },
+]
+
 // ── Page ─────────────────────────────────────────────────
 export default function AppsPage() {
   const ctaRef = useRef<HTMLDivElement>(null)
@@ -241,11 +353,13 @@ export default function AppsPage() {
     fetch('/api/apps')
       .then(res => res.json())
       .then(data => {
-        setApps(Array.isArray(data) ? data : [])
+        const fetched = Array.isArray(data) ? data : []
+        // Use fetched data if non-empty, otherwise fall back to hardcoded list
+        setApps(fetched.length > 0 ? fetched : FALLBACK_APPS)
       })
       .catch((err) => {
         console.error('[/apps] Failed to fetch registry:', err)
-        setApps([])
+        setApps(FALLBACK_APPS)
       })
       .finally(() => setLoading(false))
   }, [])

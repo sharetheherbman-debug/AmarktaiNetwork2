@@ -1,5 +1,5 @@
 /**
- * Amarktai Network — CNS Orchestration Layer
+ * Amarktai Network — AmarktAI Orchestration Layer
  *
  * Single source of truth for:
  *   - Task classification (complexity, execution mode, validation flags)

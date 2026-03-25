@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Zap, Twitter, Linkedin, Github, ArrowRight } from 'lucide-react'
+import Image from 'next/image'
+import { ArrowRight } from 'lucide-react'
 
 export default function Footer() {
   return (
@@ -13,37 +14,26 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-6">
             <Link href="/" className="flex items-center gap-2.5 mb-5 group w-fit">
-              <div className="relative">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-white" fill="white" />
-                </div>
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-md opacity-30 group-hover:opacity-50 transition-opacity" />
+              <div className="relative w-9 h-9 flex-shrink-0">
+                <Image
+                  src="/Amarktai-logo.png"
+                  alt="AmarktAI Network"
+                  width={36}
+                  height={36}
+                  className="rounded-xl object-contain"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-md opacity-20 group-hover:opacity-40 transition-opacity" />
               </div>
               <div>
-                <span className="font-bold text-base block leading-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                <span className="font-bold text-base block leading-tight font-heading">
                   <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span>
                   <span className="text-slate-400 ml-1.5 font-light">Network</span>
                 </span>
               </div>
             </Link>
             <p className="text-slate-500 text-sm leading-relaxed max-w-xs mb-6">
-              The central nervous system for AI operations. Multi-model orchestration, shared memory, and intelligent automation across connected apps.
+              The intelligence layer powering a growing ecosystem of connected apps. Multi-model orchestration, adaptive execution, and shared context — one layer, every app.
             </p>
-            <div className="flex gap-2.5">
-              {[
-                { Icon: Twitter, href: '#' },
-                { Icon: Linkedin, href: '#' },
-                { Icon: Github, href: '#' },
-              ].map(({ Icon, href }, i) => (
-                <a
-                  key={i}
-                  href={href}
-                  className="w-8 h-8 glass rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:border-blue-500/30 transition-all"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                </a>
-              ))}
-            </div>
           </div>
 
           {/* Company */}

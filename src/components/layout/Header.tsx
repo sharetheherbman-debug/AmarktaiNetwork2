@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Zap, Lock, ChevronRight } from 'lucide-react'
+import { Menu, X, Lock, ChevronRight } from 'lucide-react'
 
 const navLinks = [
   { href: '/', label: 'Home' },
@@ -86,14 +87,18 @@ export default function Header() {
           <div className="flex items-center justify-between h-16 lg:h-20">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="relative">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-cyan-400 to-violet-500 flex items-center justify-center glow-blue transition-all duration-300 group-hover:scale-105">
-                  <Zap className="w-4.5 h-4.5 text-white" fill="white" />
-                </div>
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-lg opacity-40 group-hover:opacity-70 transition-opacity" />
+              <div className="relative w-9 h-9 flex-shrink-0">
+                <Image
+                  src="/Amarktai-logo.png"
+                  alt="AmarktAI Network"
+                  width={36}
+                  height={36}
+                  className="rounded-xl object-contain transition-transform duration-300 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
               </div>
               <div className="flex flex-col -space-y-0.5">
-                <span className="font-bold text-base leading-tight tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                <span className="font-bold text-base leading-tight tracking-tight font-heading">
                   <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span>
                   <span className="text-slate-300 ml-1.5 font-light">Network</span>
                 </span>
