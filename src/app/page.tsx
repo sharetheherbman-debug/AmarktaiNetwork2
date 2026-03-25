@@ -1,868 +1,512 @@
 'use client'
 
-import { useRef } from 'react'
-import { motion, useScroll, useTransform, useInView } from 'framer-motion'
+import { useRef, useState, useEffect } from 'react'
+import { motion, AnimatePresence, useInView } from 'framer-motion'
 import Link from 'next/link'
+import {
+  Inbox,
+  ScanSearch,
+  GitBranch,
+  Layers,
+  GitMerge,
+  CheckCircle2,
+  ArrowRight,
+  Zap,
+  Network,
+  TrendingUp,
+  Split,
+  ChevronRight,
+  Check,
+  Loader2,
+} from 'lucide-react'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import NetworkCanvas from '@/components/NetworkCanvas'
-import { getAppCount } from '@/lib/apps'
-import {
-  Brain,
-  Globe,
-  Shield,
-  ArrowRight,
-  Cpu,
-  Lock,
-  Layers,
-  Activity,
-  Database,
-  CheckCircle,
-  Sparkles,
-  Network,
-  Route,
-  Eye,
-  GitBranch,
-  Workflow,
-  Radio,
-  Megaphone,
-  Plane,
-  User,
-  ShoppingBag,
-} from 'lucide-react'
 
-/* ─── System Architecture Visualisation ─────────────────────── */
-const architectureLayers = [
-  { label: 'Connected Apps', items: ['Amarktai Marketing', 'Amarktai Travel', 'EquiProfile', 'Amarktai Online'], color: 'text-blue-400', borderColor: 'border-blue-500/30' },
-  { label: 'AI Orchestration Layer', items: ['Model Routing', 'Shared Memory', 'Task Queue'], color: 'text-cyan-400', borderColor: 'border-cyan-500/30' },
-  { label: 'Intelligence Core', items: ['Multi-Model Engine', 'Context Store', 'Monitoring'], color: 'text-violet-400', borderColor: 'border-violet-500/30' },
-  { label: 'Infrastructure', items: ['Auth & Security', 'Data Layer', 'Event Bus'], color: 'text-emerald-400', borderColor: 'border-emerald-500/30' },
+// ─── Execution flow data ────────────────────────────────────────────────────
+
+const EXECUTION_STEPS = [
+  'AmarktAI analyzing request...',
+  'AmarktAI building execution path...',
+  'AmarktAI executing across multiple intelligence layers...',
+  'AmarktAI merging outputs...',
+  'AmarktAI generating final result...',
 ]
 
-function SystemArchitecture() {
-  return (
-    <div className="terminal rounded-2xl overflow-hidden ring-1 ring-blue-500/15">
-      <div className="terminal-header">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-500/70" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-          <div className="w-3 h-3 rounded-full bg-green-500/70" />
-          <span className="ml-4 text-xs text-blue-400/50 font-mono flex items-center gap-2">
-            amarktai-cns
-            <span className="inline-flex items-center gap-1 text-cyan-400/70">
-              <Radio size={10} />
-              <span className="text-[10px]">architecture</span>
-            </span>
-          </span>
-        </div>
-      </div>
-      <div className="p-5 font-mono text-[11px] space-y-3">
-        {architectureLayers.map((layer, i) => (
-          <motion.div
-            key={layer.label}
-            initial={{ opacity: 0, x: -12 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: i * 0.12 }}
-          >
-            <div className={`rounded-xl border ${layer.borderColor} bg-white/[0.02] p-3`}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`font-bold uppercase tracking-wider ${layer.color}`}>{layer.label}</span>
-                {i === 0 && (
-                  <span className="text-[9px] text-blue-100/30 ml-auto">{getAppCount()} apps registered</span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {layer.items.map((item) => (
-                  <span key={item} className="text-blue-100/50 bg-white/[0.04] px-2 py-0.5 rounded text-[10px]">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {i < architectureLayers.length - 1 && (
-              <div className="flex justify-center py-1">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-px h-2 bg-blue-500/20" />
-                  <div className="w-1 h-1 rounded-full bg-blue-500/30" />
-                  <div className="w-px h-2 bg-blue-500/20" />
-                </div>
-              </div>
-            )}
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ─── Data ──────────────────────────────────────────────────── */
-const capabilities = [
-  {
-    icon: Brain,
-    title: 'AI Orchestration',
-    description: 'An intelligent routing engine that classifies every AI request, selects the optimal model, and coordinates intelligence across every connected app — all in real time.',
-    color: 'text-blue-400',
-  },
-  {
-    icon: Database,
-    title: 'Shared Memory Layer',
-    description: 'A unified context store that lets every connected app share knowledge, user context, and learned patterns — so the entire ecosystem gets smarter together.',
-    color: 'text-cyan-400',
-  },
-  {
-    icon: Route,
-    title: 'Multi-Model Routing',
-    description: 'Dynamically route every AI task to the right model based on capability, cost, and latency. OpenAI, Gemini, Grok, Qwen, NVIDIA — all managed from one layer.',
-    color: 'text-violet-400',
-  },
-  {
-    icon: Eye,
-    title: 'Live Operations Monitoring',
-    description: 'Observe every AI operation, model call, latency metric, and data flow across the entire network from a single real-time operations interface.',
-    color: 'text-teal-400',
-  },
-  {
-    icon: Workflow,
-    title: 'Event-Driven Automation',
-    description: 'Chain AI operations across apps with intelligent triggers, configurable pipelines, and event-driven workflows — all orchestrated centrally.',
-    color: 'text-emerald-400',
-  },
-  {
-    icon: Shield,
-    title: 'Security & Access Control',
-    description: 'Centralized authentication, end-to-end encryption, and granular permissions govern every AI operation and integration across the network.',
-    color: 'text-blue-400',
-  },
+const STEP_COLORS = [
+  'text-blue-400',
+  'text-cyan-400',
+  'text-violet-400',
+  'text-purple-400',
+  'text-teal-400',
 ]
 
-const differentiators = [
-  {
-    icon: Network,
-    title: 'The Central Nervous System',
-    description:
-      'Not a single app — a brain that connects, coordinates, and empowers every application in the ecosystem. One intelligence layer powering them all.',
-    color: 'text-blue-400',
-    borderColor: 'border-blue-500/25',
-    glowColor: 'rgba(59,130,246,0.06)',
-  },
-  {
-    icon: Layers,
-    title: 'Multi-Model Ecosystem',
-    description:
-      'Not locked to one AI provider. Every request is routed to the best model for the task — OpenAI, Gemini, Grok, Qwen, NVIDIA — always choosing the optimal path.',
-    color: 'text-violet-400',
-    borderColor: 'border-violet-500/25',
-    glowColor: 'rgba(139,92,246,0.06)',
-  },
-  {
-    icon: Globe,
-    title: 'Global Reach',
-    description:
-      'Built for the world. We solve real, hard problems for real people — and export that intelligence globally.',
-    color: 'text-cyan-400',
-    borderColor: 'border-cyan-500/25',
-    glowColor: 'rgba(34,211,238,0.06)',
-  },
-  {
-    icon: Lock,
-    title: 'Secure by Architecture',
-    description:
-      'Security and monitoring are not afterthoughts — they are baked into the network fabric. Every model call is logged, every permission is enforced.',
-    color: 'text-emerald-400',
-    borderColor: 'border-emerald-500/25',
-    glowColor: 'rgba(16,185,129,0.06)',
-  },
+const STEP_DOT_COLORS = [
+  'bg-blue-400',
+  'bg-cyan-400',
+  'bg-violet-400',
+  'bg-purple-400',
+  'bg-teal-400',
 ]
 
-const aiFeatures = [
+// ─── How it works data ─────────────────────────────────────────────────────
+
+const HOW_IT_WORKS = [
+  { icon: Inbox,        label: 'Request received',        color: 'text-blue-400',   ring: 'ring-blue-500/30',   bg: 'bg-blue-500/10' },
+  { icon: ScanSearch,   label: 'Intent analyzed',          color: 'text-cyan-400',   ring: 'ring-cyan-500/30',   bg: 'bg-cyan-500/10' },
+  { icon: GitBranch,    label: 'Execution path selected',  color: 'text-violet-400', ring: 'ring-violet-500/30', bg: 'bg-violet-500/10' },
+  { icon: Layers,       label: 'Multiple layers activated', color: 'text-purple-400', ring: 'ring-purple-500/30', bg: 'bg-purple-500/10' },
+  { icon: GitMerge,     label: 'Outputs synthesized',       color: 'text-teal-400',   ring: 'ring-teal-500/30',   bg: 'bg-teal-500/10' },
+  { icon: CheckCircle2, label: 'Result returned',           color: 'text-emerald-400',ring: 'ring-emerald-500/30',bg: 'bg-emerald-500/10' },
+]
+
+// ─── Differentiators data ──────────────────────────────────────────────────
+
+const DIFFERENTIATORS = [
   {
-    icon: Cpu,
-    title: 'Intelligent Model Routing',
-    description: 'Each AI request is classified and routed to the optimal model — balancing capability, speed, and cost in real time.',
-    status: 'Rolling out',
-  },
-  {
-    icon: Activity,
-    title: 'Shared Context Engine',
-    description: 'Apps share memory and context through a unified store, enabling compounding intelligence as the ecosystem grows.',
-    status: 'In development',
+    icon: Split,
+    title: 'Multi-Layer Execution',
+    body: "When you send a request, AmarktAI doesn't use one model. It fans out across multiple intelligence layers simultaneously, then synthesizes the strongest output.",
+    accent: 'from-blue-500/20 to-cyan-500/10',
+    glow: 'hover:shadow-blue-500/10',
+    border: 'hover:border-blue-500/30',
+    iconColor: 'text-blue-400',
+    iconBg: 'bg-blue-500/10',
   },
   {
     icon: GitBranch,
-    title: 'Operations Dashboard',
-    description: 'Every model call, latency metric, and cost is tracked and visualised from a single real-time operations interface.',
-    status: 'Live in admin',
+    title: 'Adaptive Decision Making',
+    body: 'AmarktAI selects which layers to activate based on request complexity. Simple tasks route fast. Complex tasks trigger full multi-layer orchestration.',
+    accent: 'from-violet-500/20 to-purple-500/10',
+    glow: 'hover:shadow-violet-500/10',
+    border: 'hover:border-violet-500/30',
+    iconColor: 'text-violet-400',
+    iconBg: 'bg-violet-500/10',
   },
   {
-    icon: CheckCircle,
-    title: 'Full Audit Trail',
-    description: 'Complete traceability for every AI decision across the network — built for transparency and compliance.',
-    status: 'Rolling out',
+    icon: TrendingUp,
+    title: 'Continuous Improvement',
+    body: 'Every execution updates the shared context layer. AmarktAI grows more precise with each interaction across the entire ecosystem.',
+    accent: 'from-teal-500/20 to-cyan-500/10',
+    glow: 'hover:shadow-teal-500/10',
+    border: 'hover:border-teal-500/30',
+    iconColor: 'text-teal-400',
+    iconBg: 'bg-teal-500/10',
+  },
+  {
+    icon: Network,
+    title: 'Cross-App Intelligence',
+    body: "Intelligence doesn't stay in one app. Insights and context flow across the entire connected ecosystem, making every app smarter.",
+    accent: 'from-purple-500/20 to-violet-500/10',
+    glow: 'hover:shadow-purple-500/10',
+    border: 'hover:border-purple-500/30',
+    iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-500/10',
   },
 ]
 
-const ecosystemApps = [
-  {
-    icon: Brain,
-    name: 'Amarktai Network',
-    domain: 'amarktai.network',
-    href: 'https://amarktai.network',
-    description: 'The AI operating layer. Brain, orchestration, and shared intelligence for the entire ecosystem.',
-    color: 'text-blue-400',
-    border: 'border-blue-500/20',
-    status: 'Live',
-    statusColor: 'text-emerald-400',
-  },
-  {
-    icon: Megaphone,
-    name: 'Amarktai Marketing',
-    domain: 'amarktai.com',
-    href: 'https://amarktai.com',
-    description: 'AI-powered marketing intelligence and campaign management platform.',
-    color: 'text-violet-400',
-    border: 'border-violet-500/20',
-    status: 'Live',
-    statusColor: 'text-emerald-400',
-  },
-  {
-    icon: Plane,
-    name: 'Amarktai Travel',
-    domain: 'travel.amarktai.com',
-    href: 'https://travel.amarktai.com',
-    description: 'Smart travel planning and itinerary management powered by the shared brain.',
-    color: 'text-cyan-400',
-    border: 'border-cyan-500/20',
-    status: 'Live',
-    statusColor: 'text-emerald-400',
-  },
-  {
-    icon: User,
-    name: 'EquiProfile',
-    domain: 'equiprofile.online',
-    href: 'https://equiprofile.online',
-    description: 'Professional profiling and talent intelligence platform connected to the network.',
-    color: 'text-teal-400',
-    border: 'border-teal-500/20',
-    status: 'Live',
-    statusColor: 'text-emerald-400',
-  },
-  {
-    icon: ShoppingBag,
-    name: 'Amarktai Online',
-    domain: 'amarktai.online',
-    href: 'https://amarktai.online',
-    description: 'E-commerce and digital marketplace platform within the Amarktai ecosystem.',
-    color: 'text-amber-400',
-    border: 'border-amber-500/20',
-    status: 'Live',
-    statusColor: 'text-emerald-400',
-  },
-]
+// ─── Sub-components ────────────────────────────────────────────────────────
 
-/* ─── Variant Definitions ───────────────────────────────────── */
-const sectionVariants = {
-  hidden: { opacity: 0, y: 56 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: 'easeOut' as const, staggerChildren: 0.1 },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 36 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: 'easeOut' as const } },
-}
-
-/* ─── Page Component ────────────────────────────────────────── */
-export default function HomePage() {
-  /* Parallax */
-  const heroRef = useRef<HTMLElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  })
-  const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '35%'])
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0])
-
-  /* Section visibility */
-  const platformRef = useRef<HTMLElement>(null)
-  const whyRef = useRef<HTMLElement>(null)
-  const aiRef = useRef<HTMLElement>(null)
-  const ecosystemRef = useRef<HTMLElement>(null)
-  const ctaRef = useRef<HTMLElement>(null)
-
-  const platformInView = useInView(platformRef, { once: true, margin: '-80px' })
-  const whyInView = useInView(whyRef, { once: true, margin: '-80px' })
-  const aiInView = useInView(aiRef, { once: true, margin: '-80px' })
-  const ecosystemInView = useInView(ecosystemRef, { once: true, margin: '-80px' })
-  const ctaInView = useInView(ctaRef, { once: true, margin: '-80px' })
-
+function FadeUp({
+  children,
+  delay = 0,
+  className = '',
+}: {
+  children: React.ReactNode
+  delay?: number
+  className?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { once: true, margin: '-80px' })
   return (
-    <div className="min-h-screen bg-[#050816] text-white overflow-x-hidden">
-      <Header />
-
-      {/* ── HERO ──────────────────────────────────────────────── */}
-      <section
-        ref={heroRef}
-        className="relative min-h-[90vh] flex items-end justify-center overflow-hidden pb-16 sm:pb-20"
-      >
-        {/* Network canvas */}
-        <NetworkCanvas className="absolute inset-0 w-full h-full" />
-
-        {/* Grid */}
-        <div className="absolute inset-0 grid-bg opacity-25 pointer-events-none" />
-
-        {/* Aurora blobs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <motion.div
-            className="absolute top-[15%] left-[15%] w-[700px] h-[700px] bg-blue-600/12 rounded-full blur-[140px]"
-            animate={{ scale: [1, 1.08, 1], opacity: [0.12, 0.18, 0.12] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute top-[30%] right-[10%] w-[550px] h-[550px] bg-violet-600/12 rounded-full blur-[120px]"
-            animate={{ scale: [1, 1.06, 1], opacity: [0.12, 0.17, 0.12] }}
-            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-          />
-          <motion.div
-            className="absolute bottom-[10%] left-[45%] w-[450px] h-[450px] bg-cyan-500/8 rounded-full blur-[100px]"
-            animate={{ scale: [1, 1.1, 1], opacity: [0.08, 0.13, 0.08] }}
-            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-          />
-        </div>
-
-        {/* Radial vignette */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(ellipse 80% 60% at 50% 50%, transparent 30%, #050816 90%)',
-          }}
-        />
-
-        {/* Content — parallax wrapper */}
-        <motion.div
-          style={{ y: heroY, opacity: heroOpacity }}
-          className="relative z-10 container mx-auto px-6 text-center pt-24 lg:pt-28"
-        >
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="inline-flex items-center gap-2.5 glass px-5 py-2.5 rounded-full mb-6 border border-blue-500/20"
-          >
-            <motion.span
-              className="w-1.5 h-1.5 rounded-full bg-cyan-400"
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 1.8, repeat: Infinity }}
-            />
-            <span className="text-sm font-medium text-blue-200 tracking-wide">
-              One CNS. A Growing Network of Connected Apps.
-            </span>
-            <Sparkles size={13} className="text-cyan-400" />
-          </motion.div>
-
-          {/* Headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-[clamp(2.5rem,6.5vw,5rem)] font-black leading-[0.93] tracking-tight mb-5"
-          >
-            <span className="block text-white/85">The Central</span>
-            <span className="block gradient-text-blue-cyan py-1">Nervous System</span>
-            <span className="block text-white/85">for AI Operations</span>
-          </motion.h1>
-
-          {/* Sub-headline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.65 }}
-            className="max-w-2xl mx-auto text-base md:text-lg text-blue-100/60 mb-10 leading-relaxed"
-          >
-            Amarktai Network is the AI operating layer that powers an entire ecosystem of
-            connected apps. Self-learning. Self-healing. A shared intelligence layer routing
-            all AI tasks through one central nervous system.
-          </motion.p>
-
-          {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.85 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-          >
-            <Link
-              href="/apps"
-              className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
-            >
-              Explore the Network
-              <ArrowRight
-                size={17}
-                className="group-hover:translate-x-1 transition-transform duration-200"
-              />
-            </Link>
-            <Link
-              href="/about"
-              className="btn-ghost px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2"
-            >
-              Learn About Us
-            </Link>
-          </motion.div>
-        </motion.div>
-      </section>
-
-      <div className="section-divider" />
-
-      {/* ── THE PLATFORM ──────────────────────────────────────── */}
-      <motion.section
-        ref={platformRef}
-        variants={sectionVariants}
-        initial="hidden"
-        animate={platformInView ? 'visible' : 'hidden'}
-        className="relative py-32 px-6"
-      >
-        {/* Subtle background glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[400px] bg-blue-600/5 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="relative container mx-auto max-w-6xl">
-          {/* Header */}
-          <div className="text-center mb-20">
-            <motion.div
-              variants={itemVariants}
-              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-blue-500/20"
-            >
-              <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-[0.18em]">
-                The Nervous System
-              </span>
-            </motion.div>
-
-            <motion.h2
-              variants={itemVariants}
-              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
-            >
-              What{' '}
-              <span className="gradient-text">Amarktai Network</span>
-              {' '}Does
-            </motion.h2>
-
-            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
-              Six core capabilities that make Amarktai the shared intelligence layer across all connected apps.
-            </motion.p>
-          </div>
-
-          {/* Cards grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {capabilities.map((cap) => (
-              <motion.div
-                key={cap.title}
-                variants={itemVariants}
-                whileHover={{
-                  borderColor: 'rgba(59,130,246,0.35)',
-                  boxShadow: '0 0 32px rgba(59,130,246,0.08)',
-                }}
-                className="glass-card p-7 rounded-2xl border border-white/[0.06] transition-colors duration-300 cursor-default"
-              >
-                <div
-                  className={`w-11 h-11 rounded-xl glass flex items-center justify-center mb-5 ${cap.color}`}
-                >
-                  <cap.icon size={20} />
-                </div>
-                <h3 className="text-base font-bold text-white mb-2">{cap.title}</h3>
-                <p className="text-sm text-blue-100/45 leading-relaxed">{cap.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="section-divider" />
-
-      {/* ── WHY AMARKTAI ──────────────────────────────────────── */}
-      <motion.section
-        ref={whyRef}
-        variants={sectionVariants}
-        initial="hidden"
-        animate={whyInView ? 'visible' : 'hidden'}
-        className="relative py-32 px-6 overflow-hidden"
-      >
-        {/* Violet aurora */}
-        <div className="absolute -left-32 top-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600/7 rounded-full blur-[130px] pointer-events-none" />
-
-        <div className="relative container mx-auto max-w-6xl">
-          <div className="text-center mb-20">
-            <motion.div
-              variants={itemVariants}
-              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-violet-500/20"
-            >
-              <span className="text-[11px] font-bold text-violet-400 uppercase tracking-[0.18em]">
-                Differentiators
-              </span>
-            </motion.div>
-
-            <motion.h2
-              variants={itemVariants}
-              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
-            >
-              Why{' '}
-              <span className="gradient-text-aurora">Amarktai</span>
-            </motion.h2>
-
-            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
-              We&apos;re not building another app. We&apos;re engineering the brain that powers every app.
-            </motion.p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-5">
-            {differentiators.map((item) => (
-              <motion.div
-                key={item.title}
-                variants={itemVariants}
-                whileHover={{ scale: 1.015, boxShadow: `0 24px 48px ${item.glowColor}` }}
-                className={`glass-strong p-9 rounded-3xl border ${item.borderColor} transition-all duration-300 cursor-default`}
-              >
-                <div
-                  className={`w-14 h-14 rounded-2xl glass flex items-center justify-center mb-6 ${item.color}`}
-
-                >
-                  <item.icon size={24} />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
-                <p className="text-blue-100/55 leading-relaxed">{item.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="section-divider" />
-
-      {/* ── AI INTELLIGENCE ───────────────────────────────────── */}
-      <motion.section
-        ref={aiRef}
-        variants={sectionVariants}
-        initial="hidden"
-        animate={aiInView ? 'visible' : 'hidden'}
-        className="relative py-32 px-6 overflow-hidden"
-      >
-        {/* Cyan aurora */}
-        <div className="absolute -right-32 top-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/7 rounded-full blur-[110px] pointer-events-none" />
-
-        <div className="relative container mx-auto max-w-6xl">
-          <div className="text-center mb-20">
-            <motion.div
-              variants={itemVariants}
-              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-cyan-500/20"
-            >
-              <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-[0.18em]">
-                AI Intelligence Layer
-              </span>
-            </motion.div>
-
-            <motion.h2
-              variants={itemVariants}
-              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
-            >
-              The{' '}
-              <span className="gradient-text-blue-cyan">AI Core</span>
-            </motion.h2>
-
-            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
-              The shared intelligence engine that powers every application in the Amarktai network.
-            </motion.p>
-          </div>
-
-          <div className="grid lg:grid-cols-2 gap-14 items-center">
-            {/* System Architecture */}
-            <motion.div variants={itemVariants}>
-              <SystemArchitecture />
-            </motion.div>
-
-            {/* Features list */}
-            <motion.div variants={itemVariants} className="space-y-7">
-              {aiFeatures.map((feature) => (
-                <div key={feature.title} className="flex gap-4 items-start group">
-                  <div className="w-10 h-10 rounded-xl glass flex items-center justify-center text-cyan-400 shrink-0 mt-0.5 group-hover:bg-cyan-500/10 transition-colors duration-200">
-                    <feature.icon size={18} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-bold text-white">{feature.title}</h3>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/[0.06] text-blue-200/50 border border-white/[0.06]">
-                        {feature.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-blue-100/50 leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="section-divider" />
-
-      {/* ── THE LIVE ECOSYSTEM ───────────────────────────────── */}
-      <motion.section
-        variants={sectionVariants}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: '-80px' }}
-        className="relative py-28 px-6"
-      >
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 right-0 w-[500px] h-[500px] bg-violet-600/5 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="relative container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <motion.div
-              variants={itemVariants}
-              className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-6 border border-emerald-500/20"
-            >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
-              </span>
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-[0.18em]">
-                Live Ecosystem
-              </span>
-            </motion.div>
-
-            <motion.h2
-              variants={itemVariants}
-              className="text-4xl md:text-6xl font-black mb-5 tracking-tight"
-            >
-              Connected Apps.{' '}
-              <span className="gradient-text-aurora">One CNS.</span>
-            </motion.h2>
-
-            <motion.p variants={itemVariants} className="text-blue-100/45 text-lg max-w-xl mx-auto">
-              Every app in the Amarktai ecosystem connects to the same shared intelligence layer.
-              Shared setup. Shared health. Shared orchestration.
-            </motion.p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ecosystemApps.map((app, i) => (
-              <motion.a
-                key={app.name}
-                variants={itemVariants}
-                href={app.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.015, boxShadow: '0 16px 48px rgba(59,130,246,0.08)' }}
-                className={`glass-card p-6 rounded-2xl border ${app.border} transition-all duration-300 cursor-pointer block ${i === 0 ? 'sm:col-span-2 lg:col-span-1' : ''}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-xl glass flex items-center justify-center ${app.color}`}>
-                    <app.icon size={19} />
-                  </div>
-                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${app.statusColor} glass px-2 py-1 rounded-full border border-emerald-500/20`}>
-                    {app.status}
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1">{app.name}</h3>
-                <p className={`text-[11px] font-mono mb-3 ${app.color} opacity-70`}>{app.domain}</p>
-                <p className="text-xs text-blue-100/50 leading-relaxed">{app.description}</p>
-              </motion.a>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="section-divider" />
-
-      {/* ── ONE NETWORK. ONE BRAIN. ───────────────────────────── */}
-      <motion.section
-        ref={ecosystemRef}
-        variants={sectionVariants}
-        initial="hidden"
-        animate={ecosystemInView ? 'visible' : 'hidden'}
-        className="relative py-40 px-6 overflow-hidden"
-      >
-        {/* Multi-layered aurora background */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[500px] bg-blue-600/8 rounded-full blur-[140px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-violet-600/8 rounded-full blur-[120px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[200px] bg-cyan-500/6 rounded-full blur-[80px]" />
-        </div>
-
-        {/* Subtle grid overlay */}
-        <div className="absolute inset-0 grid-bg opacity-10 pointer-events-none" />
-
-        <div className="relative container mx-auto max-w-5xl text-center">
-          {/* Eyebrow */}
-          <motion.div
-            variants={itemVariants}
-            className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-10 border border-blue-500/20"
-          >
-            <motion.span
-              className="w-1.5 h-1.5 rounded-full bg-cyan-400"
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
-            <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-[0.18em]">
-              The Vision
-            </span>
-          </motion.div>
-
-          {/* Main statement */}
-          <motion.h2
-            variants={itemVariants}
-            className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-tight mb-8"
-          >
-            <span className="block text-white/90">One Network.</span>
-            <span className="block gradient-text-blue-cyan py-2">One CNS.</span>
-          </motion.h2>
-
-          {/* Supporting copy */}
-          <motion.p
-            variants={itemVariants}
-            className="text-lg md:text-xl text-blue-100/55 max-w-2xl mx-auto leading-relaxed mb-6"
-          >
-            Every application in the Amarktai ecosystem is a node connected to a single,
-            evolving intelligence layer. AI routing, shared memory, unified orchestration,
-            and centralized control — one CNS, many machines, compounding intelligence.
-          </motion.p>
-
-          <motion.p
-            variants={itemVariants}
-            className="text-base text-blue-100/40 max-w-xl mx-auto leading-relaxed mb-14"
-          >
-            Marketing, travel, commerce, identity — a growing set of apps,
-            all wired to one evolving, self-learning intelligence layer.
-          </motion.p>
-
-          {/* Premium divider treatment */}
-          <motion.div variants={itemVariants} className="flex items-center justify-center gap-6 mb-14">
-            <div className="h-px w-24 bg-gradient-to-r from-transparent to-blue-500/40" />
-            <div className="w-2 h-2 rounded-full bg-blue-500/60" />
-            <div className="h-px w-8 bg-blue-500/40" />
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400/70" />
-            <div className="h-px w-8 bg-violet-500/40" />
-            <div className="w-2 h-2 rounded-full bg-violet-500/60" />
-            <div className="h-px w-24 bg-gradient-to-l from-transparent to-violet-500/40" />
-          </motion.div>
-
-          {/* CTA */}
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/apps"
-              className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
-            >
-              Explore the Ecosystem
-              <ArrowRight
-                size={17}
-                className="group-hover:translate-x-1 transition-transform duration-200"
-              />
-            </Link>
-            <Link
-              href="/about"
-              className="btn-ghost px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center"
-            >
-              Our Story
-            </Link>
-          </motion.div>
-        </div>
-      </motion.section>
-
-      <div className="section-divider" />
-
-      {/* ── CTA ───────────────────────────────────────────────── */}
-      <motion.section
-        ref={ctaRef}
-        variants={sectionVariants}
-        initial="hidden"
-        animate={ctaInView ? 'visible' : 'hidden'}
-        className="relative py-44 px-6 overflow-hidden"
-      >
-        {/* Background aurora */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[450px] bg-blue-600/9 rounded-full blur-[130px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[350px] bg-violet-600/9 rounded-full blur-[110px]" />
-        </div>
-
-        {/* Rotating rings */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
-            className="absolute w-[480px] h-[480px] rounded-full border border-blue-500/10"
-          />
-          <motion.div
-            animate={{ rotate: -360 }}
-            transition={{ duration: 34, repeat: Infinity, ease: 'linear' }}
-            className="absolute w-[680px] h-[680px] rounded-full border border-violet-500/7"
-          />
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 50, repeat: Infinity, ease: 'linear' }}
-            className="absolute w-[880px] h-[880px] rounded-full border border-cyan-500/5"
-          />
-        </div>
-
-        <div className="relative z-10 container mx-auto max-w-4xl text-center">
-          <motion.div
-            variants={itemVariants}
-            className="inline-flex items-center gap-2.5 glass px-5 py-2.5 rounded-full mb-10 border border-blue-500/20"
-          >
-            <Sparkles size={13} className="text-cyan-400" />
-            <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-[0.18em]">
-              Join the Movement
-            </span>
-          </motion.div>
-
-          <motion.h2
-            variants={itemVariants}
-            className="text-5xl md:text-7xl font-black mb-7 tracking-tight leading-tight"
-          >
-            Ready to Build<br />
-            <span className="gradient-text-blue-cyan">the Future?</span>
-          </motion.h2>
-
-          <motion.p
-            variants={itemVariants}
-            className="text-lg text-blue-100/55 mb-14 max-w-lg mx-auto leading-relaxed"
-          >
-            Whether you&apos;re a user, partner, or investor — there&apos;s a place for
-            you in the Amarktai ecosystem.
-          </motion.p>
-
-          <motion.div
-            variants={itemVariants}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-          >
-            <Link
-              href="/contact"
-              className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
-            >
-              Start the Conversation
-              <ArrowRight
-                size={17}
-                className="group-hover:translate-x-1 transition-transform duration-200"
-              />
-            </Link>
-            <Link
-              href="/apps"
-              className="btn-ghost px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center"
-            >
-              View the Ecosystem
-            </Link>
-          </motion.div>
-        </div>
-      </motion.section>
-
-      <Footer />
-    </div>
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 32 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.65, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   )
 }
+
+// ─── Page ──────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  const [query, setQuery] = useState('')
+  const [executing, setExecuting] = useState(false)
+  const [currentStep, setCurrentStep] = useState(0)
+  const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const [done, setDone] = useState(false)
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  function clearTimers() {
+    timerRefs.current.forEach(clearTimeout)
+    timerRefs.current = []
+  }
+
+  function handleExecute(e: React.FormEvent) {
+    e.preventDefault()
+    if (!query.trim() || executing) return
+
+    clearTimers()
+    setExecuting(true)
+    setCurrentStep(1)
+    setCompletedSteps([])
+    setDone(false)
+
+    // Advance steps: step i completes after i * 1200ms, next step starts immediately after
+    for (let i = 1; i <= EXECUTION_STEPS.length; i++) {
+      const completeAt = i * 1200
+      timerRefs.current.push(
+        setTimeout(() => {
+          setCompletedSteps(prev => [...prev, i])
+          if (i < EXECUTION_STEPS.length) {
+            setCurrentStep(i + 1)
+          }
+        }, completeAt)
+      )
+    }
+
+    // All done
+    timerRefs.current.push(
+      setTimeout(() => {
+        setCurrentStep(0)
+        setDone(true)
+      }, EXECUTION_STEPS.length * 1200 + 200)
+    )
+
+    // Reset
+    timerRefs.current.push(
+      setTimeout(() => {
+        setExecuting(false)
+        setCurrentStep(0)
+        setCompletedSteps([])
+        setDone(false)
+        setQuery('')
+      }, EXECUTION_STEPS.length * 1200 + 4200)
+    )
+  }
+
+  useEffect(() => () => clearTimers(), [])
+
+  const showFlow = executing || done
+
+  return (
+    <>
+      <div className="scanline" />
+      <Header />
+
+      <main className="min-h-screen bg-[#050816] text-[#F8FAFC]">
+
+        {/* ── HERO ───────────────────────────────────────────────────────── */}
+        <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
+
+          {/* NetworkCanvas fills the hero area */}
+          <div className="absolute inset-0 z-0">
+            <NetworkCanvas
+              className="w-full h-full"
+              interactive={executing || done}
+              activationStep={currentStep}
+            />
+          </div>
+
+          {/* Dark overlay */}
+          <div className="absolute inset-0 z-10 bg-[#050816]/60" />
+
+          {/* Radial vignette so edges feel contained */}
+          <div className="absolute inset-0 z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,transparent_30%,#050816_100%)]" />
+
+          {/* Content */}
+          <div className="relative z-20 w-full max-w-3xl mx-auto px-6 flex flex-col items-center text-center gap-8">
+
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full glass border border-blue-500/20 text-xs font-mono tracking-widest uppercase text-blue-300"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400" />
+              </span>
+              AmarktAI · Live System
+            </motion.div>
+
+            {/* H1 */}
+            <motion.h1
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="font-heading text-[clamp(4rem,14vw,9rem)] font-bold leading-none tracking-tight gradient-text"
+            >
+              AmarktAI
+            </motion.h1>
+
+            {/* Subtitle */}
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.35 }}
+              className="text-[clamp(1rem,2.5vw,1.25rem)] text-slate-300 max-w-2xl leading-relaxed"
+            >
+              The intelligence layer that thinks across multiple dimensions simultaneously.
+            </motion.p>
+
+            {/* Input form */}
+            <motion.form
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.5 }}
+              onSubmit={handleExecute}
+              className="w-full max-w-2xl"
+            >
+              <div className="relative flex items-center glass rounded-2xl border border-blue-500/20 overflow-hidden focus-within:border-blue-500/50 focus-within:shadow-[0_0_30px_rgba(59,130,246,0.12)] transition-all duration-300">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  disabled={executing}
+                  placeholder="Ask AmarktAI anything..."
+                  className="flex-1 bg-transparent px-6 py-5 text-base text-white placeholder:text-slate-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+                />
+                <div className="pr-3">
+                  <button
+                    type="submit"
+                    disabled={!query.trim() || executing}
+                    className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none relative z-10"
+                  >
+                    {executing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Running
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        Execute
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.form>
+
+            {/* Execution flow */}
+            <AnimatePresence>
+              {showFlow && (
+                <motion.div
+                  key="execution-flow"
+                  initial={{ opacity: 0, height: 0, y: -8 }}
+                  animate={{ opacity: 1, height: 'auto', y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full max-w-2xl glass rounded-2xl border border-slate-700/50 p-5 text-left space-y-3 overflow-hidden"
+                >
+                  {EXECUTION_STEPS.map((step, i) => {
+                    const stepNum = i + 1
+                    const isComplete = completedSteps.includes(stepNum)
+                    const isActive = currentStep === stepNum && !isComplete
+                    const isPending = !isComplete && !isActive
+
+                    return (
+                      <AnimatePresence key={step}>
+                        {(isActive || isComplete || (executing && stepNum <= currentStep)) && (
+                          <motion.div
+                            initial={{ opacity: 0, x: -12 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.35 }}
+                            className={`flex items-center gap-3 text-sm font-mono transition-opacity duration-300 ${isPending ? 'opacity-30' : 'opacity-100'}`}
+                          >
+                            {/* Status indicator */}
+                            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                              {isComplete ? (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+                                >
+                                  <Check className="w-4 h-4 text-emerald-400" />
+                                </motion.div>
+                              ) : isActive ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                              ) : (
+                                <span className={`w-2 h-2 rounded-full ${STEP_DOT_COLORS[i]}`} />
+                              )}
+                            </div>
+
+                            {/* Step text */}
+                            <span className={isComplete ? 'text-slate-400 line-through' : isActive ? STEP_COLORS[i] : 'text-slate-500'}>
+                              {step}
+                            </span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    )
+                  })}
+
+                  {/* Done message */}
+                  <AnimatePresence>
+                    {done && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="pt-2 border-t border-slate-700/50 flex items-center gap-2 text-sm font-mono text-emerald-400"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Execution complete. AmarktAI is ready.
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+          </div>
+
+          {/* Scroll hint */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2, duration: 0.8 }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2"
+          >
+            <span className="text-xs text-slate-600 font-mono tracking-widest uppercase">Scroll</span>
+            <motion.div
+              animate={{ y: [0, 6, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-px h-8 bg-gradient-to-b from-blue-500/40 to-transparent"
+            />
+          </motion.div>
+        </section>
+
+        {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
+        <section className="relative py-32 px-6 overflow-hidden">
+          <div className="section-divider mb-24" />
+
+          <div className="max-w-6xl mx-auto">
+            <FadeUp className="text-center mb-20">
+              <p className="text-xs font-mono tracking-widest uppercase text-blue-400/70 mb-4">
+                System architecture
+              </p>
+              <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text-blue-cyan">
+                How AmarktAI Works
+              </h2>
+            </FadeUp>
+
+            {/* Flow row */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-0">
+              {HOW_IT_WORKS.map((step, i) => (
+                <div key={step.label} className="flex flex-col md:flex-row items-center gap-3 md:gap-0">
+                  <FadeUp delay={i * 0.1} className="flex flex-col items-center">
+                    {/* Step card */}
+                    <div className={`relative flex flex-col items-center gap-3 p-5 rounded-2xl glass-card ring-1 ${step.ring} w-[140px]`}>
+                      <div className={`p-3 rounded-xl ${step.bg}`}>
+                        <step.icon className={`w-6 h-6 ${step.color}`} strokeWidth={1.5} />
+                      </div>
+                      <p className="text-xs text-center text-slate-300 leading-snug font-medium">
+                        {step.label}
+                      </p>
+                      {/* Step number */}
+                      <span className="absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-[#050816] border border-slate-700 text-[10px] text-slate-500 font-mono flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                    </div>
+                  </FadeUp>
+
+                  {/* Arrow between steps */}
+                  {i < HOW_IT_WORKS.length - 1 && (
+                    <FadeUp delay={i * 0.1 + 0.05} className="md:mx-2 flex md:block justify-center">
+                      <motion.div
+                        animate={{ x: [0, 4, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 }}
+                      >
+                        <ArrowRight className="w-5 h-5 text-slate-600 rotate-90 md:rotate-0" strokeWidth={1.5} />
+                      </motion.div>
+                    </FadeUp>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── HOW IT THINKS DIFFERENTLY ─────────────────────────────────── */}
+        <section className="relative py-32 px-6 overflow-hidden">
+          <div className="section-divider mb-24" />
+
+          {/* Background grid */}
+          <div className="absolute inset-0 grid-bg-fine opacity-40 pointer-events-none" />
+
+          <div className="max-w-6xl mx-auto">
+            <FadeUp className="text-center mb-20">
+              <p className="text-xs font-mono tracking-widest uppercase text-violet-400/70 mb-4">
+                Cognitive architecture
+              </p>
+              <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text">
+                How AmarktAI Thinks Differently
+              </h2>
+            </FadeUp>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {DIFFERENTIATORS.map((card, i) => (
+                <FadeUp key={card.title} delay={i * 0.12}>
+                  <div
+                    className={`relative h-full glass-card rounded-2xl p-8 border border-slate-700/40 ${card.border} shadow-xl ${card.glow} hover:shadow-2xl transition-all duration-400 group overflow-hidden`}
+                  >
+                    {/* Gradient wash */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${card.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl pointer-events-none`} />
+
+                    <div className="relative z-10 flex flex-col gap-5 h-full">
+                      <div className={`w-12 h-12 rounded-xl ${card.iconBg} flex items-center justify-center`}>
+                        <card.icon className={`w-6 h-6 ${card.iconColor}`} strokeWidth={1.5} />
+                      </div>
+                      <h3 className="font-heading text-xl font-semibold text-white">
+                        {card.title}
+                      </h3>
+                      <p className="text-slate-400 leading-relaxed text-sm flex-1">
+                        {card.body}
+                      </p>
+                      <div className={`flex items-center gap-1.5 text-xs font-mono ${card.iconColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}>
+                        <span>Learn more</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </div>
+                    </div>
+                  </div>
+                </FadeUp>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── BOTTOM CTA ────────────────────────────────────────────────── */}
+        <section className="relative py-32 px-6">
+          <div className="section-divider mb-24" />
+
+          <FadeUp className="max-w-2xl mx-auto text-center flex flex-col items-center gap-8">
+            <p className="text-xs font-mono tracking-widest uppercase text-emerald-400/70">
+              System online
+            </p>
+            <h2 className="font-heading text-4xl md:text-5xl font-bold gradient-text">
+              Experience AmarktAI
+            </h2>
+            <p className="text-slate-400 text-lg">
+              The system is running. Interact with it above.
+            </p>
+            <Link href="/contact" className="btn-primary group">
+              Connect with the Team
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </FadeUp>
+        </section>
+
+      </main>
+
+      <Footer />
+    </>
+  )
+}
+
