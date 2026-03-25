@@ -51,7 +51,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Administration',
     items: [
-      { href: '/admin/dashboard/config', label: 'Setup Matrix', icon: Settings, color: 'text-amber-400' },
+      { href: '/admin/dashboard/config', label: 'Execution Config', icon: Settings, color: 'text-amber-400' },
       { href: '/admin/dashboard/api-keys', label: 'API Keys', icon: Key, color: 'text-violet-400' },
       { href: '/admin/dashboard/contacts', label: 'Contacts', icon: Mail, color: 'text-pink-400' },
       { href: '/admin/dashboard/waitlist', label: 'Waitlist', icon: Users, color: 'text-indigo-400' },

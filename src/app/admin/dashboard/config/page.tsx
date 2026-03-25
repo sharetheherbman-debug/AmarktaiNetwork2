@@ -37,8 +37,8 @@ interface SetupSection {
 const setupMatrix: SetupSection[] = [
   {
     id: 'ai-providers',
-    title: 'AI Provider Keys',
-    description: 'API keys for all language model providers. The brain routes requests across these.',
+    title: 'Intelligence Layer Keys',
+    description: 'API keys for the AI execution layers. AmarktAI routes requests across these internally.',
     icon: BrainCircuit,
     color: 'text-violet-400',
     borderColor: 'border-violet-500/20',
@@ -341,9 +341,9 @@ export default function SetupMatrixPage() {
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-white font-heading">Setup Matrix</h1>
+        <h1 className="text-2xl font-bold text-white font-heading">Execution Configuration</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Complete integration and configuration status for Amarktai Network
+          Configure execution layers and integration keys for the AmarktAI system
         </p>
       </motion.div>
 
