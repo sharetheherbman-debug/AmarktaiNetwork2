@@ -132,7 +132,7 @@ export interface ModelEntry {
   enabled: boolean;
 
   /** Current operational health status. */
-  health_status: 'configured' | 'configured' | 'degraded' | 'error' | 'unconfigured' | 'disabled';
+  health_status: 'healthy' | 'configured' | 'degraded' | 'error' | 'unconfigured' | 'disabled';
 
   /** Lower number = preferred fallback (1 = first choice). */
   fallback_priority: number;
