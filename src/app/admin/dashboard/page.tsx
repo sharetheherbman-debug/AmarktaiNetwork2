@@ -213,7 +213,7 @@ export default function DashboardOverview() {
             <p className="text-xs text-red-400/80 mt-0.5">{dbError}</p>
             <p className="text-xs text-slate-500 mt-1.5">
               Set a real <code className="text-slate-400 font-mono">DATABASE_URL</code> and ensure the database is reachable.
-              Visit <a href="/admin/dashboard/readiness" className="text-blue-400 hover:text-blue-300 underline">Go-Live Readiness</a> for a full diagnostic.
+              Visit the <a href="/admin/dashboard/readiness" className="text-blue-400 hover:text-blue-300 underline" aria-label="Go to Go-Live Readiness diagnostic page">Go-Live Readiness</a> page for a full diagnostic.
             </p>
           </div>
         </div>

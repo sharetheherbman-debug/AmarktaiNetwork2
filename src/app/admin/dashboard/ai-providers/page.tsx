@@ -406,7 +406,7 @@ export default function AiProvidersPage() {
           <div>
             <p className="text-sm font-medium text-red-400">Provider data unavailable</p>
             <p className="text-xs text-red-400/80 mt-0.5">{loadError}</p>
-            <p className="text-xs text-slate-500 mt-1">You can still configure providers below — they will be saved once the database is reachable.</p>
+            <p className="text-xs text-slate-500 mt-1">Ensure the database is configured and reachable before saving provider changes.</p>
           </div>
         </div>
       )}

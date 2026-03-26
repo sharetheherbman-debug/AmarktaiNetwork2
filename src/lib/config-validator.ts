@@ -65,9 +65,15 @@ const PLACEHOLDER_DB_PASSWORDS = [
 
 /**
  * Returns true if the DATABASE_URL value looks like a placeholder/example.
- * We check host, user, and password fragments. A URL is considered a
- * placeholder if the host alone matches OR if both user AND password match
- * a known-placeholder pattern.
+ *
+ * Rules (in order):
+ * 1. Empty or unparseable URL → placeholder
+ * 2. Host matches a known placeholder list → placeholder
+ * 3. BOTH user AND password match known placeholder lists → placeholder
+ *
+ * Note: a username of 'postgres' with a real password on a real host is valid.
+ * But if both user='postgres' AND password='password' it is treated as a
+ * placeholder because that combination is the canonical Docker-default credential.
  */
 export function isDatabaseUrlPlaceholder(url: string): boolean {
   if (!url || url.trim() === '') return true;
@@ -263,19 +269,6 @@ export function classifyDbError(err: unknown): {
   if (msg.includes('environment variable not found: database_url') || msg.includes('no database_url')) {
     return { category: 'config_invalid', message: 'DATABASE_URL environment variable is not set.' };
   }
-  // Only check placeholder if DATABASE_URL is set and looks fake, and before other checks
-  if (
-    !msg.includes('econnrefused') &&
-    !msg.includes('connection refused') &&
-    !msg.includes('password authentication') &&
-    !msg.includes('authentication failed') &&
-    !msg.includes('relation') &&
-    !msg.includes('unique constraint') &&
-    !msg.includes('foreign key constraint') &&
-    isDatabaseUrlPlaceholder(process.env.DATABASE_URL ?? '')
-  ) {
-    return { category: 'config_invalid', message: 'DATABASE_URL is a placeholder — configure a real database.' };
-  }
   if (
     msg.includes('econnrefused') ||
     msg.includes('connection refused') ||
@@ -296,6 +289,10 @@ export function classifyDbError(err: unknown): {
   }
   if (msg.includes('unique constraint') || msg.includes('foreign key constraint')) {
     return { category: 'db_constraint', message: err.message };
+  }
+  // Check for placeholder DATABASE_URL as a catch-all for unrecognised Prisma errors
+  if (isDatabaseUrlPlaceholder(process.env.DATABASE_URL ?? '')) {
+    return { category: 'config_invalid', message: 'DATABASE_URL is a placeholder — configure a real database.' };
   }
 
   return { category: 'unknown', message: err.message };
