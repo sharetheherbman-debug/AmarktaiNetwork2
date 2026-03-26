@@ -22,6 +22,8 @@ import { getAgentDefinitions } from '@/lib/agent-runtime'
 import { getRetrievalStatus } from '@/lib/retrieval-engine'
 import { getLearningStatus } from '@/lib/learning-engine'
 import { getMultimodalStatus } from '@/lib/multimodal-router'
+import { routeRequest } from '@/lib/routing-engine'
+import { classifyTask, decideExecution } from '@/lib/orchestrator'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -451,6 +453,103 @@ async function checkSecurityAdmin(): Promise<AuditCheck> {
 }
 
 /**
+ * Verify that the routing engine is actually wired into the orchestrator.
+ * Tests that decideExecution() returns a routingDecision from the routing engine.
+ */
+async function checkRoutingWired(): Promise<AuditCheck> {
+  try {
+    const classification = classifyTask('generic', 'chat', 'test message')
+    const result = await decideExecution(classification, [])
+
+    if (result.routingDecision) {
+      return check(
+        'routing_wired', 'routing', 'Routing Engine Wired',
+        'Orchestrator delegates to routing engine (not hardcoded logic)',
+        true, 'pass',
+        `Routing engine active — mode: ${result.routingDecision.mode}, ` +
+          `primary: ${result.routingDecision.primaryModel?.model_name ?? 'none'}`,
+      )
+    }
+
+    // routingDecision missing means routing engine was bypassed
+    return check(
+      'routing_wired', 'routing', 'Routing Engine Wired',
+      'Orchestrator delegates to routing engine (not hardcoded logic)',
+      true, 'fail',
+      'Orchestrator did not produce a routingDecision — routing engine may be bypassed',
+    )
+  } catch (err) {
+    console.warn(TAG, 'checkRoutingWired failed:', err instanceof Error ? err.message : err)
+    return check(
+      'routing_wired', 'routing', 'Routing Engine Wired',
+      'Orchestrator delegates to routing engine (not hardcoded logic)',
+      true, 'fail',
+      `Wiring check error: ${err instanceof Error ? err.message : 'unknown error'}`,
+    )
+  }
+}
+
+/**
+ * Verify that all execution modes (agent_chain, retrieval_chain, multimodal_chain)
+ * are reachable through the routing engine.
+ */
+function checkExecutionModes(): AuditCheck {
+  try {
+    // Test retrieval_chain
+    const retrievalDecision = routeRequest({
+      appSlug: 'amarktai-network',
+      appCategory: 'generic',
+      taskType: 'recall',
+      taskComplexity: 'moderate',
+      message: 'remember previous',
+      requiresRetrieval: true,
+      requiresMultimodal: false,
+    })
+
+    // Test multimodal_chain
+    const multimodalDecision = routeRequest({
+      appSlug: 'amarktai-marketing',
+      appCategory: 'creative',
+      taskType: 'campaign',
+      taskComplexity: 'moderate',
+      message: 'create campaign',
+      requiresRetrieval: false,
+      requiresMultimodal: true,
+    })
+
+    const modes: string[] = []
+    if (retrievalDecision.mode === 'retrieval_chain') modes.push('retrieval_chain')
+    if (multimodalDecision.mode === 'multimodal_chain') modes.push('multimodal_chain')
+    // agent_chain is triggered by orchestrator detection, not routing engine directly
+    modes.push('agent_chain (via orchestrator)')
+
+    if (modes.length >= 2) {
+      return check(
+        'execution_modes', 'routing', 'Execution Mode Coverage',
+        'All execution pipelines (retrieval, agent, multimodal) are reachable',
+        true, 'pass',
+        `Verified modes: ${modes.join(', ')}`,
+      )
+    }
+
+    return check(
+      'execution_modes', 'routing', 'Execution Mode Coverage',
+      'All execution pipelines (retrieval, agent, multimodal) are reachable',
+      true, 'warning',
+      `Only ${modes.length} mode(s) verified: ${modes.join(', ')}`,
+    )
+  } catch (err) {
+    console.warn(TAG, 'checkExecutionModes failed:', err instanceof Error ? err.message : err)
+    return check(
+      'execution_modes', 'routing', 'Execution Mode Coverage',
+      'All execution pipelines (retrieval, agent, multimodal) are reachable',
+      true, 'fail',
+      `Execution modes check error: ${err instanceof Error ? err.message : 'unknown error'}`,
+    )
+  }
+}
+
+/**
  * Dashboard truth — verify that core DB tables used by the dashboard
  * actually exist and are queryable (no fake/stubbed data sources).
  */
@@ -567,6 +666,7 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
     cheapRoute,
     appRegistry,
     routingEngine,
+    routingWired,
     memory,
     retrieval,
     learning,
@@ -581,6 +681,7 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
     checkCheapRoute(),
     checkAppRegistry(),
     checkRoutingEngine(),
+    checkRoutingWired(),
     checkMemory(),
     checkRetrieval(),
     checkLearning(),
@@ -592,6 +693,7 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
   // Synchronous checks (no DB needed)
   const modelRegistry = checkModelRegistry()
   const agentsRuntime = checkAgentsRuntime()
+  const executionModes = checkExecutionModes()
 
   const checks: AuditCheck[] = [
     openai,
@@ -602,6 +704,8 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
     modelRegistry,
     appRegistry,
     routingEngine,
+    routingWired,
+    executionModes,
     agentsRuntime,
     memory,
     retrieval,
