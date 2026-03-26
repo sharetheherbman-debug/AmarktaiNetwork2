@@ -176,15 +176,57 @@ pm2 startup
 # 5. Configure Nginx (see below)
 ```
 
-### Nginx Configuration
+### Live Domains (Single Source of Truth)
+
+This VPS hosts exactly three live domains:
+
+| Domain | App | Port |
+|---|---|---|
+| `amarktai.com` | AmarktAI Network (Next.js) | 3000 |
+| `marketing.amarktai.com` | Marketing app | 3001 |
+| `travel.amarktai.com` | Travel app | 3002 |
+
+**Canonical Nginx configs** are in `nginx/sites-available/`.  No other subdomains
+(e.g. `faith-haven.amarktai.com`) should be active.
+
+### Nginx Setup
+
+```bash
+# 1. Copy configs to Nginx
+sudo cp nginx/sites-available/amarktai.com           /etc/nginx/sites-available/
+sudo cp nginx/sites-available/marketing.amarktai.com /etc/nginx/sites-available/
+sudo cp nginx/sites-available/travel.amarktai.com    /etc/nginx/sites-available/
+
+# 2. Enable the three live domains
+sudo ln -sf /etc/nginx/sites-available/amarktai.com           /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/marketing.amarktai.com /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/travel.amarktai.com    /etc/nginx/sites-enabled/
+
+# 3. Test and reload
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Or use the automated cleanup script (see below).
+
+### Nginx amarktai.com config (summary)
 
 ```nginx
+# HTTP → HTTPS
 server {
     listen 80;
-    server_name yourdomain.com www.yourdomain.com;
+    server_name amarktai.com www.amarktai.com;
+    return 301 https://amarktai.com$request_uri;
+}
+
+# HTTPS → Next.js app on port 3000
+server {
+    listen 443 ssl;
+    server_name amarktai.com www.amarktai.com;
+    ssl_certificate     /etc/letsencrypt/live/amarktai.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/amarktai.com/privkey.pem;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -197,11 +239,36 @@ server {
 }
 ```
 
-Then enable SSL with Certbot:
+Issue SSL certificates with Certbot (run once per domain):
 
 ```bash
-certbot --nginx -d yourdomain.com -d www.yourdomain.com
+certbot --nginx -d amarktai.com -d www.amarktai.com
+certbot --nginx -d marketing.amarktai.com
+certbot --nginx -d travel.amarktai.com
 ```
+
+### VPS Cleanup / Audit
+
+Two helper scripts are included in `scripts/`:
+
+```bash
+# Audit only — no changes made
+sudo bash scripts/nginx-audit.sh
+
+# Apply cleanup: disable stale configs, install canonical configs, reload Nginx
+sudo bash scripts/vps-cleanup.sh
+
+# Dry-run: preview what vps-cleanup.sh would do without applying it
+sudo bash scripts/vps-cleanup.sh --dry-run
+```
+
+`vps-cleanup.sh` will:
+1. Back up the current `/etc/nginx/sites-enabled/` and `sites-available/`
+2. Disable any configs not in the three live domains (e.g. `faith-haven.amarktai.com`)
+3. Copy canonical configs from `nginx/sites-available/` and symlink them
+4. Remove the default Nginx placeholder if present
+5. Run `nginx -t` — rolls back and aborts if it fails
+6. Reload Nginx
 
 ### Redeploy
 
@@ -212,6 +279,21 @@ bash deploy.sh
 
 ---
 
+## Admin Login
+
+The admin login at `/admin/login` uses a three-tier credential fallback:
+
+1. **Database** — a hashed `adminUser` row created via `npx ts-node prisma/seed.ts`
+2. **Environment variables** — `ADMIN_EMAIL` + `ADMIN_PASSWORD` in `.env`
+3. **Hardcoded hash** — last-resort fallback (change in production)
+
+If login returns "Invalid credentials":
+- Verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set correctly in `/var/www/amarktai-network/.env`
+- Or seed a DB admin user: `npx ts-node prisma/seed.ts`
+- Default fallback email is `admin@amarktai.network`
+
+---
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -219,6 +301,8 @@ bash deploy.sh
 | `DATABASE_URL` | ✅ | PostgreSQL connection string |
 | `SESSION_SECRET` | ✅ | Min 32-char secret for iron-session |
 | `NEXT_PUBLIC_APP_URL` | ✅ | Public URL of the app |
+| `ADMIN_EMAIL` | ✅ (prod) | Admin login email (defaults to `admin@amarktai.network`) |
+| `ADMIN_PASSWORD` | ✅ (prod) | Admin login password fallback when no DB user exists |
 
 ---
 
