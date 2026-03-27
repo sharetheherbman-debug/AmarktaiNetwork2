@@ -558,7 +558,7 @@ export async function getMultimodalStatus(): Promise<MultimodalStatus> {
     const voiceReady = hasAnyProvider
 
     let statusLabel: 'operational' | 'partial' | 'not_configured' = 'not_configured'
-    if (textReady && imagePromptReady && voiceReady) {
+    if (textReady && imagePromptReady) {
       statusLabel = 'operational'
     } else if (hasAnyProvider) {
       statusLabel = 'partial'

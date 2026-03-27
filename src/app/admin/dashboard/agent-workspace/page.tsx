@@ -59,7 +59,7 @@ const AGENT_COLORS: Record<string, string> = {
   learning:         'text-indigo-400',
   security:         'text-red-400',
   voice:            'text-emerald-400',
-  travel_planner:   'text-teal-400',
+  travel_planner:   'text-sky-400',
   developer:        'text-teal-400',
   support_community: 'text-rose-400',
   healing:          'text-lime-400',

@@ -132,7 +132,8 @@ describe('Integration Verification', () => {
     it('network app has full agent permissions', () => {
       const _profile = getAppProfile('amarktai-network')
       const agentTypes = ['planner', 'router', 'validator', 'memory', 'retrieval',
-        'creative', 'campaign', 'trading_analyst', 'app_ops', 'learning'] as const
+        'creative', 'campaign', 'trading_analyst', 'app_ops', 'learning',
+        'security', 'voice', 'travel_planner', 'developer', 'support_community', 'healing'] as const
       for (const t of agentTypes) {
         expect(
           isAgentPermitted(t, 'amarktai-network'),
