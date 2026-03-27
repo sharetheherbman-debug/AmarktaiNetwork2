@@ -120,7 +120,7 @@ export default function PlaygroundPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex-shrink-0 flex items-center gap-1 border-b border-white/8 pb-px mb-4">
+      <div className="flex-shrink-0 flex items-center gap-1 border-b border-white/[0.06] pb-px mb-4">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -271,7 +271,7 @@ function ChatWorkspace() {
           <select
             value={selectedModel}
             onChange={e => setSelectedModel(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
           >
             {models.length === 0 && <option value="">Loading models…</option>}
             {models.map(m => (
@@ -289,7 +289,7 @@ function ChatWorkspace() {
           className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm transition-colors ${
             showSettings
               ? 'bg-purple-600/20 border-purple-500/30 text-purple-300'
-              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+              : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white'
           }`}
         >
           <Thermometer className="w-3.5 h-3.5" />
@@ -299,7 +299,7 @@ function ChatWorkspace() {
         {/* Clear Chat */}
         <button
           onClick={() => setMessages([])}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
           Clear
@@ -315,7 +315,7 @@ function ChatWorkspace() {
             exit={{ height: 0, opacity: 0 }}
             className="flex-shrink-0 overflow-hidden"
           >
-            <div className="flex items-center gap-6 p-3 rounded-xl bg-white/3 border border-white/8">
+            <div className="flex items-center gap-6 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <Thermometer className="w-3.5 h-3.5 text-amber-400" />
                 <label className="text-xs text-slate-400">Temperature</label>
@@ -340,7 +340,7 @@ function ChatWorkspace() {
                   step={64}
                   value={maxTokens}
                   onChange={e => setMaxTokens(parseInt(e.target.value) || 2048)}
-                  className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-purple-500/50"
+                  className="w-24 bg-white/[0.03] border border-white/10 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-purple-500/50"
                 />
               </div>
             </div>
@@ -363,7 +363,7 @@ function ChatWorkspace() {
               className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                 msg.role === 'user'
                   ? 'bg-purple-600/20 border border-purple-500/20 text-white'
-                  : 'bg-white/5 border border-white/8 text-slate-200'
+                  : 'bg-white/[0.03] border border-white/[0.06] text-slate-200'
               }`}
             >
               <div className="whitespace-pre-wrap break-words">{msg.content}</div>
@@ -379,7 +379,7 @@ function ChatWorkspace() {
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-white/5 border border-white/8 rounded-2xl px-4 py-3">
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl px-4 py-3">
               <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
             </div>
           </div>
@@ -394,7 +394,7 @@ function ChatWorkspace() {
           onKeyDown={handleKeyDown}
           placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
           rows={2}
-          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
+          className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
         />
         <button
           onClick={handleSend}
@@ -474,7 +474,7 @@ function CodeWorkspace() {
           <select
             value={language}
             onChange={e => setLanguage(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
+            className="bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
           >
             {LANGUAGES.map(l => (
               <option key={l} value={l}>{l}</option>
@@ -495,7 +495,7 @@ function CodeWorkspace() {
         <button
           onClick={handlePush}
           disabled={pushing || !code.trim()}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white text-sm transition-colors disabled:opacity-40"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors disabled:opacity-40"
         >
           {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
           Push to GitHub
@@ -503,7 +503,7 @@ function CodeWorkspace() {
 
         <button
           onClick={() => { navigator.clipboard.writeText(code); }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
         >
           <Copy className="w-3.5 h-3.5" />
           Copy
@@ -626,7 +626,7 @@ function AgentsWorkspace() {
             className={`flex items-start gap-2.5 p-3 rounded-xl text-left text-sm transition-colors ${
               selectedAgent === agent.type
                 ? 'bg-purple-600/15 border border-purple-500/25 text-white'
-                : 'bg-white/3 border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
+                : 'bg-white/[0.03] border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             <Bot className={`w-4 h-4 mt-0.5 flex-shrink-0 ${selectedAgent === agent.type ? 'text-purple-400' : 'text-slate-600'}`} />
@@ -644,11 +644,11 @@ function AgentsWorkspace() {
       {/* Agent Workspace */}
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         {currentAgent && (
-          <div className="flex-shrink-0 p-4 rounded-xl bg-white/3 border border-white/8">
+          <div className="flex-shrink-0 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
             <div className="flex items-center gap-2 mb-2">
               <Bot className="w-5 h-5 text-purple-400" />
               <h3 className="text-white font-bold">{currentAgent.name}</h3>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400">
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/[0.03] border border-white/10 text-slate-400">
                 {currentAgent.type}
               </span>
             </div>
@@ -676,7 +676,7 @@ function AgentsWorkspace() {
             onChange={e => setTaskInput(e.target.value)}
             placeholder="Describe the task for this agent…"
             rows={3}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
           />
           <div className="flex items-center gap-2 mt-2">
             <button
@@ -689,7 +689,7 @@ function AgentsWorkspace() {
             </button>
             <button
               onClick={() => { setResult(null); setError(null); setTaskInput('') }}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
+              className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
             >
               Clear
             </button>
@@ -823,7 +823,7 @@ function PromptsWorkspace() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search prompts…"
-              className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-8 pr-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
             />
           </div>
           <button
@@ -850,7 +850,7 @@ function PromptsWorkspace() {
               className={`group flex items-start justify-between gap-2 p-3 rounded-xl cursor-pointer text-sm transition-colors ${
                 selected?.id === p.id
                   ? 'bg-purple-600/15 border border-purple-500/25 text-white'
-                  : 'bg-white/3 border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
+                  : 'bg-white/[0.03] border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <div className="min-w-0 flex-1">
@@ -895,13 +895,13 @@ function PromptsWorkspace() {
                 <input
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-medium focus:outline-none focus:border-purple-500/50"
+                  className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-medium focus:outline-none focus:border-purple-500/50"
                 />
               ) : (
                 <h3 className="flex-1 text-white font-bold text-lg">{selected.name}</h3>
               )}
               {!editing ? (
-                <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white text-sm transition-colors">
+                <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors">
                   <Pencil className="w-3.5 h-3.5" /> Edit
                 </button>
               ) : (
@@ -917,7 +917,7 @@ function PromptsWorkspace() {
                 value={formModel}
                 onChange={e => setFormModel(e.target.value)}
                 placeholder="Model (e.g. openai/gpt-4o)"
-                className="flex-shrink-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                className="flex-shrink-0 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
               />
             )}
 
@@ -1037,7 +1037,7 @@ function TracesWorkspace() {
               className={`w-full text-left p-3 rounded-xl text-sm transition-colors ${
                 selected?.traceId === ev.traceId
                   ? 'bg-purple-600/15 border border-purple-500/25'
-                  : 'bg-white/3 border border-transparent hover:bg-white/5'
+                  : 'bg-white/[0.03] border border-transparent hover:bg-white/5'
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -1082,7 +1082,7 @@ function TracesWorkspace() {
             </div>
 
             {/* Trace ID */}
-            <div className="p-3 rounded-xl bg-white/3 border border-white/8">
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
               <div className="text-xs text-slate-500 mb-1">Trace ID</div>
               <div className="text-sm text-white font-mono break-all">{selected.traceId}</div>
             </div>
@@ -1099,7 +1099,7 @@ function TracesWorkspace() {
                 { label: 'App Slug',         value: selected.appSlug || '—', icon: Code2,         color: 'text-orange-400' },
                 { label: 'Validation Used',  value: selected.validationUsed ? 'Yes' : 'No', icon: CheckCircle2, color: 'text-indigo-400' },
               ].map(item => (
-                <div key={item.label} className="p-3 rounded-xl bg-white/3 border border-white/8">
+                <div key={item.label} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                   <div className="flex items-center gap-1.5 mb-1">
                     <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
                     <span className="text-xs text-slate-500">{item.label}</span>
