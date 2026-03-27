@@ -93,6 +93,14 @@ function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + '…' : s
 }
 
+const LANG_EXTENSIONS: Record<string, string> = {
+  typescript: 'ts', javascript: 'js', python: 'py', rust: 'rs', bash: 'sh',
+}
+
+function extractTemplateVars(template: string): string[] {
+  return (template.match(/\{\{(\w+)\}\}/g) ?? []).map(v => v.replace(/[{}]/g, ''))
+}
+
 /* ─── Main Component ────────────────────────────────────────── */
 
 export default function PlaygroundPage() {
@@ -444,7 +452,7 @@ function CodeWorkspace() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          filename: `playground-snippet.${language === 'typescript' ? 'ts' : language === 'javascript' ? 'js' : language === 'python' ? 'py' : language}`,
+          filename: `playground-snippet.${LANG_EXTENSIONS[language] ?? language}`,
           content: code,
           message: `[Workspace] Add ${language} snippet from playground`,
         }),
@@ -757,7 +765,7 @@ function PromptsWorkspace() {
 
   const savePrompt = () => {
     if (!selected) return
-    const vars = (formTemplate.match(/\{\{(\w+)\}\}/g) ?? []).map(v => v.replace(/[{}]/g, ''))
+    const vars = extractTemplateVars(formTemplate)
     const updated: PromptTemplate = { ...selected, name: formName, template: formTemplate, model: formModel, variables: vars }
     setPrompts(prev => prev.map(p => p.id === selected.id ? updated : p))
     setSelected(updated)
