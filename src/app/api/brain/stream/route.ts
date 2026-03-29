@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
 
   // ── Stream response via SSE ──────────────────────────────────────────
   const encoder = new TextEncoder()
+  const appName = auth.app.name
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: `You are a helpful assistant for ${auth.app.name}.` },
+              { role: 'system', content: `You are a helpful assistant for ${appName}.` },
               { role: 'user', content: body.message },
             ],
             stream: true,
