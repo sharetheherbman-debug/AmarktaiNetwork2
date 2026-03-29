@@ -86,18 +86,18 @@ async function run() {
         memoryType: 'summary',
         key: `summary-batch-${Date.now()}`,
         content: summaryContent,
-        importance: 7, // summaries are moderately important
+        importance: 0.7, // summaries are moderately important (0.0–1.0 scale)
         expiresAt: null, // summaries don't expire
       },
     });
 
     // Lower importance of the original entries by 50 %
     const ids = items.map((e) => e.id);
-    const avgImportance = items.reduce((sum, e) => sum + (e.importance ?? 5), 0) / items.length;
+    const avgImportance = items.reduce((sum, e) => sum + (e.importance ?? 0.5), 0) / items.length;
     await prisma.memoryEntry.updateMany({
       where: { id: { in: ids } },
       data: {
-        importance: Math.max(1, Math.floor(avgImportance * 0.5)),
+        importance: Math.max(0.1, avgImportance * 0.5),
       },
     });
 

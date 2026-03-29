@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 
 /**
  * POST /api/brain/video — Video generation endpoint
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Attempt video generation via configured provider
     // In production, this would call the actual video generation API
     // For now, return a structured response indicating the job was submitted
-    const jobId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const jobId = `vid_${randomUUID()}`;
 
     return NextResponse.json({
       status: 'submitted',
