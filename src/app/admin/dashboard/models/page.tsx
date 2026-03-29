@@ -204,7 +204,7 @@ export default function ModelsPage() {
                               </span>
                             ))}
                             {(model.roles?.length ?? 0) > 3 && (
-                              <span className="text-[10px] text-slate-500">+{model.roles.length - 3}</span>
+                              <span className="text-[10px] text-slate-500">+{(model.roles?.length ?? 0) - 3}</span>
                             )}
                           </div>
                         </td>

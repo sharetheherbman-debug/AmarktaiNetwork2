@@ -2009,8 +2009,10 @@ export function isProviderUsable(providerKey: string): boolean {
 /**
  * Whether a provider is degraded.
  *
- * Degraded providers are still usable but should be deprioritised in
- * fallback ordering.
+ * Degraded providers are **not** considered usable by `isProviderUsable()`
+ * and are excluded from eligible models. However, the routing engine may
+ * still include degraded providers at the end of the fallback list when
+ * building fallback chains, giving them lower priority than healthy ones.
  */
 export function isProviderDegraded(providerKey: string): boolean {
   return getProviderHealth(providerKey) === 'degraded';

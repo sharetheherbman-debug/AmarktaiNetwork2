@@ -78,6 +78,8 @@ export default function MemoryPage() {
     try {
       const params = new URLSearchParams({ page: String(entriesPage), limit: '20' })
       if (filterType) params.set('type', filterType)
+      // The learning endpoint queries the memoryEntry table which stores
+      // all memory entries — this is shared between the Memory and Learning pages.
       const res = await fetch(`/api/admin/learning?${params}`)
       if (res.ok) {
         const body = await res.json()
