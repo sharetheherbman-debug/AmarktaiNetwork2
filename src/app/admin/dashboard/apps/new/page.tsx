@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -7,28 +6,23 @@ import {
   Search, Fingerprint, Cpu, ShieldCheck, Eye,
   AlertTriangle, Brain, Zap, Globe, ChevronDown,
 } from 'lucide-react'
-
-// ── Constants ────────────────────────────────────────────────────
+// Constants
 const PROVIDERS = [
   'openai', 'groq', 'deepseek', 'grok', 'nvidia',
   'huggingface', 'openrouter', 'together', 'gemini',
 ] as const
-
 const CAPABILITIES = [
   'chat', 'code', 'image_generation', 'video', 'voice', 'retrieval',
   'agents', 'reasoning', 'embeddings', 'structured_output', 'tool_use',
   'multilingual', 'agent_planning',
 ] as const
-
 const CATEGORIES = [
   'generic', 'finance', 'crypto', 'marketing', 'creative',
   'travel', 'social', 'education', 'health', 'productivity',
   'support', 'companion', 'dating', 'media', 'developer',
 ] as const
-
 const SAFETY_MODES = ['strict', 'standard', 'relaxed', 'adult_gated'] as const
 const MEMORY_MODES = ['full', 'session', 'minimal', 'none'] as const
-
 const STEPS = [
   { label: 'Discovery', icon: Search, color: 'violet' },
   { label: 'Identity', icon: Fingerprint, color: 'blue' },
@@ -73,44 +67,34 @@ function slugify(v: string) {
   return v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
-
-// ── Shared styles ────────────────────────────────────────────────
+// Shared styles
 const glass = 'bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-2xl'
 const inputCls =
   'w-full px-3.5 py-2.5 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all'
 const labelCls = 'block text-xs font-medium text-slate-400 mb-1.5 tracking-wide'
-
 const stepVariants = {
   enter: { opacity: 0, x: 40, filter: 'blur(4px)' },
   center: { opacity: 1, x: 0, filter: 'blur(0px)' },
   exit: { opacity: 0, x: -40, filter: 'blur(4px)' },
 }
-
-// ── Pill toggle component ────────────────────────────────────────
+// Pill toggle component
 function PillToggle({ value, active, onToggle, accent = 'violet' }: {
   value: string; active: boolean; onToggle: () => void; accent?: string
 }) {
-  const colors: Record<string, string> = {
-    violet: active ? 'border-violet-500/50 bg-violet-500/10 text-violet-300' : '',
-    blue: active ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : '',
-    amber: active ? 'border-amber-500/50 bg-amber-500/10 text-amber-300' : '',
-    emerald: active ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : '',
-    cyan: active ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : '',
-  }
-  const checkColors: Record<string, string> = {
-    violet: 'bg-violet-500 border-violet-500',
-    blue: 'bg-blue-500 border-blue-500',
-    amber: 'bg-amber-500 border-amber-500',
-    emerald: 'bg-emerald-500 border-emerald-500',
-    cyan: 'bg-cyan-500 border-cyan-500',
+  const ac: Record<string, [string, string]> = {
+    violet: ['border-violet-500/50 bg-violet-500/10 text-violet-300', 'bg-violet-500 border-violet-500'],
+    blue: ['border-blue-500/50 bg-blue-500/10 text-blue-300', 'bg-blue-500 border-blue-500'],
+    amber: ['border-amber-500/50 bg-amber-500/10 text-amber-300', 'bg-amber-500 border-amber-500'],
+    emerald: ['border-emerald-500/50 bg-emerald-500/10 text-emerald-300', 'bg-emerald-500 border-emerald-500'],
+    cyan: ['border-cyan-500/50 bg-cyan-500/10 text-cyan-300', 'bg-cyan-500 border-cyan-500'],
   }
   return (
     <label className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm cursor-pointer transition-all duration-200 ${
-      active ? colors[accent] : 'border-white/[0.06] bg-white/[0.02] text-slate-500 hover:bg-white/[0.04] hover:text-slate-300'
+      active ? ac[accent][0] : 'border-white/[0.06] bg-white/[0.02] text-slate-500 hover:bg-white/[0.04] hover:text-slate-300'
     }`}>
       <input type="checkbox" className="sr-only" checked={active} onChange={onToggle} />
       <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
-        active ? checkColors[accent] : 'border-slate-600'
+        active ? ac[accent][1] : 'border-slate-600'
       }`}>
         {active && <Check className="w-2.5 h-2.5 text-white" />}
       </span>
@@ -118,12 +102,10 @@ function PillToggle({ value, active, onToggle, accent = 'violet' }: {
     </label>
   )
 }
-
-// ── Main component ───────────────────────────────────────────────
+// Main component
 export default function NewAppPage() {
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1)
-
   // Step 0 – Discovery
   const [appName, setAppName] = useState('')
   const [appUrl, setAppUrl] = useState('')
@@ -134,11 +116,9 @@ export default function NewAppPage() {
   const [capPack, setCapPack] = useState<CapabilityPack | null>(null)
   const [discoveryError, setDiscoveryError] = useState('')
   const [discoveryAccepted, setDiscoveryAccepted] = useState(false)
-
   // Step 1 – Identity
   const [slug, setSlug] = useState('')
   const [category, setCategory] = useState('generic')
-
   // Step 2 – AI Config
   const [providers, setProviders] = useState<string[]>([])
   const [models, setModels] = useState<string[]>([''])
@@ -146,27 +126,22 @@ export default function NewAppPage() {
   const [budgetMonthly, setBudgetMonthly] = useState(100000)
   const [safetyMode, setSafetyMode] = useState('standard')
   const [memoryMode, setMemoryMode] = useState('session')
-
   // Step 3 – Capabilities
   const [caps, setCaps] = useState<string[]>([])
   const [safeMode, setSafeMode] = useState(true)
   const [adultMode, setAdultMode] = useState(false)
   const [realtime, setRealtime] = useState(false)
-
   // Submit
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<'success' | 'error' | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
-
   const toggle = useCallback((arr: string[], v: string) =>
     arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v], [])
-
   const goTo = useCallback((target: number) => {
     setDirection(target > step ? 1 : -1)
     setStep(target)
   }, [step])
-
-  // ── Discovery API call ─────────────────────────────────────────
+  // Discovery API call
   async function runDiscovery() {
     setDiscovering(true)
     setDiscoveryError('')
@@ -190,7 +165,6 @@ export default function NewAppPage() {
       const data = await res.json()
       setDiscovery(data.discovery)
       setCapPack(data.capabilityPack ?? null)
-
       // Pre-fill downstream steps from discovery
       const disc = data.discovery as DiscoveryResult
       const pack = data.capabilityPack as CapabilityPack | null
@@ -218,8 +192,7 @@ export default function NewAppPage() {
     setDiscoveryAccepted(true)
     if (!slug) setSlug(slugify(appName))
   }
-
-  // ── Deploy API call ────────────────────────────────────────────
+  // Deploy API call
   async function handleDeploy() {
     setSubmitting(true)
     setResult(null)
@@ -270,15 +243,13 @@ export default function NewAppPage() {
       setSubmitting(false)
     }
   }
-
-  // ── Step validation ────────────────────────────────────────────
+  // Step validation
   const canNext =
     step === 0 ? appName.trim().length > 0 && discoveryAccepted :
     step === 1 ? appName.trim().length > 0 :
     step === 2 ? providers.length > 0 :
     step === 3 ? caps.length > 0 : true
-
-  // ── Success screen ─────────────────────────────────────────────
+  // Success screen
   if (result === 'success') {
     return (
       <div className="flex items-center justify-center p-6 min-h-[70vh]">
@@ -300,8 +271,7 @@ export default function NewAppPage() {
       </div>
     )
   }
-
-  // ── Step content renderers ─────────────────────────────────────
+  // Step content renderers
 
   function StepDiscovery() {
     return (
@@ -346,14 +316,12 @@ export default function NewAppPage() {
             {discovering ? 'Analyzing\u2026' : 'Analyze App'}
           </button>
         </div>
-
         {discoveryError && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{discoveryError}
           </motion.div>
         )}
-
         {discovery && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
             className={`${glass} p-6 space-y-5`}>
@@ -365,7 +333,6 @@ export default function NewAppPage() {
                 {Math.round(discovery.confidence * 100)}% confidence
               </span>
             </div>
-
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                 <p className="text-slate-500 mb-1">Category</p>
@@ -386,7 +353,6 @@ export default function NewAppPage() {
                 </div>
               )}
             </div>
-
             {discovery.detectedFeatures.length > 0 && (
               <div>
                 <p className="text-xs text-slate-500 mb-2">Detected Features</p>
@@ -399,7 +365,6 @@ export default function NewAppPage() {
                 </div>
               </div>
             )}
-
             {discovery.inferredAiNeeds.length > 0 && (
               <div>
                 <p className="text-xs text-slate-500 mb-2">Inferred AI Needs</p>
@@ -412,7 +377,6 @@ export default function NewAppPage() {
                 </div>
               </div>
             )}
-
             {discovery.warnings.length > 0 && (
               <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-1.5">
                 {discovery.warnings.map((w, i) => (
@@ -422,7 +386,6 @@ export default function NewAppPage() {
                 ))}
               </div>
             )}
-
             {!discoveryAccepted && (
               <button type="button" onClick={acceptDiscovery}
                 className="w-full py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/20 transition-all">
@@ -478,7 +441,6 @@ export default function NewAppPage() {
               placeholder="Brief description for the app registry&hellip;" />
           </div>
         </div>
-
         {capPack && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className={`${glass} p-5 space-y-3`}>
@@ -525,7 +487,6 @@ export default function NewAppPage() {
             ))}
           </div>
         </div>
-
         <div className={`${glass} p-6 space-y-4`}>
           <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Preferred Models</p>
           {models.map((m, i) => (
@@ -539,7 +500,6 @@ export default function NewAppPage() {
           <button type="button" onClick={() => setModels([...models, ''])}
             className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">+ Add model</button>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className={`${glass} p-5 space-y-3`}>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Budget (USD cents)</p>
@@ -555,7 +515,6 @@ export default function NewAppPage() {
             </div>
             <p className="text-[11px] text-slate-600">{'\u2248'} ${(budgetMonthly / 100).toFixed(2)}/mo</p>
           </div>
-
           <div className="space-y-4">
             <div className={`${glass} p-5 space-y-3`}>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Safety Mode</p>
@@ -613,7 +572,6 @@ export default function NewAppPage() {
             ))}
           </div>
         </div>
-
         <div className={`${glass} p-6 space-y-4`}>
           <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Safety &amp; Content Flags</p>
           <div className="space-y-3">
@@ -630,7 +588,6 @@ export default function NewAppPage() {
                 <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${safeMode ? 'translate-x-4' : ''}`} />
               </div>
             </label>
-
             <label className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] cursor-pointer hover:bg-white/[0.04] transition-all">
               <div className="flex items-center gap-2.5">
                 <Eye className="w-4 h-4 text-red-400" />
@@ -644,7 +601,6 @@ export default function NewAppPage() {
                 <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${adultMode ? 'translate-x-4' : ''}`} />
               </div>
             </label>
-
             {adultMode && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                 className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start gap-2">
@@ -652,7 +608,6 @@ export default function NewAppPage() {
                 Adult mode requires explicit 18+ verification. This app will be flagged for compliance review.
               </motion.div>
             )}
-
             <label className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] cursor-pointer hover:bg-white/[0.04] transition-all">
               <div className="flex items-center gap-2.5">
                 <Zap className="w-4 h-4 text-amber-400" />
@@ -668,7 +623,6 @@ export default function NewAppPage() {
             </label>
           </div>
         </div>
-
         {discovery && discovery.capabilityGaps.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-2">
@@ -697,14 +651,12 @@ export default function NewAppPage() {
         <dl className="space-y-2">
           {items.map(([k, v]) => (
             <div key={k} className="flex justify-between text-sm">
-              <dt className="text-slate-500">{k}</dt>
-              <dd className="text-white text-right max-w-[65%] truncate">{v || '\u2014'}</dd>
+              <dt className="text-slate-500">{k}</dt><dd className="text-white text-right max-w-[65%] truncate">{v || '\u2014'}</dd>
             </div>
           ))}
         </dl>
       </div>
     )
-
     return (
       <div className="space-y-4">
         {section('Identity', <Fingerprint className="w-3.5 h-3.5" />, [
@@ -723,7 +675,6 @@ export default function NewAppPage() {
           ['Adult Mode', adultMode ? 'On' : 'Off'],
           ['Realtime', realtime ? 'Enabled' : 'Disabled'],
         ])}
-
         {discovery && discovery.warnings.length > 0 && (
           <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 space-y-2">
             <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
@@ -734,7 +685,6 @@ export default function NewAppPage() {
             ))}
           </div>
         )}
-
         {discovery && discovery.capabilityGaps.length > 0 && (
           <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/15 space-y-2">
             <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
@@ -754,8 +704,7 @@ export default function NewAppPage() {
   }
 
   const STEP_RENDERERS = [StepDiscovery, StepIdentity, StepAIConfig, StepCapabilities, StepDeploy]
-
-  // ── Main render ────────────────────────────────────────────────
+  // Main render
   return (
     <div className="text-white">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -772,7 +721,6 @@ export default function NewAppPage() {
             <p className="text-xs text-slate-500">Connect a new app to the AmarktAI brain</p>
           </div>
         </div>
-
         {/* Progress bar */}
         <div className="space-y-3">
           <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
@@ -804,20 +752,14 @@ export default function NewAppPage() {
             })}
           </div>
         </div>
-
         {/* Step content with animation */}
         <AnimatePresence mode="wait" custom={direction}>
-          <motion.div key={step}
-            custom={direction}
-            variants={stepVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
+          <motion.div key={step} custom={direction} variants={stepVariants}
+            initial="enter" animate="center" exit="exit"
             transition={{ duration: 0.3, ease: 'easeInOut' }}>
             {STEP_RENDERERS[step]()}
           </motion.div>
         </AnimatePresence>
-
         {/* Error */}
         {result === 'error' && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -825,14 +767,12 @@ export default function NewAppPage() {
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{errorMsg}
           </motion.div>
         )}
-
         {/* Navigation */}
         <div className="flex items-center justify-between pt-2">
           <button type="button" onClick={() => goTo(step - 1)} disabled={step === 0}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/[0.06] text-sm text-slate-400 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 disabled:pointer-events-none transition-all">
             <ArrowLeft className="w-4 h-4" /> Previous
           </button>
-
           {step < 4 ? (
             <button type="button" onClick={() => goTo(step + 1)} disabled={!canNext}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-sm text-white font-semibold disabled:opacity-40 disabled:pointer-events-none transition-all">
