@@ -146,11 +146,11 @@ export default function ContactPage() {
                       <CheckCircle className="w-8 h-8 text-emerald-400" />
                     </motion.div>
                     <h2 className="font-heading text-2xl font-bold text-white mb-3">
-                      {isWaitlist ? "You\u2019re on the List" : 'Message Sent'}
+                      {isWaitlist ? 'You\u2019re on the List' : 'Message Sent'}
                     </h2>
                     <p className="text-slate-400 mb-8 max-w-md mx-auto">
                       {isWaitlist
-                        ? "We\u2019ll notify you when early access opens. Keep an eye on your inbox."
+                        ? 'We\u2019ll notify you when early access opens. Keep an eye on your inbox.'
                         : 'We typically respond within 24 hours. Looking forward to connecting.'}
                     </p>
                     <button

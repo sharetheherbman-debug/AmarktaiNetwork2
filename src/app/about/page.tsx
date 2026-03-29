@@ -124,7 +124,7 @@ export default function AboutPage() {
                 power of the network behind it.
               </p>
               <p className="text-slate-400 leading-relaxed mb-5">
-                This is not another AI wrapper or chatbot skin. AmarktAI is the <em className="text-white/80 not-italic font-medium">operations platform</em> that
+                This is not another AI wrapper or chatbot skin. AmarktAI is the <span className="text-white/80 font-medium">operations platform</span> that
                 makes a growing constellation of intelligent apps think, learn, and act as one.
               </p>
               <p className="text-slate-400 leading-relaxed mb-8">
