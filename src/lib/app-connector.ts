@@ -32,6 +32,13 @@ export interface AppMetrics {
   avgLatencyMs: number
   lastRequestAt: string | null
   activeUsers?: number
+  newUsers?: number
+  revenue?: number
+  churn?: number
+  fallbackRate?: number
+  capabilityUsage?: Record<string, number>
+  providerUsage?: Record<string, number>
+  customKpis?: Record<string, unknown>
 }
 
 export interface AppEvent {
@@ -272,4 +279,59 @@ export function getAggregateMetrics(): {
     avgLatencyMs: avgLatency,
     queueLength: requestQueue.length,
   }
+}
+
+// ── Extended Metrics ────────────────────────────────────────────────
+
+/**
+ * Update extended business metrics for an app.
+ * Supports user counts, revenue, churn, feature usage, custom KPIs.
+ */
+export function updateAppMetrics(
+  appSlug: string,
+  updates: {
+    activeUsers?: number
+    newUsers?: number
+    revenue?: number
+    churn?: number
+    fallbackRate?: number
+    capabilityUsage?: Record<string, number>
+    providerUsage?: Record<string, number>
+    customKpis?: Record<string, unknown>
+  }
+): AppMetrics {
+  const app = getOrCreateApp(appSlug)
+  const m = app.metrics
+  if (updates.activeUsers !== undefined) m.activeUsers = updates.activeUsers
+  if (updates.newUsers !== undefined) m.newUsers = updates.newUsers
+  if (updates.revenue !== undefined) m.revenue = updates.revenue
+  if (updates.churn !== undefined) m.churn = updates.churn
+  if (updates.fallbackRate !== undefined) m.fallbackRate = updates.fallbackRate
+  if (updates.capabilityUsage) {
+    m.capabilityUsage = { ...(m.capabilityUsage ?? {}), ...updates.capabilityUsage }
+  }
+  if (updates.providerUsage) {
+    m.providerUsage = { ...(m.providerUsage ?? {}), ...updates.providerUsage }
+  }
+  if (updates.customKpis) {
+    m.customKpis = { ...(m.customKpis ?? {}), ...updates.customKpis }
+  }
+  return { ...m }
+}
+
+/**
+ * Get detailed metrics for a specific app.
+ */
+export function getAppMetrics(appSlug: string): AppMetrics | null {
+  const app = connectedApps.get(appSlug)
+  return app ? { ...app.metrics } : null
+}
+
+/**
+ * Reset connected apps (for testing).
+ */
+export function resetConnectedApps(): void {
+  connectedApps.clear()
+  requestQueue.length = 0
+  rateLimitOverrides.clear()
 }
