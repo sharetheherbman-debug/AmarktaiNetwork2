@@ -18,7 +18,9 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
-  const isAdminPage = pathname.startsWith('/admin')
+
+  // Hide header completely on admin pages — the dashboard has its own layout
+  const _isAdminPage = pathname.startsWith('/admin')
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
