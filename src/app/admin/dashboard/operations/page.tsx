@@ -109,7 +109,7 @@ export default function OperationsPage() {
       if (eRes.status === 'fulfilled') setEvents(Array.isArray(eRes.value) ? eRes.value : [])
       if (rRes.status === 'fulfilled') setReadiness(rRes.value)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
+      setError(e instanceof Error ? e.message : 'Failed to load operations data')
     } finally {
       setLoading(false)
     }

@@ -44,7 +44,7 @@ function useTabFetch(url: string | null, active: boolean) {
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       setState({ data: await res.json(), loading: false, error: null })
     } catch (e: unknown) {
-      setState({ data: null, loading: false, error: e instanceof Error ? e.message : 'Fetch failed' })
+      setState({ data: null, loading: false, error: e instanceof Error ? e.message : 'Failed to load intelligence data' })
     }
   }, [url])
 
@@ -314,7 +314,7 @@ export default function IntelligencePage() {
   const current = { routing, memory, learning, agents, capabilities: { data: null, loading: false, error: null, reload: () => {} } }[tab]
 
   return (
-    <div className="min-h-screen space-y-8 p-6 lg:p-10">
+    <div className="space-y-8">
       {/* header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
