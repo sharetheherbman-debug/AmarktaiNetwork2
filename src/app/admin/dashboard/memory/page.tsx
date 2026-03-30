@@ -83,9 +83,9 @@ export default function MemoryPage() {
 
   useEffect(() => { load() }, [load])
 
-  const entries = data?.entries ?? []
-  const stats = data?.stats ?? { total: 0, byType: {}, activeUsers: 0 }
-  const types = data?.types ?? Object.keys(TYPE_CONFIG)
+  const entries = useMemo(() => data?.entries ?? [], [data])
+  const stats = useMemo(() => data?.stats ?? { total: 0, byType: {}, activeUsers: 0 }, [data])
+  const types = useMemo(() => data?.types ?? Object.keys(TYPE_CONFIG), [data])
 
   const filteredEntries = useMemo(() => {
     let result = entries

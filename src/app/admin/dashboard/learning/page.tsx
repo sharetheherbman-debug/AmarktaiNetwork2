@@ -97,9 +97,9 @@ export default function LearningPage() {
 
   useEffect(() => { load() }, [load])
 
-  const scores = data?.scores ?? []
-  const bestModels = data?.bestModels ?? []
-  const optimizations = data?.optimizations ?? []
+  const scores = useMemo(() => data?.scores ?? [], [data])
+  const bestModels = useMemo(() => data?.bestModels ?? [], [data])
+  const optimizations = useMemo(() => data?.optimizations ?? [], [data])
 
   const taskTypes = useMemo(() => [...new Set(scores.map(s => s.taskType))], [scores])
   const filteredScores = useMemo(

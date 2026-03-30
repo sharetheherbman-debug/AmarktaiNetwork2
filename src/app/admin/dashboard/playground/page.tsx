@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  MessageSquare, Code2, Image, Activity, Package,
+  MessageSquare, Code2, Image as ImageIcon, Activity, Package,
   Send, Loader2, Play, Trash2,
   ChevronDown, Thermometer, RefreshCw,
   CheckCircle2, XCircle, Clock, Zap, ArrowRight,
@@ -93,7 +93,7 @@ interface CapabilityPack {
 const TABS: { key: WorkspaceTab; label: string; icon: React.ElementType }[] = [
   { key: 'chat',           label: 'Chat',           icon: MessageSquare },
   { key: 'code',           label: 'Code',           icon: Code2 },
-  { key: 'multimodal',     label: 'Multimodal',     icon: Image },
+  { key: 'multimodal',     label: 'Multimodal',     icon: ImageIcon },
   { key: 'traces',         label: 'Traces',         icon: Activity },
   { key: 'pack-simulator', label: 'Pack Simulator', icon: Package },
 ]
@@ -583,7 +583,7 @@ function MultimodalWorkspace() {
             {running && <Loader2 size={16} className="animate-spin text-violet-400" />}
             {!running && !output && (
               <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
-                <Image size={28} strokeWidth={1.2} />
+                <ImageIcon size={28} strokeWidth={1.2} />
                 <p className="text-xs">Multimodal test results will appear here</p>
               </div>
             )}
