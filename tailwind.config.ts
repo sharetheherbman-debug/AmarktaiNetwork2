@@ -9,20 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: '#050816',
-        'bg-secondary': '#0A1020',
-        'bg-card': '#0F172A',
-        'bg-surface': '#101A33',
+        background: '#050810',
+        'bg-secondary': '#0a0f1a',
+        'bg-card': '#0f1628',
+        'bg-surface': '#141d35',
         accent: {
-          blue: '#3B82F6',
-          cyan: '#22D3EE',
-          violet: '#8B5CF6',
-          magenta: '#A855F7',
-          teal: '#06B6D4',
+          blue: '#3b82f6',
+          cyan: '#22d3ee',
+          violet: '#8b5cf6',
         },
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-geist-sans)', 'Inter', 'system-ui', 'sans-serif'],
         heading: ["'Space Grotesk Variable'", 'var(--font-geist-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-geist-mono)', 'monospace'],
       },
@@ -30,24 +28,23 @@ const config: Config = {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
       },
       animation: {
-        'float': 'float 7s ease-in-out infinite',
-        'float-reverse': 'float-reverse 9s ease-in-out infinite',
-        'pulse-slow': 'pulse 5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin-slow': 'spin 20s linear infinite',
-        'gradient': 'gradient-move 8s ease infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-in': 'fade-in 0.5s ease-out forwards',
+        'slide-up': 'slide-up 0.5s ease-out forwards',
       },
       keyframes: {
         float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-12px)' },
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
         },
-        'float-reverse': {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(10px)' },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
         },
-        'gradient-move': {
-          '0%, 100%': { backgroundPosition: '0% 50%' },
-          '50%': { backgroundPosition: '100% 50%' },
+        'slide-up': {
+          from: { opacity: '0', transform: 'translateY(16px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
       },
     },
