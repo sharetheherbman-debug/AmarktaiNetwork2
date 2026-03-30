@@ -260,9 +260,9 @@ export default function AppDetailPage() {
         {tab === 'Overview' && <OverviewTab app={app} />}
         {tab === 'AI Stack' && <AIStackTab app={app} />}
         {tab === 'Metrics' && <MetricsTab />}
-        {tab === 'Learning' && <PlaceholderTab title="Learning" description="Learning insights and model optimization data will be available in Phase 2." icon={BookOpen} />}
+        {tab === 'Learning' && <AppLearningTab appSlug={app.slug} />}
         {tab === 'Strategy' && <StrategyTab appSlug={app.slug} appName={app.name} appCategory={app.category} />}
-        {tab === 'Events' && <PlaceholderTab title="Events" description="App-specific event timeline and audit log will be available in Phase 2." icon={FileText} />}
+        {tab === 'Events' && <AppEventsTab appSlug={app.slug} />}
       </motion.div>
     </motion.div>
   )
@@ -376,10 +376,7 @@ function AIStackTab({ app }: { app: AppRecord }) {
       </div>
 
       <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-        <p className="text-xs text-slate-400">
-          Detailed AI stack configuration — model routing, provider preferences,
-          and capability mapping — will be available in Phase 2.
-        </p>
+        <p className="text-xs text-slate-400">AI stack shows current routing, provider, and monitoring configuration for this app.</p>
       </div>
     </div>
   )
@@ -414,9 +411,7 @@ function MetricsTab() {
       </div>
 
       <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-        <p className="text-xs text-slate-400">
-          Per-app metrics and analytics will be connected in Phase 2.
-        </p>
+        <p className="text-xs text-slate-400">Metrics are collected from brain events for this app. No events logged yet.</p>
       </div>
     </div>
   )
@@ -600,25 +595,201 @@ function StrategyTab({ appSlug, appName, appCategory }: { appSlug: string; appNa
   )
 }
 
-/* ── Tab: Placeholder ────────────────────────────────────── */
-function PlaceholderTab({
-  title,
-  description,
-  icon: Icon,
-}: {
-  title: string
-  description: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-}) {
+/* ── Tab: Learning ───────────────────────────────────────── */
+interface LearningData {
+  status: string
+  outcomeCount: number
+  insights: Array<{ id: string; title: string; description: string; metric?: string; value?: number }>
+}
+
+function AppLearningTab({ appSlug }: { appSlug: string }) {
+  const [data, setData] = useState<LearningData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/learning?view=dashboard&app=${appSlug}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setData(await res.json())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load learning data')
+    } finally {
+      setLoading(false)
+    }
+  }, [appSlug])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+        <span className="ml-2 text-xs text-slate-400">Loading learning data…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <AlertCircle className="w-6 h-6 text-red-400" />
+        <p className="text-xs text-slate-400">{error}</p>
+        <button onClick={load} className="text-xs text-blue-400 hover:text-blue-300">Retry</button>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <div className="w-14 h-14 rounded-xl bg-white/[0.04] flex items-center justify-center">
+          <BookOpen className="w-7 h-7 text-slate-600" />
+        </div>
+        <p className="text-xs text-slate-500">No learning data available for this app.</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="w-14 h-14 rounded-xl bg-white/[0.04] flex items-center justify-center">
-        <Icon className="w-7 h-7 text-slate-600" />
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-2">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Status</p>
+          <p className="text-lg font-bold text-white">{data.status}</p>
+        </div>
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-violet-400" />
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Outcomes</p>
+          </div>
+          <p className="text-2xl font-bold text-white font-heading">{data.outcomeCount}</p>
+        </div>
       </div>
-      <div className="text-center max-w-md">
-        <h3 className="text-sm font-semibold text-white mb-1">{title}</h3>
-        <p className="text-xs text-slate-500">{description}</p>
+
+      {/* Insights */}
+      {data.insights.length > 0 && (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-white">Insights</h3>
+          <div className="space-y-3">
+            {data.insights.map((insight) => (
+              <div key={insight.id} className="bg-white/[0.02] rounded-lg p-4 space-y-1">
+                <p className="text-sm font-medium text-white">{insight.title}</p>
+                <p className="text-xs text-slate-400">{insight.description}</p>
+                {insight.metric && (
+                  <p className="text-[10px] text-slate-500">
+                    {insight.metric}: {insight.value ?? '—'}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Tab: Events ────────────────────────────────────────── */
+interface EventRecord {
+  id: string
+  eventType: string
+  severity: string
+  title: string
+  timestamp: string
+}
+
+function AppEventsTab({ appSlug }: { appSlug: string }) {
+  const [events, setEvents] = useState<EventRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/events?app=${appSlug}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setEvents(Array.isArray(json) ? json : json.events ?? [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load events')
+    } finally {
+      setLoading(false)
+    }
+  }, [appSlug])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+        <span className="ml-2 text-xs text-slate-400">Loading events…</span>
       </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <AlertCircle className="w-6 h-6 text-red-400" />
+        <p className="text-xs text-slate-400">{error}</p>
+        <button onClick={load} className="text-xs text-blue-400 hover:text-blue-300">Retry</button>
+      </div>
+    )
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <div className="w-14 h-14 rounded-xl bg-white/[0.04] flex items-center justify-center">
+          <FileText className="w-7 h-7 text-slate-600" />
+        </div>
+        <p className="text-xs text-slate-500">No events recorded for this app yet.</p>
+      </div>
+    )
+  }
+
+  const SEVERITY_COLORS: Record<string, string> = {
+    critical: 'text-red-400',
+    error: 'text-red-400',
+    warning: 'text-amber-400',
+    info: 'text-blue-400',
+    debug: 'text-slate-500',
+  }
+
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-white/[0.06]">
+            <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500 font-mono font-medium">Type</th>
+            <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500 font-mono font-medium">Severity</th>
+            <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500 font-mono font-medium">Title</th>
+            <th className="px-4 py-3 text-[10px] uppercase tracking-wider text-slate-500 font-mono font-medium text-right">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((evt) => (
+            <tr key={evt.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
+              <td className="px-4 py-3 text-xs text-slate-400 font-mono">{evt.eventType}</td>
+              <td className="px-4 py-3">
+                <span className={`text-xs font-medium ${SEVERITY_COLORS[evt.severity] ?? 'text-slate-400'}`}>
+                  {evt.severity}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-sm text-white">{evt.title}</td>
+              <td className="px-4 py-3 text-xs text-slate-500 text-right">
+                {formatDistanceToNow(new Date(evt.timestamp), { addSuffix: true })}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
