@@ -228,7 +228,7 @@ export default function DashboardOverview() {
         <MetricCard label="System Health"  value={`${systemHealth}%`}               icon={<Gauge className="w-4 h-4" />} />
         <MetricCard label="Active Apps"    value={totalApps}                         icon={<Server className="w-4 h-4" />} />
         <MetricCard label="AI Activity"    value={totalReqs.toLocaleString()}        icon={<Brain className="w-4 h-4" />} suffix="reqs" />
-        <MetricCard label="Cost Burn"      value="—"                                icon={<DollarSign className="w-4 h-4" />} />
+        <MetricCard label="Cost Burn"      value="—"                                icon={<DollarSign className="w-4 h-4" />} /> {/* TODO: wire to billing API */}
         <MetricCard label="Alerts"         value={alertEvents.length}               icon={<Bell className="w-4 h-4" />} />
       </motion.div>
 
@@ -413,7 +413,7 @@ export default function DashboardOverview() {
               )}
             </div>
 
-            {/* Capability gaps placeholder */}
+            {/* TODO: Capability gaps — wire to analysis API */}
             <div>
               <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <Puzzle className="w-3 h-3" /> Capability Gaps
