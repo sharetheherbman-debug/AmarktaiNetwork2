@@ -1,58 +1,65 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Layers, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Layers, RefreshCw, AlertCircle, Search, CheckCircle, XCircle,
+  MessageSquare, Eye, Code, Mic, Hash, Cpu, Sparkles, Image,
+} from 'lucide-react'
 
+// ── Types ─────────────────────────────────────────────────────────
 interface ModelEntry {
   provider: string
   model_id: string
+  model_name?: string
   display_name: string
-  cost_tier: string
-  latency_tier: string
+  primary_role?: string
+  secondary_roles?: string[]
   roles: string[]
   capabilities: string[]
   enabled: boolean
   health: string
+  cost_tier?: string
+  latency_tier?: string
   context_window?: number
-  fallback_priority?: number
-  validator_eligible?: boolean
-  specialist_domains?: string[]
 }
 
-interface ModelsResponse {
-  models: ModelEntry[]
-  total: number
-  registrySize: number
+// ── Constants ─────────────────────────────────────────────────────
+const CARD = 'bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl'
+
+const PROVIDER_COLORS: Record<string, string> = {
+  openai:    'text-green-400 bg-green-500/10 border-green-500/20',
+  anthropic: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  google:    'text-blue-400 bg-blue-500/10 border-blue-500/20',
+  mistral:   'text-orange-400 bg-orange-500/10 border-orange-500/20',
+  groq:      'text-purple-400 bg-purple-500/10 border-purple-500/20',
+  cohere:    'text-rose-400 bg-rose-500/10 border-rose-500/20',
+  meta:      'text-sky-400 bg-sky-500/10 border-sky-500/20',
+  deepseek:  'text-teal-400 bg-teal-500/10 border-teal-500/20',
+  together:  'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+  replicate: 'text-pink-400 bg-pink-500/10 border-pink-500/20',
 }
 
-const TIER_COLORS: Record<string, string> = {
-  free: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  low: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  medium: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  high: 'text-red-400 bg-red-500/10 border-red-500/20',
-  ultra_low: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
-  fast: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-  moderate: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  slow: 'text-red-400 bg-red-500/10 border-red-500/20',
+const CAP_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
+  vision:     { icon: Eye,          color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
+  tts:        { icon: Mic,          color: 'text-pink-400 bg-pink-500/10 border-pink-500/20' },
+  embeddings: { icon: Hash,         color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
+  code:       { icon: Code,         color: 'text-green-400 bg-green-500/10 border-green-500/20' },
+  chat:       { icon: MessageSquare, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
+  image:      { icon: Image,        color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  reasoning:  { icon: Cpu,          color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+  multimodal: { icon: Sparkles,     color: 'text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20' },
 }
 
-const HEALTH_COLORS: Record<string, string> = {
-  healthy: 'text-emerald-400 bg-emerald-500/10',
-  configured: 'text-blue-400 bg-blue-500/10',
-  degraded: 'text-amber-400 bg-amber-500/10',
-  error: 'text-red-400 bg-red-500/10',
-  unconfigured: 'text-slate-500 bg-slate-500/10',
-  disabled: 'text-slate-600 bg-slate-500/10',
-  down: 'text-red-400 bg-red-500/10',
-  unknown: 'text-slate-400 bg-slate-500/10',
-}
-
+// ── Page ──────────────────────────────────────────────────────────
 export default function ModelsPage() {
-  const [data, setData] = useState<ModelsResponse | null>(null)
+  const [models, setModels] = useState<ModelEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filterProvider, setFilterProvider] = useState<string | null>(null)
-  const [expandedModel, setExpandedModel] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [providerFilter, setProviderFilter] = useState<string>('all')
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [capFilter, setCapFilter] = useState<string>('all')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,7 +67,8 @@ export default function ModelsPage() {
     try {
       const res = await fetch('/api/admin/models')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setData(await res.json())
+      const body = await res.json()
+      setModels(Array.isArray(body) ? body : body.models ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load models')
     } finally {
@@ -70,223 +78,257 @@ export default function ModelsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const enabledCount = data?.models.filter(m => m.enabled).length ?? 0
-  const providers = [...new Set(data?.models.map(m => m.provider) ?? [])]
-  const filteredModels = (data?.models ?? []).filter(m => !filterProvider || m.provider === filterProvider)
+  const providers = useMemo(() => [...new Set(models.map(m => m.provider))].sort(), [models])
+  const allRoles = useMemo(() => [...new Set(models.flatMap(m => [m.primary_role, ...(m.roles ?? [])].filter(Boolean) as string[]))].sort(), [models])
+  const allCaps = useMemo(() => [...new Set(models.flatMap(m => m.capabilities ?? []))].sort(), [models])
+
+  const filteredModels = useMemo(() => {
+    let result = models
+    if (providerFilter !== 'all') result = result.filter(m => m.provider === providerFilter)
+    if (roleFilter !== 'all') result = result.filter(m => m.primary_role === roleFilter || m.roles?.includes(roleFilter))
+    if (capFilter !== 'all') result = result.filter(m => m.capabilities?.includes(capFilter))
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(m =>
+        (m.display_name ?? m.model_id).toLowerCase().includes(q) ||
+        m.model_id.toLowerCase().includes(q) ||
+        m.provider.toLowerCase().includes(q),
+      )
+    }
+    return result
+  }, [models, providerFilter, roleFilter, capFilter, search])
+
+  const enabledCount = models.filter(m => m.enabled).length
+  const chatCount = models.filter(m => m.capabilities?.includes('chat') || m.primary_role === 'chat' || m.roles?.includes('chat')).length
+  const multimodalCount = models.filter(m =>
+    m.capabilities?.includes('multimodal') || m.capabilities?.includes('vision'),
+  ).length
+
+  const STATS = [
+    { label: 'Total Models', value: models.length, icon: Layers, color: 'text-blue-400' },
+    { label: 'Enabled', value: enabledCount, icon: CheckCircle, color: 'text-emerald-400' },
+    { label: 'Chat Models', value: chatCount, icon: MessageSquare, color: 'text-violet-400' },
+    { label: 'Multimodal', value: multimodalCount, icon: Eye, color: 'text-amber-400' },
+  ]
 
   return (
-    <div className="max-w-6xl space-y-5">
-      <div className="flex items-start justify-between">
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">Model Registry</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 text-transparent bg-clip-text">
+            Model Registry
+          </h1>
           <p className="text-sm text-slate-500 mt-1">
-            All registered AI models — providers, costs, latency, and roles.
+            All registered AI models — providers, capabilities, and status.
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-50"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50`}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
 
-      {/* Stats */}
-      {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Total Models', value: String(data.registrySize) },
-            { label: 'Enabled', value: String(enabledCount) },
-            { label: 'Providers', value: String(providers.length) },
-            { label: 'Shown', value: String(data.total) },
-          ].map(stat => (
-            <div key={stat.label} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
-              <p className="text-xs text-slate-500">{stat.label}</p>
-              <p className="text-xl font-bold text-white mt-1">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filter */}
-      {data && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs text-slate-500">Filter by provider:</span>
-          <button
-            onClick={() => setFilterProvider(null)}
-            className={`text-[11px] px-2 py-1 rounded-lg border transition-colors ${!filterProvider ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'}`}
-          >
-            All
-          </button>
-          {providers.map(p => (
-            <button
-              key={p}
-              onClick={() => setFilterProvider(p)}
-              className={`text-[11px] px-2 py-1 rounded-lg border transition-colors ${filterProvider === p ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'}`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Content */}
+      {/* Loading / Error */}
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-white/[0.03] rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className={`h-24 ${CARD} animate-pulse`} />
           ))}
         </div>
       ) : error ? (
-        <div className="bg-white/[0.03] border border-red-500/20 rounded-2xl p-8 text-center">
+        <div className={`${CARD} border-red-500/20 p-8 text-center`}>
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
           <p className="text-sm text-red-400">{error}</p>
         </div>
-      ) : !data || data.total === 0 ? (
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-12 text-center">
-          <Layers className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-500">No models registered.</p>
-        </div>
       ) : (
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/5">
-            <span className="text-xs text-slate-500">{filteredModels.length} models{filterProvider ? ` from ${filterProvider}` : ' in registry'}</span>
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {STATS.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className={`${CARD} p-4`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <p className="text-xs text-slate-500">{stat.label}</p>
+                </div>
+                <p className="text-2xl font-bold text-white">{stat.value}</p>
+              </motion.div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/5 text-xs text-slate-500">
-                  <th className="px-4 py-3 font-medium">Provider</th>
-                  <th className="px-4 py-3 font-medium">Model</th>
-                  <th className="px-4 py-3 font-medium">Cost</th>
-                  <th className="px-4 py-3 font-medium">Latency</th>
-                  <th className="px-4 py-3 font-medium">Roles</th>
-                  <th className="px-4 py-3 font-medium">Health</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {filteredModels.map((model) => {
-                  const modelKey = `${model.provider}:${model.model_id}`
-                  const isExpanded = expandedModel === modelKey
-                  return (
-                    <>
-                      <tr
-                        key={modelKey}
-                        className="hover:bg-white/[0.02] transition-colors cursor-pointer"
-                        onClick={() => setExpandedModel(isExpanded ? null : modelKey)}
-                      >
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-slate-400 font-mono bg-white/5 px-1.5 py-0.5 rounded">
-                            {model.provider}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-white">{model.display_name || model.model_id}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-full border ${TIER_COLORS[model.cost_tier] ?? 'text-slate-400 bg-slate-500/10 border-slate-500/20'}`}>
-                            {model.cost_tier}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-full border ${TIER_COLORS[model.latency_tier] ?? 'text-slate-400 bg-slate-500/10 border-slate-500/20'}`}>
-                            {model.latency_tier}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1 flex-wrap">
-                            {model.roles?.slice(0, 3).map(role => (
-                              <span key={role} className="text-[10px] text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded">
-                                {role}
-                              </span>
-                            ))}
-                            {(model.roles?.length ?? 0) > 3 && (
-                              <span className="text-[10px] text-slate-500">+{(model.roles?.length ?? 0) - 3}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${HEALTH_COLORS[model.health] ?? HEALTH_COLORS.unknown}`}>
-                            {model.health ?? 'unknown'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${model.enabled ? 'text-emerald-400' : 'text-slate-500'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${model.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                              {model.enabled ? 'Enabled' : 'Disabled'}
+
+          {/* Search + Filters */}
+          <div className="flex flex-col gap-3">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${CARD}`}>
+              <Search className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by model name, ID, or provider..."
+                className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Provider filter */}
+              <span className="text-xs text-slate-500">Provider:</span>
+              {['all', ...providers].map(p => {
+                const provStyle = p !== 'all' ? PROVIDER_COLORS[p.toLowerCase()] : undefined
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setProviderFilter(p)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors capitalize ${
+                      providerFilter === p
+                        ? provStyle ?? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
+                        : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'
+                    }`}
+                  >
+                    {p === 'all' ? 'All' : p}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Role filter */}
+              <span className="text-xs text-slate-500">Role:</span>
+              <button
+                onClick={() => setRoleFilter('all')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${
+                  roleFilter === 'all' ? 'bg-violet-500/15 border-violet-500/30 text-violet-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              {allRoles.slice(0, 8).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRoleFilter(r)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors capitalize ${
+                    roleFilter === r ? 'bg-violet-500/15 border-violet-500/30 text-violet-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+              {/* Capability filter */}
+              <span className="text-xs text-slate-500 ml-2">Cap:</span>
+              <button
+                onClick={() => setCapFilter('all')}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${
+                  capFilter === 'all' ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              {allCaps.slice(0, 8).map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCapFilter(c)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors capitalize ${
+                    capFilter === c ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' : 'bg-white/[0.02] border-white/[0.06] text-slate-500 hover:text-white'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Result count */}
+          <p className="text-xs text-slate-500">
+            Showing {filteredModels.length} of {models.length} models
+          </p>
+
+          {/* Model Grid */}
+          {filteredModels.length === 0 ? (
+            <div className={`${CARD} p-12 text-center`}>
+              <Layers className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">No models match your filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredModels.map((model, i) => {
+                const provStyle = PROVIDER_COLORS[model.provider.toLowerCase()] ?? 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                const role = model.primary_role ?? model.roles?.[0] ?? 'general'
+                return (
+                  <motion.div
+                    key={`${model.provider}:${model.model_id}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.02 }}
+                    className={`${CARD} p-4 hover:bg-white/[0.05] transition-colors group`}
+                  >
+                    {/* Header: name + enabled */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
+                          {model.display_name || model.model_id}
+                        </h3>
+                        <p className="text-[10px] text-slate-600 font-mono truncate mt-0.5">
+                          {model.model_id}
+                        </p>
+                      </div>
+                      <span className={`flex-shrink-0 ml-2 inline-flex items-center gap-1 text-[10px] font-medium ${model.enabled ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        {model.enabled
+                          ? <><CheckCircle className="w-3 h-3" /> On</>
+                          : <><XCircle className="w-3 h-3" /> Off</>
+                        }
+                      </span>
+                    </div>
+
+                    {/* Provider + Role */}
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${provStyle}`}>
+                        {model.provider}
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-400 bg-white/5 px-2 py-0.5 rounded-full capitalize">
+                        {role}
+                      </span>
+                    </div>
+
+                    {/* Capabilities */}
+                    {model.capabilities && model.capabilities.length > 0 ? (
+                      <div className="flex gap-1.5 flex-wrap">
+                        {model.capabilities.map(cap => {
+                          const cfg = CAP_CONFIG[cap] ?? { icon: Sparkles, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' }
+                          const CapIcon = cfg.icon
+                          return (
+                            <span
+                              key={cap}
+                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${cfg.color}`}
+                            >
+                              <CapIcon className="w-2.5 h-2.5" />
+                              {cap}
                             </span>
-                            <ChevronDown className={`w-3 h-3 text-slate-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr key={`${modelKey}-detail`}>
-                          <td colSpan={7} className="px-4 py-4 bg-white/[0.01]">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                              <div>
-                                <p className="text-slate-500 font-medium mb-1">Model ID</p>
-                                <p className="text-slate-300 font-mono">{model.model_id}</p>
-                              </div>
-                              {model.context_window && (
-                                <div>
-                                  <p className="text-slate-500 font-medium mb-1">Context Window</p>
-                                  <p className="text-slate-300">{model.context_window.toLocaleString()} tokens</p>
-                                </div>
-                              )}
-                              {model.fallback_priority !== undefined && (
-                                <div>
-                                  <p className="text-slate-500 font-medium mb-1">Fallback Priority</p>
-                                  <p className="text-slate-300">#{model.fallback_priority}</p>
-                                </div>
-                              )}
-                              {model.validator_eligible !== undefined && (
-                                <div>
-                                  <p className="text-slate-500 font-medium mb-1">Validator Eligible</p>
-                                  <p className={model.validator_eligible ? 'text-emerald-400' : 'text-slate-500'}>
-                                    {model.validator_eligible ? 'Yes' : 'No'}
-                                  </p>
-                                </div>
-                              )}
-                              <div className="sm:col-span-2">
-                                <p className="text-slate-500 font-medium mb-1">Capabilities</p>
-                                <div className="flex gap-1 flex-wrap">
-                                  {model.capabilities?.map(cap => (
-                                    <span key={cap} className="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
-                                      {cap}
-                                    </span>
-                                  ))}
-                                  {(!model.capabilities || model.capabilities.length === 0) && (
-                                    <span className="text-slate-600">None reported</span>
-                                  )}
-                                </div>
-                              </div>
-                              {model.specialist_domains && model.specialist_domains.length > 0 && (
-                                <div className="sm:col-span-3">
-                                  <p className="text-slate-500 font-medium mb-1">Specialist Domains</p>
-                                  <div className="flex gap-1 flex-wrap">
-                                    {model.specialist_domains.map(d => (
-                                      <span key={d} className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                        {d}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-600">No capabilities reported</p>
+                    )}
+
+                    {/* Context window */}
+                    {model.context_window && (
+                      <p className="text-[10px] text-slate-500 mt-2">
+                        Context: {model.context_window.toLocaleString()} tokens
+                      </p>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <p className="text-xs text-slate-600">

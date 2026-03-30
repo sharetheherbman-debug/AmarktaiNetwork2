@@ -5,10 +5,12 @@ import { motion } from 'framer-motion'
 import {
   CheckCircle, AlertCircle, AlertTriangle, WifiOff, Clock,
   RefreshCw, Zap, Activity, Shield, Brain, Database, Server,
-  ArrowRight, CircleDot, Cpu, BarChart3, Gauge,
+  ArrowRight, CircleDot, Cpu, Gauge, Bot, FlaskConical,
+  MessageSquare, Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
+import MetricCard from '@/components/ui/MetricCard'
 
 // ── Types ─────────────────────────────────────────────────────────
 interface DashboardData {
@@ -24,7 +26,7 @@ interface DashboardData {
     severity: string
     title: string
     timestamp: string
-    product: { name: string }
+    product: { name: string } | null
   }>
   productStats: Array<{
     id: number
@@ -79,11 +81,11 @@ const SEV = {
 // ── Staggered entrance animation ──────────────────────────────
 const stagger = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.06 } },
+  show: { transition: { staggerChildren: 0.07 } },
 }
 const fadeUp = {
-  hidden: { opacity: 0, y: 12 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+  hidden: { opacity: 0, y: 14 },
+  show:   { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' as const } },
 }
 
 // ── Main ──────────────────────────────────────────────────────
@@ -130,9 +132,9 @@ export default function DashboardOverview() {
   useEffect(() => { load() }, [load])
 
   // ── Derived ────────────────────────────────────────────────
-  const healthyProviders  = providers.filter(p => p.healthStatus === 'healthy')
-  const enabledProviders  = providers.filter(p => p.enabled)
-  const totalApps         = data?.productStats.length ?? 0
+  const healthyProviders = providers.filter(p => p.healthStatus === 'healthy')
+  const enabledProviders = providers.filter(p => p.enabled)
+  const totalApps        = data?.productStats.length ?? 0
 
   const totalReqs   = data?.brainStats?.totalRequests ?? 0
   const successReqs = data?.brainStats?.successCount ?? 0
@@ -144,17 +146,28 @@ export default function DashboardOverview() {
 
   const systemOnline = enabledProviders.length > 0 || totalApps > 0
 
-  // ── Loading state ──────────────────────────────────────────
+  // ── Loading skeleton ───────────────────────────────────────
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-20 bg-white/[0.03] rounded-2xl" />
+      <div className="space-y-6 animate-pulse max-w-7xl">
+        <div className="h-20 glass rounded-2xl" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-white/[0.03] rounded-2xl" />)}
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-28 bg-white/[0.03] rounded-2xl border border-white/[0.04]" />
+          ))}
+        </div>
+        <div className="h-40 bg-white/[0.03] rounded-2xl border border-white/[0.04]" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="h-56 bg-white/[0.03] rounded-2xl border border-white/[0.04]" />
+          ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-48 bg-white/[0.03] rounded-2xl" />)}
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="h-48 bg-white/[0.03] rounded-2xl border border-white/[0.04]" />
+          ))}
         </div>
+        <div className="h-48 bg-white/[0.03] rounded-2xl border border-white/[0.04]" />
       </div>
     )
   }
@@ -166,38 +179,46 @@ export default function DashboardOverview() {
       animate="show"
       className="space-y-6 max-w-7xl"
     >
-      {/* ─── Header Section ──────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 text-transparent bg-clip-text">
-            AmarktAI Network
+      {/* ─── Header ──────────────────────────────────────────── */}
+      <motion.div
+        variants={fadeUp}
+        className="glass rounded-2xl px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-white/[0.06] relative overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.04] via-transparent to-cyan-500/[0.04] pointer-events-none" />
+        <div className="relative">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-400 text-transparent bg-clip-text tracking-tight">
+            Command Center
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Command Center</p>
+          <p className="text-xs text-slate-500 mt-1 font-mono tracking-wide">AmarktAI Neural Network Overview</p>
         </div>
-        <div className="flex items-center gap-4">
-          {/* System status */}
-          <div className="flex items-center gap-2">
-            <span className={`relative flex h-2.5 w-2.5 ${systemOnline ? '' : ''}`}>
+        <div className="flex items-center gap-4 relative">
+          {/* System Online badge */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${
+            systemOnline
+              ? 'bg-emerald-400/[0.08] border-emerald-400/20'
+              : 'bg-red-400/[0.08] border-red-400/20'
+          }`}>
+            <span className="relative flex h-2 w-2">
               {systemOnline && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${systemOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${systemOnline ? 'bg-emerald-400' : 'bg-red-400'}`} />
             </span>
-            <span className={`text-xs font-mono ${systemOnline ? 'text-emerald-400' : 'text-slate-500'}`}>
-              {systemOnline ? 'ONLINE' : 'OFFLINE'}
+            <span className={`text-xs font-mono font-semibold ${systemOnline ? 'text-emerald-400' : 'text-red-400'}`}>
+              {systemOnline ? 'System Online' : 'System Offline'}
             </span>
           </div>
           {/* Last refreshed */}
           {lastRefreshed && (
-            <span className="text-xs text-slate-600 font-mono hidden sm:inline">
+            <span className="text-[11px] text-slate-600 font-mono hidden sm:inline">
               {formatDistanceToNow(lastRefreshed, { addSuffix: true })}
             </span>
           )}
-          {/* Refresh button */}
+          {/* Refresh */}
           <button
             onClick={() => load(true)}
             disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-400 hover:text-white hover:bg-white/[0.07] hover:border-blue-500/20 transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -207,14 +228,19 @@ export default function DashboardOverview() {
 
       {/* ─── DB Error Banner ─────────────────────────────────── */}
       {dbError && (
-        <motion.div variants={fadeUp} className="bg-red-500/[0.06] border border-red-500/20 rounded-2xl px-5 py-4 flex items-start gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="bg-red-500/[0.06] border border-red-500/20 rounded-2xl px-5 py-4 flex items-start gap-3"
+        >
           <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-red-400">Database unavailable</p>
+            <p className="text-sm font-semibold text-red-400">Database Connection Error</p>
             <p className="text-xs text-red-400/70 mt-0.5">{dbError}</p>
             <p className="text-xs text-slate-500 mt-1.5">
               Set a valid <code className="text-slate-400 font-mono text-[11px]">DATABASE_URL</code> and check the{' '}
-              <Link href="/admin/dashboard/readiness" className="text-blue-400 hover:text-blue-300 underline">Readiness</Link> page.
+              <Link href="/admin/dashboard/readiness" className="text-blue-400 hover:text-blue-300 underline transition-colors">
+                Readiness
+              </Link>{' '}page.
             </p>
           </div>
         </motion.div>
@@ -222,92 +248,85 @@ export default function DashboardOverview() {
 
       {/* ─── Key Metrics Row ─────────────────────────────────── */}
       <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: 'Total Apps',
-            value: data?.metrics.totalProducts ?? 0,
-            icon: Server,
-            gradient: 'from-blue-500/20 to-blue-500/5',
-            accent: 'text-blue-400',
-          },
-          {
-            label: 'Active Providers',
-            value: enabledProviders.length,
-            icon: Cpu,
-            gradient: 'from-violet-500/20 to-violet-500/5',
-            accent: 'text-violet-400',
-          },
-          {
-            label: 'Brain Requests',
-            value: totalReqs,
-            icon: Brain,
-            gradient: 'from-cyan-500/20 to-cyan-500/5',
-            accent: 'text-cyan-400',
-          },
-          {
-            label: 'System Health',
-            value: `${systemHealth}%`,
-            icon: Gauge,
-            gradient: 'from-emerald-500/20 to-emerald-500/5',
-            accent: systemHealth >= 70 ? 'text-emerald-400' : systemHealth >= 40 ? 'text-amber-400' : 'text-red-400',
-          },
-        ].map((m) => (
-          <div
-            key={m.label}
-            className="relative overflow-hidden bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${m.gradient} pointer-events-none`} />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-slate-500 tracking-wide uppercase">{m.label}</span>
-                <m.icon className={`w-4 h-4 ${m.accent} opacity-60`} />
-              </div>
-              <p className={`text-3xl font-bold font-mono ${m.accent}`}>{m.value}</p>
-            </div>
-          </div>
-        ))}
+        <MetricCard
+          label="Total Apps"
+          value={data?.metrics.totalProducts ?? 0}
+          icon={<Server className="w-4 h-4" />}
+        />
+        <MetricCard
+          label="Active Providers"
+          value={enabledProviders.length}
+          icon={<Cpu className="w-4 h-4" />}
+          suffix={`/ ${providers.length}`}
+        />
+        <MetricCard
+          label="Brain Requests"
+          value={totalReqs.toLocaleString()}
+          icon={<Brain className="w-4 h-4" />}
+          suffix="total"
+        />
+        <MetricCard
+          label="System Health"
+          value={`${systemHealth}%`}
+          icon={<Gauge className="w-4 h-4" />}
+        />
       </motion.div>
 
-      {/* ─── Provider Status Grid ────────────────────────────── */}
+      {/* ─── Provider Health Grid ────────────────────────────── */}
       <motion.div variants={fadeUp}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white tracking-wide uppercase flex items-center gap-2">
             <Zap className="w-4 h-4 text-blue-400" />
-            Provider Status
+            Provider Health
           </h2>
-          <Link href="/admin/dashboard/ai-providers" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+          <Link
+            href="/admin/dashboard/ai-providers"
+            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+          >
             Manage <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
         {providers.length === 0 ? (
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
+          <div className="glass rounded-2xl p-8 text-center border border-white/[0.06]">
             <WifiOff className="w-8 h-8 text-slate-600 mx-auto mb-3" />
             <p className="text-sm text-slate-500">No providers configured</p>
-            <Link href="/admin/dashboard/ai-providers" className="mt-2 inline-block text-xs text-blue-400 hover:text-blue-300">
+            <Link
+              href="/admin/dashboard/ai-providers"
+              className="mt-2 inline-block text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
               Set up AI providers →
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {providers.map(p => {
               const cfg = H[p.healthStatus as keyof typeof H] ?? H.unconfigured
               const Icon = cfg.icon
               return (
-                <div key={p.id} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 flex items-center gap-3">
+                <div
+                  key={p.id}
+                  className="glass-card rounded-2xl p-4 flex items-center gap-3 border border-white/[0.06] hover:border-white/[0.12] transition-all group"
+                >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                     p.healthStatus === 'healthy' ? 'bg-emerald-400/10' :
                     p.healthStatus === 'error' ? 'bg-red-400/10' :
                     p.healthStatus === 'configured' || p.healthStatus === 'degraded' ? 'bg-amber-400/10' :
-                    'bg-white/[0.03]'
+                    'bg-white/[0.04]'
                   }`}>
                     <Icon className={`w-5 h-5 ${cfg.color}`} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white truncate">{p.displayName}</p>
+                    <p className="text-sm font-medium text-white truncate group-hover:text-blue-300 transition-colors">
+                      {p.displayName}
+                    </p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ${
+                        p.healthStatus === 'healthy' ? 'animate-pulse' : ''
+                      }`} />
                       <span className={`text-xs font-mono ${cfg.color}`}>{cfg.label}</span>
-                      {!p.enabled && <span className="text-[10px] text-slate-600 font-mono ml-1">(disabled)</span>}
+                      {!p.enabled && (
+                        <span className="text-[10px] text-slate-600 font-mono ml-1">(disabled)</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -317,42 +336,120 @@ export default function DashboardOverview() {
         )}
       </motion.div>
 
-      {/* ─── System Subsections (2-column) ───────────────────── */}
+      {/* ─── Two-Column: Brain Performance & Memory Status ──── */}
       <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+        {/* Brain Performance */}
+        <div className="glass rounded-2xl overflow-hidden border border-white/[0.06]">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Brain className="w-4 h-4 text-violet-400" />
+              Brain Performance
+            </h2>
+            <Link
+              href="/admin/dashboard/brain-chat"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+            >
+              Open Chat <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Success Rate</p>
+                <p className={`text-2xl font-bold font-mono mt-1.5 ${
+                  successRate >= 90 ? 'text-emerald-400' : successRate >= 70 ? 'text-amber-400' : 'text-red-400'
+                }`}>
+                  {totalReqs > 0 ? `${successRate}%` : '—'}
+                </p>
+                {totalReqs > 0 && (
+                  <div className="mt-2 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        successRate >= 90 ? 'bg-emerald-400' : successRate >= 70 ? 'bg-amber-400' : 'bg-red-400'
+                      }`}
+                      style={{ width: `${successRate}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Avg Latency</p>
+                <p className="text-2xl font-bold font-mono mt-1.5 text-white">
+                  {data?.brainStats?.avgLatencyMs ? `${data.brainStats.avgLatencyMs}` : '—'}
+                </p>
+                {data?.brainStats?.avgLatencyMs && (
+                  <span className="text-xs text-slate-500 font-mono">ms</span>
+                )}
+              </div>
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Total Success</p>
+                <p className="text-2xl font-bold font-mono mt-1.5 text-emerald-400">
+                  {successReqs.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Total Errors</p>
+                <p className={`text-2xl font-bold font-mono mt-1.5 ${
+                  errorReqs > 0 ? 'text-red-400' : 'text-slate-400'
+                }`}>
+                  {errorReqs.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Memory Status */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="glass rounded-2xl overflow-hidden border border-white/[0.06]">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Database className="w-4 h-4 text-cyan-400" />
               Memory Status
             </h2>
-            <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-              memory?.statusLabel === 'saving' ? 'bg-emerald-400/10 text-emerald-400' :
-              memory?.statusLabel === 'empty' ? 'bg-amber-400/10 text-amber-400' :
-              'bg-slate-500/10 text-slate-500'
+            <span className={`text-[10px] font-mono font-semibold px-2.5 py-1 rounded-full ${
+              memory?.statusLabel === 'saving'
+                ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/20'
+                : memory?.statusLabel === 'empty'
+                ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
+                : 'bg-slate-500/10 text-slate-500 border border-slate-500/20'
             }`}>
               {memory?.statusLabel === 'saving' ? 'ACTIVE' :
                memory?.statusLabel === 'empty' ? 'EMPTY' : 'NOT CONFIGURED'}
             </span>
           </div>
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Total Entries</p>
-                <p className="text-2xl font-bold font-mono text-white">{memory?.totalEntries ?? 0}</p>
+          <div className="p-5 space-y-5">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Total Entries</p>
+                <p className="text-2xl font-bold font-mono mt-1.5 text-white">
+                  {(memory?.totalEntries ?? 0).toLocaleString()}
+                </p>
               </div>
-              <div>
-                <p className="text-xs text-slate-500 mb-1">App Slugs</p>
-                <p className="text-2xl font-bold font-mono text-white">{memory?.appSlugs?.length ?? 0}</p>
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">App Namespaces</p>
+                <p className="text-2xl font-bold font-mono mt-1.5 text-white">
+                  {memory?.appSlugs?.length ?? 0}
+                </p>
+              </div>
+              <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.04]">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Retrieval</p>
+                <p className={`text-lg font-bold font-mono mt-1.5 ${
+                  memory?.available ? 'text-emerald-400' : 'text-slate-500'
+                }`}>
+                  {memory?.available ? 'Ready' : 'Off'}
+                </p>
               </div>
             </div>
             {memory?.appSlugs && memory.appSlugs.length > 0 && (
               <div>
-                <p className="text-xs text-slate-500 mb-2">Connected Apps</p>
+                <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">Connected Namespaces</p>
                 <div className="flex flex-wrap gap-1.5">
                   {memory.appSlugs.map(slug => (
-                    <span key={slug} className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/[0.06]">
+                    <span
+                      key={slug}
+                      className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-cyan-400/[0.06] text-cyan-400/80 border border-cyan-400/10"
+                    >
                       {slug}
                     </span>
                   ))}
@@ -360,112 +457,96 @@ export default function DashboardOverview() {
               </div>
             )}
             {memory?.error && (
-              <p className="text-xs text-red-400/70 font-mono">{memory.error}</p>
+              <p className="text-xs text-red-400/70 font-mono bg-red-400/[0.05] rounded-lg px-3 py-2">
+                {memory.error}
+              </p>
             )}
           </div>
         </div>
+      </motion.div>
 
-        {/* Brain Stats */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Brain className="w-4 h-4 text-violet-400" />
-              Brain Stats
-            </h2>
-            <Link href="/admin/dashboard/brain-chat" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
-              Open Chat <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/[0.03] rounded-xl p-3.5">
-                <p className="text-xs text-slate-500">Success Rate</p>
-                <p className={`text-2xl font-bold font-mono mt-1 ${successRate >= 90 ? 'text-emerald-400' : successRate >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
-                  {totalReqs > 0 ? `${successRate}%` : '—'}
-                </p>
-              </div>
-              <div className="bg-white/[0.03] rounded-xl p-3.5">
-                <p className="text-xs text-slate-500">Avg Latency</p>
-                <p className="text-2xl font-bold font-mono mt-1 text-white">
-                  {data?.brainStats?.avgLatencyMs ? `${data.brainStats.avgLatencyMs}ms` : '—'}
-                </p>
-              </div>
-              <div className="bg-white/[0.03] rounded-xl p-3.5">
-                <p className="text-xs text-slate-500">Success</p>
-                <p className="text-2xl font-bold font-mono mt-1 text-emerald-400">{successReqs}</p>
-              </div>
-              <div className="bg-white/[0.03] rounded-xl p-3.5">
-                <p className="text-xs text-slate-500">Errors</p>
-                <p className={`text-2xl font-bold font-mono mt-1 ${errorReqs > 0 ? 'text-red-400' : 'text-white'}`}>{errorReqs}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+      {/* ─── Quick Actions ───────────────────────────────────── */}
+      <motion.div variants={fadeUp}>
+        <div className="glass rounded-2xl overflow-hidden border border-white/[0.06]">
           <div className="px-5 py-3.5 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-400" />
               Quick Actions
             </h2>
           </div>
-          <div className="p-4 grid grid-cols-2 gap-3">
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: 'Providers',   href: '/admin/dashboard/ai-providers', icon: Cpu,      desc: 'Manage AI keys' },
-              { label: 'Workspace',   href: '/admin/dashboard/apps',         icon: Server,   desc: 'App registry' },
-              { label: 'Readiness',   href: '/admin/dashboard/readiness',    icon: Shield,   desc: 'Go-live checks' },
-              { label: 'Events',      href: '/admin/dashboard/events',       icon: Activity, desc: 'Logs & alerts' },
-              { label: 'Brain Chat',  href: '/admin/dashboard/brain-chat',   icon: Brain,    desc: 'Test AI brain' },
-              { label: 'Analytics',   href: '/admin/dashboard/analytics',    icon: BarChart3, desc: 'Usage stats' },
+              { label: 'Providers',  href: '/admin/dashboard/ai-providers', icon: Cpu,          desc: 'Manage AI keys' },
+              { label: 'Models',     href: '/admin/dashboard/models',       icon: Layers,       desc: 'Model registry' },
+              { label: 'Playground', href: '/admin/dashboard/playground',   icon: FlaskConical,  desc: 'Test prompts' },
+              { label: 'Events',     href: '/admin/dashboard/events',       icon: Activity,     desc: 'Logs & alerts' },
+              { label: 'Agents',     href: '/admin/dashboard/agents',       icon: Bot,          desc: 'AI agents' },
+              { label: 'Brain Chat', href: '/admin/dashboard/brain-chat',   icon: MessageSquare, desc: 'Chat with AI' },
             ].map(item => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-3 px-3 py-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] hover:border-white/[0.1] transition-all group"
+                className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.06] hover:border-blue-500/20 transition-all group text-center"
               >
-                <item.icon className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm text-white truncate">{item.label}</p>
-                  <p className="text-[11px] text-slate-600 truncate">{item.desc}</p>
+                <div className="w-9 h-9 rounded-lg bg-white/[0.04] flex items-center justify-center group-hover:bg-blue-500/10 transition-colors">
+                  <item.icon className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                </div>
+                <div>
+                  <p className="text-sm text-white font-medium">{item.label}</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">{item.desc}</p>
                 </div>
               </Link>
             ))}
           </div>
         </div>
+      </motion.div>
 
-        {/* Recent Events */}
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+      {/* ─── Recent Events ───────────────────────────────────── */}
+      <motion.div variants={fadeUp}>
+        <div className="glass rounded-2xl overflow-hidden border border-white/[0.06]">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-400" />
               Recent Events
             </h2>
-            <Link href="/admin/dashboard/events" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+            <Link
+              href="/admin/dashboard/events"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+            >
               View All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="p-4">
             {(data?.recentEvents.length ?? 0) === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">No events logged yet</p>
+              <div className="py-8 text-center">
+                <Activity className="w-6 h-6 text-slate-700 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">No events logged yet</p>
+              </div>
             ) : (
               <div className="space-y-1">
                 {data?.recentEvents.slice(0, 5).map(ev => {
-                  const sev = SEV[ev.severity as keyof typeof SEV] ?? { color: 'text-slate-400', bg: 'bg-white/[0.03]', dot: 'bg-slate-500' }
+                  const sev = SEV[ev.severity as keyof typeof SEV] ?? {
+                    color: 'text-slate-400',
+                    bg: 'bg-white/[0.03]',
+                    dot: 'bg-slate-500',
+                  }
                   return (
-                    <div key={ev.id} className="flex items-center gap-3 py-2.5 px-2 rounded-lg hover:bg-white/[0.02] transition-colors">
+                    <div
+                      key={ev.id}
+                      className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-white/[0.03] transition-colors"
+                    >
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sev.dot}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">{ev.title}</p>
                         <p className="text-[11px] text-slate-600">{ev.product?.name ?? '—'}</p>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${sev.bg} ${sev.color}`}>
+                      <div className="text-right shrink-0 flex items-center gap-2">
+                        <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md ${sev.bg} ${sev.color}`}>
                           {ev.severity}
                         </span>
-                        <p className="text-[10px] text-slate-600 mt-0.5 font-mono">
+                        <span className="text-[10px] text-slate-600 font-mono w-20 text-right">
                           {formatDistanceToNow(new Date(ev.timestamp), { addSuffix: true })}
-                        </p>
+                        </span>
                       </div>
                     </div>
                   )
@@ -476,35 +557,52 @@ export default function DashboardOverview() {
         </div>
       </motion.div>
 
-      {/* ─── Product Status Table ────────────────────────────── */}
+      {/* ─── Connected Apps Table ─────────────────────────────── */}
       <motion.div variants={fadeUp}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white tracking-wide uppercase flex items-center gap-2">
             <CircleDot className="w-4 h-4 text-cyan-400" />
-            Product Status
+            Connected Apps
           </h2>
-          <Link href="/admin/dashboard/apps" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+          <Link
+            href="/admin/dashboard/apps"
+            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+          >
             Manage Apps <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
         {totalApps === 0 ? (
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
+          <div className="glass rounded-2xl p-8 text-center border border-white/[0.06]">
             <Shield className="w-8 h-8 text-slate-600 mx-auto mb-3" />
             <p className="text-sm text-slate-500">No apps registered</p>
-            <Link href="/admin/dashboard/apps" className="mt-2 inline-block text-xs text-blue-400 hover:text-blue-300">
+            <Link
+              href="/admin/dashboard/apps"
+              className="mt-2 inline-block text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
               Register your first app →
             </Link>
           </div>
         ) : (
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+          <div className="glass rounded-2xl overflow-hidden border border-white/[0.06]">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
-                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">App Name</th>
-                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">Status</th>
-                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">Health</th>
-                    <th className="text-right text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">Last Seen</th>
+                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">
+                      App Name
+                    </th>
+                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">
+                      Status
+                    </th>
+                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">
+                      Health
+                    </th>
+                    <th className="text-left text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">
+                      Category
+                    </th>
+                    <th className="text-right text-[11px] text-slate-500 font-medium uppercase tracking-wider px-5 py-3">
+                      Last Seen
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -518,15 +616,20 @@ export default function DashboardOverview() {
                       ? { label: 'Error', color: 'text-red-400', dot: 'bg-red-400' }
                       : { label: 'No Integration', color: 'text-slate-500', dot: 'bg-slate-600' }
                     return (
-                      <tr key={app.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
+                      <tr
+                        key={app.id}
+                        className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+                      >
                         <td className="px-5 py-3">
                           <span className="text-sm text-white font-medium">{app.name}</span>
                         </td>
                         <td className="px-5 py-3">
                           <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-                            app.status === 'active' ? 'bg-emerald-400/10 text-emerald-400' :
-                            app.status === 'draft' ? 'bg-amber-400/10 text-amber-400' :
-                            'bg-white/[0.04] text-slate-500'
+                            app.status === 'active'
+                              ? 'bg-emerald-400/10 text-emerald-400'
+                              : app.status === 'draft'
+                              ? 'bg-amber-400/10 text-amber-400'
+                              : 'bg-white/[0.04] text-slate-500'
                           }`}>
                             {app.status}
                           </span>
@@ -536,6 +639,11 @@ export default function DashboardOverview() {
                             <span className={`w-1.5 h-1.5 rounded-full ${healthCfg.dot}`} />
                             <span className={`text-xs font-mono ${healthCfg.color}`}>{healthCfg.label}</span>
                           </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="text-xs text-slate-500 font-mono">
+                            {app.integration ? 'integrated' : 'standalone'}
+                          </span>
                         </td>
                         <td className="px-5 py-3 text-right">
                           <span className="text-xs text-slate-600 font-mono">

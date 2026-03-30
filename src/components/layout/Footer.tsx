@@ -1,85 +1,123 @@
 import Link from 'next/link'
-import Image from 'next/image'
-import { ArrowRight } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
+
+const platformLinks = [
+  { href: '/apps', label: 'Ecosystem' },
+  { href: '/admin/login', label: 'Admin Dashboard' },
+  { href: '/docs/api', label: 'Brain API' },
+  { href: '/docs', label: 'Documentation' },
+]
+
+const companyLinks = [
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
+  { href: '/contact', label: 'Waitlist' },
+]
+
+const legalLinks = [
+  { href: '/privacy', label: 'Privacy Policy' },
+  { href: '/terms', label: 'Terms of Service' },
+]
+
+function FooterLinkItem({ href, label }: { href: string; label: string }) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className="group inline-flex items-center gap-1 text-sm text-slate-500 transition-colors duration-200 hover:text-white"
+      >
+        {label}
+        <ArrowUpRight className="w-3 h-3 opacity-0 -translate-x-1 translate-y-0.5 transition-all duration-200 group-hover:opacity-70 group-hover:translate-x-0 group-hover:translate-y-0" />
+      </Link>
+    </li>
+  )
+}
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/5 bg-[#050816] relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute bottom-0 left-1/4 w-96 h-32 bg-blue-600/4 rounded-full blur-[60px]" />
-        <div className="absolute bottom-0 right-1/4 w-80 h-32 bg-violet-600/3 rounded-full blur-[60px]" />
+    <footer className="relative overflow-hidden border-t border-white/[0.06] bg-[#050816]">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="absolute -bottom-10 left-1/4 h-40 w-[28rem] rounded-full bg-blue-600/[0.03] blur-[80px]" />
+        <div className="absolute -bottom-10 right-1/4 h-40 w-96 rounded-full bg-violet-600/[0.02] blur-[80px]" />
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
+
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        {/* Link columns */}
+        <div className="grid grid-cols-2 gap-10 sm:grid-cols-2 md:grid-cols-12 lg:gap-16">
           {/* Brand */}
-          <div className="md:col-span-6">
-            <Link href="/" className="flex items-center gap-2.5 mb-5 group w-fit">
-              <div className="relative w-9 h-9 flex-shrink-0">
-                <Image
-                  src="/Amarktai-logo.png"
-                  alt="AmarktAI Network"
-                  width={36}
-                  height={36}
-                  className="rounded-xl object-contain"
-                />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 blur-md opacity-20 group-hover:opacity-40 transition-opacity" />
-              </div>
-              <div>
-                <span className="font-bold text-base block leading-tight font-heading">
-                  <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span>
-                  <span className="text-slate-400 ml-1.5 font-light">Network</span>
+          <div className="col-span-2 sm:col-span-2 md:col-span-4 lg:col-span-4">
+            <Link href="/" className="group mb-5 inline-flex items-center gap-2">
+              <span className="text-lg font-bold tracking-tight font-heading">
+                <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+                  AmarktAI
                 </span>
-              </div>
+              </span>
             </Link>
-            <p className="text-slate-500 text-sm leading-relaxed max-w-xs mb-6">
-              The intelligence layer powering a growing ecosystem of connected apps. Multi-model orchestration, adaptive execution, and shared context — one layer, every app.
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-slate-500">
+              The intelligence layer powering a growing ecosystem of connected
+              apps. Multi-model orchestration, adaptive execution, and shared
+              context&nbsp;— one&nbsp;layer, every&nbsp;app.
             </p>
           </div>
 
-          {/* Company */}
-          <div className="md:col-span-3">
-            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Company</h4>
+          {/* Platform */}
+          <div className="md:col-span-3 lg:col-span-3">
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-300 font-mono">
+              Platform
+            </h4>
             <ul className="space-y-2.5">
-              {[
-                { href: '/about', label: 'About' },
-                { href: '/apps', label: 'Apps' },
-                { href: '/contact', label: 'Contact' },
-              ].map(l => (
-                <li key={l.href}>
-                  <Link href={l.href} className="text-sm text-slate-500 hover:text-white transition-colors group flex items-center gap-1">
-                    {l.label}
-                    <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                  </Link>
-                </li>
+              {platformLinks.map((l) => (
+                <FooterLinkItem key={l.label} href={l.href} label={l.label} />
+              ))}
+            </ul>
+          </div>
+
+          {/* Company */}
+          <div className="md:col-span-3 lg:col-span-3">
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-300 font-mono">
+              Company
+            </h4>
+            <ul className="space-y-2.5">
+              {companyLinks.map((l) => (
+                <FooterLinkItem key={l.label} href={l.href} label={l.label} />
               ))}
             </ul>
           </div>
 
           {/* Legal */}
-          <div className="md:col-span-3">
-            <h4 className="text-xs font-semibold text-white mb-4 tracking-wider uppercase font-mono">Legal</h4>
+          <div className="md:col-span-2 lg:col-span-2">
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-300 font-mono">
+              Legal
+            </h4>
             <ul className="space-y-2.5">
-              {[
-                { href: '/privacy', label: 'Privacy Policy' },
-                { href: '/terms', label: 'Terms of Service' },
-              ].map(l => (
-                <li key={l.href}>
-                  <Link href={l.href} className="text-sm text-slate-500 hover:text-white transition-colors group flex items-center gap-1">
-                    {l.label}
-                    <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                  </Link>
-                </li>
+              {legalLinks.map((l) => (
+                <FooterLinkItem key={l.label} href={l.href} label={l.label} />
               ))}
             </ul>
           </div>
         </div>
 
-        <div className="section-divider mb-8" />
+        {/* Divider */}
+        <div className="my-10 h-px w-full bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
 
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Bottom bar */}
+        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           <p className="text-xs text-slate-600 font-mono">
-            © {new Date().getFullYear()} AmarktAI Network. All rights reserved.
+            &copy; {new Date().getFullYear()} AmarktAI Network. All rights
+            reserved.
           </p>
+
+          {/* Status badge */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-xs font-medium text-emerald-400/90 font-mono">
+              Status: Operational
+            </span>
+          </div>
         </div>
       </div>
     </footer>

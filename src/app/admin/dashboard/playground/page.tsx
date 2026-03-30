@@ -3,16 +3,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  MessageSquare, Code2, Bot, BookTemplate, Activity,
-  Send, Loader2, Play, Plus, Trash2, Save,
-  ChevronDown, Thermometer, Hash, RefreshCw, Copy,
+  MessageSquare, Code2, Image as ImageIcon, Activity, Package,
+  Send, Loader2, Play, Trash2,
+  ChevronDown, Thermometer, RefreshCw,
   CheckCircle2, XCircle, Clock, Zap, ArrowRight,
-  Terminal, GitBranch, Eye, Pencil, Search,
+  Terminal, Shield, Upload, Mic, Video, Eye,
+  Layers, GitBranch, AlertTriangle, Info,
 } from 'lucide-react'
 
 /* ─── Types ─────────────────────────────────────────────────── */
 
-type WorkspaceTab = 'chat' | 'code' | 'agents' | 'prompts' | 'traces'
+type WorkspaceTab = 'chat' | 'code' | 'multimodal' | 'traces' | 'pack-simulator'
 
 interface ChatMessage {
   id: string
@@ -21,7 +22,21 @@ interface ChatMessage {
   model?: string
   provider?: string
   latencyMs?: number
+  cost?: number
   timestamp: string
+  trace?: RoutingTrace
+}
+
+interface RoutingTrace {
+  traceId: string
+  provider: string
+  model: string
+  latencyMs: number
+  cost?: number
+  fallbackUsed?: boolean
+  fallbackChain?: string[]
+  executionMode?: string
+  confidenceScore?: number | null
 }
 
 interface ModelOption {
@@ -33,14 +48,13 @@ interface ModelOption {
   enabled: boolean
 }
 
-interface AgentInfo {
-  type: string
-  name: string
-  description: string
-  capabilities: string[]
-  status: string
-  defaultProvider: string
+interface ProviderOption {
+  providerKey: string
+  displayName: string
+  enabled: boolean
+  healthStatus: string
   defaultModel: string
+  fallbackModel: string
 }
 
 interface BrainEvent {
@@ -57,111 +71,62 @@ interface BrainEvent {
   validationUsed: boolean
   consensusUsed: boolean
   errorMessage: string | null
+  warnings?: string[]
   createdAt?: string
+  timestamp?: string
 }
 
-interface PromptTemplate {
+interface CapabilityPack {
   id: string
   name: string
-  template: string
-  variables: string[]
-  model: string
-  lastTested: string | null
+  slug: string
+  description?: string
+  capabilities?: string[]
+  allowedProviders?: string[]
+  allowedModels?: string[]
+  maxTokens?: number
+  rateLimit?: number
 }
 
-/* ─── Tab Config ────────────────────────────────────────────── */
+/* ─── Constants ──────────────────────────────────────────────── */
 
 const TABS: { key: WorkspaceTab; label: string; icon: React.ElementType }[] = [
-  { key: 'chat',    label: 'Chat',    icon: MessageSquare },
-  { key: 'code',    label: 'Code',    icon: Code2 },
-  { key: 'agents',  label: 'Agents',  icon: Bot },
-  { key: 'prompts', label: 'Prompts', icon: BookTemplate },
-  { key: 'traces',  label: 'Traces',  icon: Activity },
+  { key: 'chat',           label: 'Chat',           icon: MessageSquare },
+  { key: 'code',           label: 'Code',           icon: Code2 },
+  { key: 'multimodal',     label: 'Multimodal',     icon: ImageIcon },
+  { key: 'traces',         label: 'Traces',         icon: Activity },
+  { key: 'pack-simulator', label: 'Pack Simulator', icon: Package },
 ]
 
 const LANGUAGES = [
-  'javascript', 'typescript', 'python', 'go', 'rust', 'json', 'html', 'css', 'sql', 'bash',
+  'javascript', 'typescript', 'python', 'go', 'rust',
+  'json', 'html', 'css', 'sql', 'bash',
 ]
-
-/* ─── Helpers ───────────────────────────────────────────────── */
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-function truncate(s: string, n: number) {
-  return s.length > n ? s.slice(0, n) + '…' : s
-}
+/* ─── Glass Card Wrapper ─────────────────────────────────────── */
 
-const LANG_EXTENSIONS: Record<string, string> = {
-  typescript: 'ts', javascript: 'js', python: 'py', rust: 'rs', bash: 'sh',
-}
-
-function extractTemplateVars(template: string): string[] {
-  return (template.match(/\{\{(\w+)\}\}/g) ?? []).map(v => v.replace(/[{}]/g, ''))
-}
-
-/* ─── Main Component ────────────────────────────────────────── */
-
-export default function PlaygroundPage() {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('chat')
-
+function Glass({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-[1400px]">
-      {/* Header */}
-      <div className="flex-shrink-0 mb-4">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Terminal className="w-6 h-6 text-purple-400" />
-          AI Workspace
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Chat with models, run code, test agents, manage prompts, and trace executions.
-        </p>
-      </div>
+    <div className={`rounded-2xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] ${className}`}>
+      {children}
+    </div>
+  )
+}
 
-      {/* Tab Navigation */}
-      <div className="flex-shrink-0 flex items-center gap-1 border-b border-white/[0.06] pb-px mb-4">
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors rounded-t-lg ${
-              activeTab === key
-                ? 'text-purple-300 bg-white/5'
-                : 'text-slate-500 hover:text-white hover:bg-white/3'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-            {activeTab === key && (
-              <motion.div
-                layoutId="workspace-tab-indicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-full"
-              />
-            )}
-          </button>
-        ))}
-      </div>
+/* ─── Stat Pill ──────────────────────────────────────────────── */
 
-      {/* Tab Content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.15 }}
-            className="h-full"
-          >
-            {activeTab === 'chat'    && <ChatWorkspace />}
-            {activeTab === 'code'    && <CodeWorkspace />}
-            {activeTab === 'agents'  && <AgentsWorkspace />}
-            {activeTab === 'prompts' && <PromptsWorkspace />}
-            {activeTab === 'traces'  && <TracesWorkspace />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+function StatPill({ icon: Icon, label, value, color = 'text-zinc-400' }: {
+  icon: React.ElementType; label: string; value: string | number; color?: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs">
+      <Icon size={12} className={color} />
+      <span className="text-zinc-500">{label}</span>
+      <span className={color}>{value}</span>
     </div>
   )
 }
@@ -170,240 +135,216 @@ export default function PlaygroundPage() {
    CHAT WORKSPACE
    ═══════════════════════════════════════════════════════════════ */
 
-function ChatWorkspace() {
-  const [models, setModels]           = useState<ModelOption[]>([])
+function ChatWorkspace({ models, providers }: { models: ModelOption[]; providers: ProviderOption[] }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [selectedProvider, setSelectedProvider] = useState('')
   const [selectedModel, setSelectedModel] = useState('')
-  const [messages, setMessages]       = useState<ChatMessage[]>([])
-  const [input, setInput]             = useState('')
-  const [sending, setSending]         = useState(false)
   const [temperature, setTemperature] = useState(0.7)
-  const [maxTokens, setMaxTokens]     = useState(2048)
+  const [sending, setSending] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [lastTrace, setLastTrace] = useState<RoutingTrace | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    fetch('/api/admin/models')
-      .then(r => r.json())
-      .then(data => {
-        const list: ModelOption[] = (data.models ?? data ?? [])
-          .filter((m: ModelOption) => m.enabled && m.supports_chat)
-        setModels(list)
-        if (list.length > 0 && !selectedModel) {
-          setSelectedModel(`${list[0].provider}/${list[0].model_id}`)
-        }
-      })
-      .catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const filteredModels = selectedProvider
+    ? models.filter(m => m.provider === selectedProvider && m.enabled)
+    : models.filter(m => m.enabled)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const text = input.trim()
     if (!text || sending) return
-
+    setSending(true)
     const userMsg: ChatMessage = {
-      id: uid(),
-      role: 'user',
-      content: text,
-      timestamp: new Date().toISOString(),
+      id: uid(), role: 'user', content: text, timestamp: new Date().toISOString(),
     }
     setMessages(prev => [...prev, userMsg])
     setInput('')
-    setSending(true)
 
     try {
-      const [provider] = selectedModel.split('/')
-      const res = await fetch('/api/brain/request', {
+      const body: Record<string, unknown> = { message: text, taskType: 'chat' }
+      if (selectedProvider) body.providerKey = selectedProvider
+      const res = await fetch('/api/admin/brain/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appId: 'admin-playground',
-          appSecret: 'internal',
-          taskType: 'chat',
-          message: text,
-          metadata: {
-            preferredProvider: provider || undefined,
-            preferredModel: selectedModel.split('/').slice(1).join('/') || undefined,
-            temperature,
-            max_tokens: maxTokens,
-          },
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
+      const trace: RoutingTrace = {
+        traceId: data.traceId ?? uid(),
+        provider: data.routedProvider ?? 'unknown',
+        model: data.routedModel ?? 'unknown',
+        latencyMs: data.latencyMs ?? 0,
+        fallbackUsed: data.fallbackUsed ?? false,
+        executionMode: data.executionMode,
+        confidenceScore: data.confidenceScore,
+      }
+      setLastTrace(trace)
       const assistantMsg: ChatMessage = {
-        id: uid(),
-        role: 'assistant',
+        id: uid(), role: 'assistant',
         content: data.output ?? data.error ?? 'No response received.',
-        model: data.routedModel ?? selectedModel,
-        provider: data.routedProvider ?? provider,
-        latencyMs: data.latencyMs ?? undefined,
-        timestamp: new Date().toISOString(),
+        model: trace.model, provider: trace.provider,
+        latencyMs: trace.latencyMs, trace, timestamp: new Date().toISOString(),
       }
       setMessages(prev => [...prev, assistantMsg])
     } catch {
       setMessages(prev => [...prev, {
-        id: uid(),
-        role: 'assistant',
-        content: 'Error: Failed to reach the Brain API.',
+        id: uid(), role: 'assistant', content: 'Request failed. Check connection or provider status.',
         timestamp: new Date().toISOString(),
       }])
     } finally {
       setSending(false)
     }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
+  }, [input, sending, selectedProvider])
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex flex-col h-full gap-4">
       {/* Controls Bar */}
-      <div className="flex-shrink-0 flex items-center gap-3 flex-wrap">
+      <Glass className="p-3 flex flex-wrap items-center gap-3">
+        {/* Provider Selector */}
+        <div className="relative">
+          <select
+            value={selectedProvider}
+            onChange={e => { setSelectedProvider(e.target.value); setSelectedModel('') }}
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-zinc-300 focus:outline-none focus:border-blue-500/40"
+          >
+            <option value="">Auto (best provider)</option>
+            {providers.filter(p => p.enabled).map(p => (
+              <option key={p.providerKey} value={p.providerKey}>{p.displayName}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+        </div>
+
         {/* Model Selector */}
-        <div className="relative flex-1 min-w-[220px] max-w-xs">
+        <div className="relative">
           <select
             value={selectedModel}
             onChange={e => setSelectedModel(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-zinc-300 focus:outline-none focus:border-blue-500/40"
           >
-            {models.length === 0 && <option value="">Loading models…</option>}
-            {models.map(m => (
-              <option key={`${m.provider}/${m.model_id}`} value={`${m.provider}/${m.model_id}`}>
-                {m.provider} / {m.model_name}
-              </option>
+            <option value="">Auto (best model)</option>
+            {filteredModels.map(m => (
+              <option key={m.model_id} value={m.model_id}>{m.model_name} ({m.provider})</option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
         </div>
 
-        {/* Settings Toggle */}
+        {/* Temperature Toggle */}
         <button
-          onClick={() => setShowSettings(s => !s)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm transition-colors ${
-            showSettings
-              ? 'bg-purple-600/20 border-purple-500/30 text-purple-300'
-              : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white'
-          }`}
+          onClick={() => setShowSettings(!showSettings)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
         >
-          <Thermometer className="w-3.5 h-3.5" />
-          Settings
+          <Thermometer size={13} /> {temperature.toFixed(1)}
         </button>
 
-        {/* Clear Chat */}
-        <button
-          onClick={() => setMessages([])}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          Clear
-        </button>
-      </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setMessages([])}
+            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="Clear chat"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </Glass>
 
-      {/* Settings Panel */}
+      {/* Temperature Slider */}
       <AnimatePresence>
         {showSettings && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="flex-shrink-0 overflow-hidden"
-          >
-            <div className="flex items-center gap-6 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="flex items-center gap-2">
-                <Thermometer className="w-3.5 h-3.5 text-amber-400" />
-                <label className="text-xs text-slate-400">Temperature</label>
-                <input
-                  type="range"
-                  min={0}
-                  max={2}
-                  step={0.1}
-                  value={temperature}
-                  onChange={e => setTemperature(parseFloat(e.target.value))}
-                  className="w-24 accent-purple-500"
-                />
-                <span className="text-xs text-white font-mono w-8">{temperature.toFixed(1)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Hash className="w-3.5 h-3.5 text-blue-400" />
-                <label className="text-xs text-slate-400">Max Tokens</label>
-                <input
-                  type="number"
-                  min={64}
-                  max={32768}
-                  step={64}
-                  value={maxTokens}
-                  onChange={e => setMaxTokens(parseInt(e.target.value) || 2048)}
-                  className="w-24 bg-white/[0.03] border border-white/10 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-            </div>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+            <Glass className="p-3 flex items-center gap-4">
+              <span className="text-xs text-zinc-500">Temperature</span>
+              <input
+                type="range" min={0} max={2} step={0.05} value={temperature}
+                onChange={e => setTemperature(Number(e.target.value))}
+                className="flex-1 accent-blue-500 h-1"
+              />
+              <span className="text-xs text-blue-400 font-mono w-8 text-right">{temperature.toFixed(2)}</span>
+            </Glass>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Routing Trace Banner */}
+      {lastTrace && (
+        <Glass className="px-3 py-2 flex flex-wrap items-center gap-3 text-xs">
+          <GitBranch size={13} className="text-violet-400" />
+          <span className="text-zinc-500">Last trace:</span>
+          <span className="text-blue-400">{lastTrace.provider}</span>
+          <ArrowRight size={11} className="text-zinc-600" />
+          <span className="text-violet-400">{lastTrace.model}</span>
+          <StatPill icon={Clock} label="" value={`${lastTrace.latencyMs}ms`} color="text-amber-400" />
+          {lastTrace.fallbackUsed && (
+            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Fallback</span>
+          )}
+          {lastTrace.executionMode && (
+            <span className="text-zinc-500">{lastTrace.executionMode}</span>
+          )}
+        </Glass>
+      )}
+
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pr-1 min-h-0">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <MessageSquare className="w-12 h-12 text-purple-400/20 mb-3" />
-            <p className="text-slate-500 font-medium">Start a conversation</p>
-            <p className="text-slate-600 text-sm mt-1">Select a model and send a message to begin.</p>
+          <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-3">
+            <MessageSquare size={32} strokeWidth={1.2} />
+            <p className="text-sm">Send a message to begin testing</p>
           </div>
         )}
         {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-purple-600/20 border border-purple-500/20 text-white'
-                  : 'bg-white/[0.03] border border-white/[0.06] text-slate-200'
-              }`}
-            >
-              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-              {msg.role === 'assistant' && (msg.model || msg.latencyMs) && (
-                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/5 text-xs text-slate-500">
-                  {msg.model && <span className="font-mono">{msg.model}</span>}
-                  {msg.provider && <span>{msg.provider}</span>}
-                  {msg.latencyMs != null && <span>{msg.latencyMs}ms</span>}
+          <motion.div
+            key={msg.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              msg.role === 'user'
+                ? 'bg-blue-600/20 border border-blue-500/20 text-blue-100'
+                : 'bg-white/[0.04] border border-white/[0.06] text-zinc-300'
+            }`}>
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+              {msg.trace && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/[0.06]">
+                  <StatPill icon={Layers} label="" value={msg.trace.provider} color="text-blue-400" />
+                  <StatPill icon={Zap} label="" value={msg.trace.model} color="text-violet-400" />
+                  <StatPill icon={Clock} label="" value={`${msg.trace.latencyMs}ms`} color="text-amber-400" />
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl px-4 py-3">
-              <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+            <div className="rounded-2xl px-4 py-3 bg-white/[0.04] border border-white/[0.06]">
+              <Loader2 size={16} className="animate-spin text-blue-400" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
-      <div className="flex-shrink-0 flex items-end gap-2">
-        <textarea
+      {/* Input Bar */}
+      <Glass className="p-2 flex items-center gap-2">
+        <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
-          rows={2}
-          className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+          placeholder="Type a message..."
+          className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none px-3 py-2"
         />
         <button
           onClick={handleSend}
           disabled={sending || !input.trim()}
-          className="flex items-center justify-center w-11 h-11 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+          className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {sending ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="text-white" />}
         </button>
-      </div>
+      </Glass>
     </div>
   )
 }
@@ -413,556 +354,242 @@ function ChatWorkspace() {
    ═══════════════════════════════════════════════════════════════ */
 
 function CodeWorkspace() {
-  const [code, setCode]         = useState('// Write or paste code here\nconsole.log("Hello from Amarktai Workspace");\n')
-  const [language, setLanguage] = useState('javascript')
-  const [output, setOutput]     = useState('')
-  const [running, setRunning]   = useState(false)
-  const [pushing, setPushing]   = useState(false)
-  const [pushMsg, setPushMsg]   = useState<{ ok: boolean; text: string } | null>(null)
+  const [code, setCode] = useState('')
+  const [language, setLanguage] = useState('typescript')
+  const [output, setOutput] = useState('')
+  const [running, setRunning] = useState(false)
+  const [trace, setTrace] = useState<RoutingTrace | null>(null)
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
+    if (!code.trim() || running) return
     setRunning(true)
     setOutput('')
+    setTrace(null)
     try {
-      const res = await fetch('/api/brain/request', {
+      const res = await fetch('/api/admin/brain/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: 'admin-playground',
-          appSecret: 'internal',
-          taskType: 'chat',
-          message: `Execute or analyze this ${language} code and show the expected output. If it cannot be executed, explain what it does:\n\n\`\`\`${language}\n${code}\n\`\`\``,
-          metadata: { codeExecution: true },
+          message: `Analyze this ${language} code and explain what it does, identify any bugs or improvements:\n\n\`\`\`${language}\n${code}\n\`\`\``,
+          taskType: 'code_analysis',
         }),
       })
       const data = await res.json()
-      setOutput(data.output ?? data.error ?? 'No output.')
+      setTrace({
+        traceId: data.traceId ?? uid(),
+        provider: data.routedProvider ?? 'unknown',
+        model: data.routedModel ?? 'unknown',
+        latencyMs: data.latencyMs ?? 0,
+        fallbackUsed: data.fallbackUsed ?? false,
+        executionMode: data.executionMode,
+      })
+      setOutput(data.output ?? data.error ?? 'No analysis returned.')
     } catch {
-      setOutput('Error: Failed to reach the Brain API.')
+      setOutput('Error: Failed to connect to brain gateway.')
     } finally {
       setRunning(false)
     }
-  }
-
-  const handlePush = async () => {
-    setPushing(true)
-    setPushMsg(null)
-    try {
-      const res = await fetch('/api/admin/github/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: `playground-snippet.${LANG_EXTENSIONS[language] ?? language}`,
-          content: code,
-          message: `[Workspace] Add ${language} snippet from playground`,
-        }),
-      })
-      const data = await res.json()
-      setPushMsg({ ok: res.ok, text: data.message ?? (res.ok ? 'Pushed successfully' : 'Push failed') })
-    } catch {
-      setPushMsg({ ok: false, text: 'Failed to connect to GitHub API.' })
-    } finally {
-      setPushing(false)
-    }
-  }
+  }, [code, language, running])
 
   return (
-    <div className="flex flex-col h-full gap-3">
-      {/* Toolbar */}
-      <div className="flex-shrink-0 flex items-center gap-3 flex-wrap">
-        <div className="relative">
+    <div className="flex flex-col h-full gap-4">
+      {/* Controls */}
+      <Glass className="p-3 flex items-center gap-3">
+        <Terminal size={15} className="text-emerald-400" />
+        <span className="text-sm text-zinc-300 font-medium">Code Analysis</span>
+        <div className="relative ml-3">
           <select
             value={language}
             onChange={e => setLanguage(e.target.value)}
-            className="bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 appearance-none pr-8"
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/40"
           >
-            {LANGUAGES.map(l => (
-              <option key={l} value={l}>{l}</option>
-            ))}
+            {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
         </div>
-
         <button
           onClick={handleRun}
           disabled={running || !code.trim()}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-40"
+          className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-sm transition-colors"
         >
-          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {running ? 'Running…' : 'Run / Analyze'}
+          {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+          Run
         </button>
+      </Glass>
 
-        <button
-          onClick={handlePush}
-          disabled={pushing || !code.trim()}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors disabled:opacity-40"
-        >
-          {pushing ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
-          Push to GitHub
-        </button>
-
-        <button
-          onClick={() => { navigator.clipboard.writeText(code); }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
-        >
-          <Copy className="w-3.5 h-3.5" />
-          Copy
-        </button>
-      </div>
-
-      {pushMsg && (
-        <div className={`flex-shrink-0 flex items-center gap-2 p-3 rounded-xl text-sm ${
-          pushMsg.ok ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'
-        }`}>
-          {pushMsg.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-          {pushMsg.text}
-        </div>
+      {/* Trace */}
+      {trace && (
+        <Glass className="px-3 py-2 flex flex-wrap items-center gap-3 text-xs">
+          <GitBranch size={13} className="text-violet-400" />
+          <span className="text-blue-400">{trace.provider}</span>
+          <ArrowRight size={11} className="text-zinc-600" />
+          <span className="text-violet-400">{trace.model}</span>
+          <StatPill icon={Clock} label="" value={`${trace.latencyMs}ms`} color="text-amber-400" />
+          {trace.fallbackUsed && (
+            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Fallback</span>
+          )}
+        </Glass>
       )}
 
       {/* Editor + Output */}
-      <div className="flex-1 min-h-0 grid grid-rows-2 gap-3">
-        <div className="relative rounded-xl border border-white/10 bg-[#0a0c18] overflow-hidden">
-          <div className="absolute top-2 left-3 text-xs text-slate-600 font-mono pointer-events-none select-none">
-            {language}
-          </div>
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        <Glass className="p-0.5 flex flex-col min-h-0">
+          <div className="px-3 py-2 text-xs text-zinc-500 border-b border-white/[0.06]">Input — {language}</div>
           <textarea
             value={code}
             onChange={e => setCode(e.target.value)}
+            placeholder={`Paste your ${language} code here...`}
             spellCheck={false}
-            className="w-full h-full bg-transparent text-emerald-300 font-mono text-sm p-4 pt-7 resize-none focus:outline-none placeholder:text-slate-700 leading-relaxed"
-            placeholder="// Paste or write code here…"
+            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-700 font-mono p-3 resize-none focus:outline-none min-h-0"
           />
-        </div>
-
-        <div className="rounded-xl border border-white/10 bg-[#0a0c18] overflow-auto">
-          <div className="sticky top-0 flex items-center gap-2 px-3 py-2 bg-[#0a0c18] border-b border-white/5 z-10">
-            <Terminal className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-xs text-slate-500 font-medium">Output</span>
+        </Glass>
+        <Glass className="p-0.5 flex flex-col min-h-0">
+          <div className="px-3 py-2 text-xs text-zinc-500 border-b border-white/[0.06]">Output</div>
+          <div className="flex-1 p-3 text-sm text-zinc-300 font-mono whitespace-pre-wrap overflow-y-auto min-h-0">
+            {running && <Loader2 size={16} className="animate-spin text-emerald-400" />}
+            {!running && !output && <span className="text-zinc-600">Analysis results will appear here...</span>}
+            {!running && output}
           </div>
-          <pre className="p-4 text-sm text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
-            {output || <span className="text-slate-600 italic">Run code to see output…</span>}
-          </pre>
-        </div>
+        </Glass>
       </div>
     </div>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   AGENTS WORKSPACE
+   MULTIMODAL WORKSPACE
    ═══════════════════════════════════════════════════════════════ */
 
-function AgentsWorkspace() {
-  const [agents, setAgents]           = useState<AgentInfo[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [selectedAgent, setSelectedAgent] = useState<string>('')
-  const [taskInput, setTaskInput]     = useState('')
-  const [running, setRunning]         = useState(false)
-  const [result, setResult]           = useState<string | null>(null)
-  const [error, setError]             = useState<string | null>(null)
+function MultimodalWorkspace() {
+  const [activeMode, setActiveMode] = useState<'image' | 'voice' | 'video'>('image')
+  const [description, setDescription] = useState('')
+  const [output, setOutput] = useState('')
+  const [running, setRunning] = useState(false)
+  const [trace, setTrace] = useState<RoutingTrace | null>(null)
 
-  useEffect(() => {
-    fetch('/api/admin/agents')
-      .then(r => r.json())
-      .then(data => {
-        const list: AgentInfo[] = data.agents ?? data ?? []
-        setAgents(list)
-        if (list.length > 0) setSelectedAgent(list[0].type)
-      })
-      .catch(() => setError('Failed to load agents'))
-      .finally(() => setLoading(false))
-  }, [])
+  const modes = [
+    { key: 'image' as const, label: 'Image Analysis', icon: Upload, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+    { key: 'voice' as const, label: 'Voice / Audio', icon: Mic, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { key: 'video' as const, label: 'Video Analysis', icon: Video, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  ]
 
-  const currentAgent = agents.find(a => a.type === selectedAgent)
-
-  const handleRun = async () => {
-    if (!taskInput.trim() || !selectedAgent) return
+  const handleTest = useCallback(async () => {
+    if (!description.trim() || running) return
     setRunning(true)
-    setResult(null)
-    setError(null)
+    setOutput('')
+    setTrace(null)
     try {
-      const res = await fetch('/api/brain/request', {
+      const res = await fetch('/api/admin/brain/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: 'admin-playground',
-          appSecret: 'internal',
-          taskType: 'chat',
-          message: taskInput,
-          metadata: {
-            agentType: selectedAgent,
-            executionMode: 'specialist',
-          },
+          message: `[Multimodal ${activeMode} test] ${description}`,
+          taskType: `multimodal_${activeMode}`,
         }),
       })
       const data = await res.json()
-      setResult(data.output ?? JSON.stringify(data, null, 2))
+      setTrace({
+        traceId: data.traceId ?? uid(),
+        provider: data.routedProvider ?? 'unknown',
+        model: data.routedModel ?? 'unknown',
+        latencyMs: data.latencyMs ?? 0,
+        fallbackUsed: data.fallbackUsed ?? false,
+        executionMode: data.executionMode,
+      })
+      setOutput(data.output ?? data.error ?? 'No response received.')
     } catch {
-      setError('Failed to execute agent task.')
+      setOutput('Error: Failed to connect to brain gateway.')
     } finally {
       setRunning(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-      </div>
-    )
-  }
+  }, [description, activeMode, running])
 
   return (
-    <div className="flex h-full gap-4">
-      {/* Agent List */}
-      <div className="w-64 flex-shrink-0 flex flex-col gap-1 overflow-y-auto pr-1">
-        <div className="text-xs text-slate-500 font-medium uppercase tracking-wider px-2 mb-2">
-          Available Agents ({agents.length})
-        </div>
-        {agents.map(agent => (
+    <div className="flex flex-col h-full gap-4">
+      {/* Mode Selector */}
+      <Glass className="p-3 flex items-center gap-2">
+        {modes.map(m => (
           <button
-            key={agent.type}
-            onClick={() => setSelectedAgent(agent.type)}
-            className={`flex items-start gap-2.5 p-3 rounded-xl text-left text-sm transition-colors ${
-              selectedAgent === agent.type
-                ? 'bg-purple-600/15 border border-purple-500/25 text-white'
-                : 'bg-white/[0.03] border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
+            key={m.key}
+            onClick={() => setActiveMode(m.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all ${
+              activeMode === m.key
+                ? `${m.bg} ${m.color} border border-current/20`
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]'
             }`}
           >
-            <Bot className={`w-4 h-4 mt-0.5 flex-shrink-0 ${selectedAgent === agent.type ? 'text-purple-400' : 'text-slate-600'}`} />
-            <div className="min-w-0">
-              <div className="font-medium truncate">{agent.name}</div>
-              <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{agent.description}</div>
-            </div>
+            <m.icon size={15} />
+            {m.label}
           </button>
         ))}
-        {agents.length === 0 && (
-          <div className="p-4 text-center text-slate-600 text-sm">No agents registered.</div>
-        )}
-      </div>
+      </Glass>
 
-      {/* Agent Workspace */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
-        {currentAgent && (
-          <div className="flex-shrink-0 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="flex items-center gap-2 mb-2">
-              <Bot className="w-5 h-5 text-purple-400" />
-              <h3 className="text-white font-bold">{currentAgent.name}</h3>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/[0.03] border border-white/10 text-slate-400">
-                {currentAgent.type}
-              </span>
-            </div>
-            <p className="text-sm text-slate-400 mb-2">{currentAgent.description}</p>
-            {currentAgent.capabilities.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {currentAgent.capabilities.map(cap => (
-                  <span key={cap} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300">
-                    {cap}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-              <span>Provider: {currentAgent.defaultProvider}</span>
-              <span>Model: {currentAgent.defaultModel}</span>
-            </div>
+      {/* Trace */}
+      {trace && (
+        <Glass className="px-3 py-2 flex flex-wrap items-center gap-3 text-xs">
+          <GitBranch size={13} className="text-violet-400" />
+          <span className="text-blue-400">{trace.provider}</span>
+          <ArrowRight size={11} className="text-zinc-600" />
+          <span className="text-violet-400">{trace.model}</span>
+          <StatPill icon={Clock} label="" value={`${trace.latencyMs}ms`} color="text-amber-400" />
+        </Glass>
+      )}
+
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        {/* Input Panel */}
+        <Glass className="p-4 flex flex-col gap-4 min-h-0">
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            {activeMode === 'image' && <Upload size={15} className="text-pink-400" />}
+            {activeMode === 'voice' && <Mic size={15} className="text-cyan-400" />}
+            {activeMode === 'video' && <Video size={15} className="text-amber-400" />}
+            <span className="font-medium capitalize">{activeMode} Testing</span>
           </div>
-        )}
 
-        {/* Task Input */}
-        <div className="flex-shrink-0">
+          {/* Upload Zone */}
+          <div className="flex-none rounded-xl border-2 border-dashed border-white/[0.08] hover:border-white/[0.15] p-6 flex flex-col items-center gap-2 text-center transition-colors cursor-pointer">
+            <Upload size={24} className="text-zinc-600" />
+            <p className="text-xs text-zinc-500">
+              {activeMode === 'image' && 'Upload an image (PNG, JPG, WebP) for vision analysis'}
+              {activeMode === 'voice' && 'Upload audio (MP3, WAV) for speech-to-text / analysis'}
+              {activeMode === 'video' && 'Upload video (MP4, WebM) for frame-by-frame analysis'}
+            </p>
+            <p className="text-[10px] text-zinc-700 mt-1">File upload routed through multimodal-capable providers only</p>
+          </div>
+
+          {/* Description */}
           <textarea
-            value={taskInput}
-            onChange={e => setTaskInput(e.target.value)}
-            placeholder="Describe the task for this agent…"
-            rows={3}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-500/50 resize-none placeholder:text-slate-600"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Describe the test or provide a prompt for the multimodal model..."
+            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl text-sm text-zinc-200 placeholder:text-zinc-700 p-3 resize-none focus:outline-none focus:border-blue-500/30 min-h-[80px]"
           />
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={handleRun}
-              disabled={running || !taskInput.trim() || !selectedAgent}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors disabled:opacity-40"
-            >
-              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {running ? 'Running…' : 'Run Agent'}
-            </button>
-            <button
-              onClick={() => { setResult(null); setError(null); setTaskInput('') }}
-              className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
 
-        {error && (
-          <div className="flex-shrink-0 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
-            <XCircle className="w-4 h-4 flex-shrink-0" /> {error}
-          </div>
-        )}
-
-        {/* Results */}
-        {result !== null && (
-          <div className="flex-1 min-h-0 rounded-xl border border-white/10 bg-[#0a0c18] overflow-auto">
-            <div className="sticky top-0 flex items-center gap-2 px-3 py-2 bg-[#0a0c18] border-b border-white/5 z-10">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-xs text-slate-400 font-medium">Agent Result</span>
-            </div>
-            <pre className="p-4 text-sm text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
-              {result}
-            </pre>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   PROMPTS WORKSPACE
-   ═══════════════════════════════════════════════════════════════ */
-
-function PromptsWorkspace() {
-  const [prompts, setPrompts]         = useState<PromptTemplate[]>([])
-  const [selected, setSelected]       = useState<PromptTemplate | null>(null)
-  const [editing, setEditing]         = useState(false)
-  const [testOutput, setTestOutput]   = useState<string | null>(null)
-  const [testing, setTesting]         = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-
-  // Form state
-  const [formName, setFormName]       = useState('')
-  const [formTemplate, setFormTemplate] = useState('')
-  const [formModel, setFormModel]     = useState('')
-
-  const createNew = () => {
-    const tpl: PromptTemplate = {
-      id: uid(),
-      name: 'Untitled Prompt',
-      template: '',
-      variables: [],
-      model: '',
-      lastTested: null,
-    }
-    setPrompts(prev => [tpl, ...prev])
-    setSelected(tpl)
-    setFormName(tpl.name)
-    setFormTemplate(tpl.template)
-    setFormModel(tpl.model)
-    setEditing(true)
-    setTestOutput(null)
-  }
-
-  const openPrompt = (p: PromptTemplate) => {
-    setSelected(p)
-    setFormName(p.name)
-    setFormTemplate(p.template)
-    setFormModel(p.model)
-    setEditing(false)
-    setTestOutput(null)
-  }
-
-  const savePrompt = () => {
-    if (!selected) return
-    const vars = extractTemplateVars(formTemplate)
-    const updated: PromptTemplate = { ...selected, name: formName, template: formTemplate, model: formModel, variables: vars }
-    setPrompts(prev => prev.map(p => p.id === selected.id ? updated : p))
-    setSelected(updated)
-    setEditing(false)
-  }
-
-  const deletePrompt = (id: string) => {
-    setPrompts(prev => prev.filter(p => p.id !== id))
-    if (selected?.id === id) { setSelected(null); setTestOutput(null) }
-  }
-
-  const testPrompt = async () => {
-    if (!formTemplate.trim()) return
-    setTesting(true)
-    setTestOutput(null)
-    try {
-      const res = await fetch('/api/brain/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appId: 'admin-playground',
-          appSecret: 'internal',
-          taskType: 'chat',
-          message: formTemplate,
-          metadata: { promptTest: true },
-        }),
-      })
-      const data = await res.json()
-      setTestOutput(data.output ?? data.error ?? 'No output.')
-      if (selected) {
-        const updated = { ...selected, lastTested: new Date().toISOString() }
-        setPrompts(prev => prev.map(p => p.id === selected.id ? updated : p))
-        setSelected(updated)
-      }
-    } catch {
-      setTestOutput('Error: Failed to reach the Brain API.')
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const filtered = prompts.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.template.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  return (
-    <div className="flex h-full gap-4">
-      {/* Prompt Library */}
-      <div className="w-72 flex-shrink-0 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-            <input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search prompts…"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-8 pr-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
-            />
-          </div>
           <button
-            onClick={createNew}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors flex-shrink-0"
+            onClick={handleTest}
+            disabled={running || !description.trim()}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-white text-sm transition-colors"
           >
-            <Plus className="w-4 h-4" />
+            {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            Test {activeMode}
           </button>
-        </div>
+        </Glass>
 
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-          {filtered.length === 0 && (
-            <div className="p-6 text-center">
-              <BookTemplate className="w-8 h-8 text-purple-400/20 mx-auto mb-2" />
-              <p className="text-xs text-slate-600">
-                {prompts.length === 0 ? 'No prompts yet. Create one to get started.' : 'No matches.'}
-              </p>
-            </div>
-          )}
-          {filtered.map(p => (
-            <div
-              key={p.id}
-              onClick={() => openPrompt(p)}
-              className={`group flex items-start justify-between gap-2 p-3 rounded-xl cursor-pointer text-sm transition-colors ${
-                selected?.id === p.id
-                  ? 'bg-purple-600/15 border border-purple-500/25 text-white'
-                  : 'bg-white/[0.03] border border-transparent text-slate-400 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="font-medium truncate">{p.name}</div>
-                <div className="text-xs text-slate-500 mt-0.5 truncate">
-                  {truncate(p.template || 'Empty template', 60)}
-                </div>
-                {p.variables.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {p.variables.map(v => (
-                      <span key={v} className="text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-300">
-                        {`{{${v}}}`}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={e => { e.stopPropagation(); deletePrompt(p.id) }}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-all"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Prompt Editor */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
-        {!selected ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <BookTemplate className="w-12 h-12 text-purple-400/20 mb-3" />
-            <p className="text-slate-500 font-medium">Select or create a prompt</p>
-            <p className="text-slate-600 text-sm mt-1">Use {`{{variable}}`} syntax for template variables.</p>
+        {/* Output Panel */}
+        <Glass className="p-0.5 flex flex-col min-h-0">
+          <div className="px-3 py-2 text-xs text-zinc-500 border-b border-white/[0.06] flex items-center gap-2">
+            <Eye size={12} /> Response
           </div>
-        ) : (
-          <>
-            {/* Prompt Header */}
-            <div className="flex-shrink-0 flex items-center gap-3">
-              {editing ? (
-                <input
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-medium focus:outline-none focus:border-purple-500/50"
-                />
-              ) : (
-                <h3 className="flex-1 text-white font-bold text-lg">{selected.name}</h3>
-              )}
-              {!editing ? (
-                <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 hover:text-white text-sm transition-colors">
-                  <Pencil className="w-3.5 h-3.5" /> Edit
-                </button>
-              ) : (
-                <button onClick={savePrompt} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors">
-                  <Save className="w-3.5 h-3.5" /> Save
-                </button>
-              )}
-            </div>
-
-            {/* Model */}
-            {editing && (
-              <input
-                value={formModel}
-                onChange={e => setFormModel(e.target.value)}
-                placeholder="Model (e.g. openai/gpt-4o)"
-                className="flex-shrink-0 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
-              />
+          <div className="flex-1 p-4 text-sm text-zinc-300 whitespace-pre-wrap overflow-y-auto min-h-0">
+            {running && <Loader2 size={16} className="animate-spin text-violet-400" />}
+            {!running && !output && (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
+                <ImageIcon size={28} strokeWidth={1.2} />
+                <p className="text-xs">Multimodal test results will appear here</p>
+              </div>
             )}
-
-            {/* Template Editor */}
-            <div className="flex-1 min-h-0 flex flex-col gap-3">
-              <div className="flex-1 min-h-0 relative rounded-xl border border-white/10 bg-[#0a0c18] overflow-hidden">
-                <textarea
-                  value={formTemplate}
-                  onChange={e => setFormTemplate(e.target.value)}
-                  readOnly={!editing}
-                  spellCheck={false}
-                  placeholder="Write your prompt template here… Use {{variable}} for dynamic parts."
-                  className="w-full h-full bg-transparent text-slate-200 font-mono text-sm p-4 resize-none focus:outline-none placeholder:text-slate-700 leading-relaxed"
-                />
-              </div>
-
-              {/* Test Area */}
-              <div className="flex-shrink-0 flex items-center gap-2">
-                <button
-                  onClick={testPrompt}
-                  disabled={testing || !formTemplate.trim()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-40"
-                >
-                  {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  {testing ? 'Testing…' : 'Test Prompt'}
-                </button>
-                {selected.lastTested && (
-                  <span className="text-xs text-slate-500">
-                    Last tested: {new Date(selected.lastTested).toLocaleString()}
-                  </span>
-                )}
-              </div>
-
-              {testOutput !== null && (
-                <div className="flex-shrink-0 max-h-48 overflow-auto rounded-xl border border-white/10 bg-[#0a0c18] p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-xs text-slate-400 font-medium">Test Output</span>
-                  </div>
-                  <pre className="text-sm text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">{testOutput}</pre>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+            {!running && output}
+          </div>
+        </Glass>
       </div>
     </div>
   )
@@ -973,170 +600,454 @@ function PromptsWorkspace() {
    ═══════════════════════════════════════════════════════════════ */
 
 function TracesWorkspace() {
-  const [events, setEvents]       = useState<BrainEvent[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [selected, setSelected]   = useState<BrainEvent | null>(null)
-  const [error, setError]         = useState<string | null>(null)
+  const [events, setEvents] = useState<BrainEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<BrainEvent | null>(null)
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const res = await fetch('/api/admin/brain/events')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      setEvents(data.events ?? data ?? [])
-    } catch {
-      setError('Failed to load brain events.')
-    } finally {
-      setLoading(false)
-    }
+      setEvents(data.events ?? [])
+    } catch { /* silent */ }
+    setLoading(false)
   }, [])
 
   useEffect(() => { loadEvents() }, [loadEvents])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-      </div>
-    )
-  }
-
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex flex-col lg:flex-row h-full gap-4 min-h-0">
       {/* Event List */}
-      <div className="w-96 flex-shrink-0 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-            Recent Events ({events.length})
-          </span>
-          <button
-            onClick={loadEvents}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+      <Glass className="lg:w-[380px] flex-none flex flex-col min-h-0">
+        <div className="p-3 border-b border-white/[0.06] flex items-center justify-between">
+          <span className="text-sm text-zinc-300 font-medium">Recent Routing Traces</span>
+          <button onClick={loadEvents} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-zinc-500 hover:text-zinc-300 transition-colors">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
-
-        {error && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">{error}</div>
-        )}
-
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-          {events.length === 0 && (
-            <div className="p-6 text-center">
-              <Activity className="w-8 h-8 text-purple-400/20 mx-auto mb-2" />
-              <p className="text-xs text-slate-600">No brain events recorded yet.</p>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {loading && events.length === 0 && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={20} className="animate-spin text-zinc-600" />
             </div>
           )}
           {events.map((ev, i) => (
             <button
               key={ev.traceId + i}
               onClick={() => setSelected(ev)}
-              className={`w-full text-left p-3 rounded-xl text-sm transition-colors ${
-                selected?.traceId === ev.traceId
-                  ? 'bg-purple-600/15 border border-purple-500/25'
-                  : 'bg-white/[0.03] border border-transparent hover:bg-white/5'
+              className={`w-full text-left px-3 py-2.5 border-b border-white/[0.04] hover:bg-white/[0.04] transition-colors ${
+                selected?.traceId === ev.traceId ? 'bg-white/[0.06]' : ''
               }`}
             >
-              <div className="flex items-center gap-2 mb-1">
-                {ev.success ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-                )}
-                <span className="text-white font-medium truncate">{ev.taskType}</span>
-                <span className="ml-auto text-xs text-slate-500 font-mono flex-shrink-0">
-                  {ev.latencyMs != null ? `${ev.latencyMs}ms` : '—'}
-                </span>
+              <div className="flex items-center gap-2">
+                {ev.success
+                  ? <CheckCircle2 size={13} className="text-emerald-400 flex-none" />
+                  : <XCircle size={13} className="text-red-400 flex-none" />
+                }
+                <span className="text-xs text-zinc-300 truncate">{ev.taskType}</span>
+                <span className="ml-auto text-[10px] text-zinc-600 font-mono">{ev.latencyMs ?? '\u2014'}ms</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span className="truncate">{ev.routedProvider ?? 'none'}/{ev.routedModel ?? 'none'}</span>
-                <ArrowRight className="w-2.5 h-2.5 flex-shrink-0" />
-                <span className="truncate">{ev.executionMode}</span>
+              <div className="flex items-center gap-1 mt-1 text-[10px] text-zinc-600">
+                <span className="text-blue-400/70">{ev.routedProvider ?? '\u2014'}</span>
+                <ArrowRight size={9} />
+                <span className="text-violet-400/70">{ev.routedModel ?? '\u2014'}</span>
               </div>
-              <div className="text-[10px] text-slate-600 font-mono mt-1 truncate">{ev.traceId}</div>
             </button>
           ))}
+          {!loading && events.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-zinc-600 gap-2">
+              <Activity size={24} strokeWidth={1.2} />
+              <p className="text-xs">No traces recorded yet</p>
+            </div>
+          )}
         </div>
-      </div>
+      </Glass>
 
       {/* Trace Detail */}
-      <div className="flex-1 min-w-0">
+      <Glass className="flex-1 p-4 overflow-y-auto min-h-0">
         {!selected ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <Activity className="w-12 h-12 text-purple-400/20 mb-3" />
-            <p className="text-slate-500 font-medium">Select a trace</p>
-            <p className="text-slate-600 text-sm mt-1">Click an event to view routing details and execution metadata.</p>
+          <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-3">
+            <Activity size={32} strokeWidth={1.2} />
+            <p className="text-sm">Select a trace to view routing details</p>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto space-y-4 pr-1">
+          <motion.div
+            key={selected.traceId}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-5"
+          >
+            {/* Header */}
             <div className="flex items-center gap-3">
-              <h3 className="text-white font-bold text-lg">Trace Detail</h3>
-              {selected.success ? (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">Success</span>
-              ) : (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">Failed</span>
-              )}
+              {selected.success
+                ? <CheckCircle2 size={18} className="text-emerald-400" />
+                : <XCircle size={18} className="text-red-400" />
+              }
+              <span className="text-lg text-zinc-200 font-medium">{selected.taskType}</span>
+              <span className={`ml-auto text-xs px-2.5 py-1 rounded-full ${
+                selected.success ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                {selected.success ? 'Success' : 'Failed'}
+              </span>
             </div>
 
-            {/* Trace ID */}
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="text-xs text-slate-500 mb-1">Trace ID</div>
-              <div className="text-sm text-white font-mono break-all">{selected.traceId}</div>
+            {/* Routing Chain */}
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+              <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider">Routing Chain</p>
+              <div className="flex items-center gap-3 flex-wrap text-sm">
+                <span className="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  {selected.routedProvider ?? '\u2014'}
+                </span>
+                <ArrowRight size={16} className="text-zinc-600" />
+                <span className="px-3 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                  {selected.routedModel ?? '\u2014'}
+                </span>
+                <ArrowRight size={16} className="text-zinc-600" />
+                <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  {selected.latencyMs ?? '\u2014'}ms
+                </span>
+              </div>
             </div>
 
             {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {[
-                { label: 'Task Type',       value: selected.taskType,       icon: Zap,           color: 'text-purple-400' },
-                { label: 'Execution Mode',   value: selected.executionMode,  icon: ArrowRight,    color: 'text-blue-400' },
-                { label: 'Provider',         value: selected.routedProvider ?? '—', icon: Bot,    color: 'text-emerald-400' },
-                { label: 'Model',            value: selected.routedModel ?? '—',    icon: Terminal, color: 'text-amber-400' },
-                { label: 'Latency',          value: selected.latencyMs != null ? `${selected.latencyMs}ms` : '—', icon: Clock, color: 'text-pink-400' },
-                { label: 'Confidence',       value: selected.confidenceScore != null ? `${(selected.confidenceScore * 100).toFixed(1)}%` : '—', icon: Activity, color: 'text-cyan-400' },
-                { label: 'App Slug',         value: selected.appSlug || '—', icon: Code2,         color: 'text-orange-400' },
-                { label: 'Validation Used',  value: selected.validationUsed ? 'Yes' : 'No', icon: CheckCircle2, color: 'text-indigo-400' },
+                { label: 'Trace ID', value: selected.traceId.slice(0, 12) + '\u2026', icon: GitBranch, color: 'text-zinc-400' },
+                { label: 'Execution Mode', value: selected.executionMode, icon: Layers, color: 'text-blue-400' },
+                { label: 'Latency', value: `${selected.latencyMs ?? 0}ms`, icon: Clock, color: 'text-amber-400' },
+                { label: 'Confidence', value: selected.confidenceScore != null ? `${(selected.confidenceScore * 100).toFixed(0)}%` : '\u2014', icon: Zap, color: 'text-emerald-400' },
+                { label: 'Validation', value: selected.validationUsed ? 'Yes' : 'No', icon: Shield, color: 'text-cyan-400' },
+                { label: 'Consensus', value: selected.consensusUsed ? 'Yes' : 'No', icon: GitBranch, color: 'text-violet-400' },
               ].map(item => (
-                <div key={item.label} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
-                    <span className="text-xs text-slate-500">{item.label}</span>
+                <div key={item.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1">
+                    <item.icon size={11} className={item.color} />
+                    {item.label}
                   </div>
-                  <div className="text-sm text-white font-medium truncate">{item.value}</div>
+                  <p className={`text-sm font-medium ${item.color}`}>{item.value}</p>
                 </div>
               ))}
             </div>
 
-            {/* Flags */}
-            <div className="flex flex-wrap gap-2">
-              {selected.consensusUsed && (
-                <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300">Consensus</span>
-              )}
-              {selected.validationUsed && (
-                <span className="text-xs px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">Validated</span>
-              )}
-            </div>
-
             {/* Error */}
             {selected.errorMessage && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="w-4 h-4 text-red-400" />
-                  <span className="text-sm text-red-400 font-medium">Error</span>
+              <div className="rounded-xl bg-red-500/5 border border-red-500/15 p-4">
+                <div className="flex items-center gap-2 text-xs text-red-400 mb-2">
+                  <AlertTriangle size={13} /> Error Details
                 </div>
-                <pre className="text-sm text-red-300 font-mono whitespace-pre-wrap">{selected.errorMessage}</pre>
+                <p className="text-sm text-red-300 font-mono">{selected.errorMessage}</p>
               </div>
             )}
 
-            {selected.createdAt && (
-              <div className="text-xs text-slate-600">
-                Created: {new Date(selected.createdAt).toLocaleString()}
+            {/* Warnings */}
+            {selected.warnings && selected.warnings.length > 0 && (
+              <div className="rounded-xl bg-amber-500/5 border border-amber-500/15 p-4">
+                <div className="flex items-center gap-2 text-xs text-amber-400 mb-2">
+                  <AlertTriangle size={13} /> Warnings
+                </div>
+                {selected.warnings.map((w, i) => (
+                  <p key={i} className="text-sm text-amber-300">{w}</p>
+                ))}
               </div>
             )}
-          </div>
+
+            {/* Timestamp */}
+            {(selected.createdAt ?? selected.timestamp) && (
+              <p className="text-[11px] text-zinc-600">
+                Created: {new Date(selected.createdAt ?? selected.timestamp ?? '').toLocaleString()}
+              </p>
+            )}
+          </motion.div>
         )}
+      </Glass>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PACK SIMULATOR WORKSPACE
+   ═══════════════════════════════════════════════════════════════ */
+
+function PackSimulatorWorkspace() {
+  const [packs, setPacks] = useState<CapabilityPack[]>([])
+  const [selectedPack, setSelectedPack] = useState<CapabilityPack | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [simInput, setSimInput] = useState('')
+  const [simResult, setSimResult] = useState('')
+  const [simulating, setSimulating] = useState(false)
+  const [simTrace, setSimTrace] = useState<RoutingTrace | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/app-discovery')
+        const data = await res.json()
+        setPacks(data.packs ?? [])
+      } catch { /* silent */ }
+      setLoading(false)
+    })()
+  }, [])
+
+  const handleSimulate = useCallback(async () => {
+    if (!simInput.trim() || !selectedPack || simulating) return
+    setSimulating(true)
+    setSimResult('')
+    setSimTrace(null)
+    try {
+      const res = await fetch('/api/admin/brain/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `[Pack: ${selectedPack.name}] ${simInput}`,
+          taskType: 'pack_simulation',
+        }),
+      })
+      const data = await res.json()
+      setSimTrace({
+        traceId: data.traceId ?? uid(),
+        provider: data.routedProvider ?? 'unknown',
+        model: data.routedModel ?? 'unknown',
+        latencyMs: data.latencyMs ?? 0,
+        fallbackUsed: data.fallbackUsed ?? false,
+        executionMode: data.executionMode,
+      })
+      setSimResult(data.output ?? data.error ?? 'No response.')
+    } catch {
+      setSimResult('Error: Simulation request failed.')
+    } finally {
+      setSimulating(false)
+    }
+  }, [simInput, selectedPack, simulating])
+
+  return (
+    <div className="flex flex-col h-full gap-4">
+      {/* Pack Selector */}
+      <Glass className="p-3 flex flex-wrap items-center gap-3">
+        <Package size={15} className="text-violet-400" />
+        <span className="text-sm text-zinc-300 font-medium">Capability Pack</span>
+        <div className="relative ml-2">
+          <select
+            value={selectedPack?.id ?? ''}
+            onChange={e => setSelectedPack(packs.find(p => p.id === e.target.value) ?? null)}
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-sm text-zinc-300 focus:outline-none focus:border-violet-500/40"
+          >
+            <option value="">Select a pack...</option>
+            {packs.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+        </div>
+        {loading && <Loader2 size={14} className="animate-spin text-zinc-500 ml-2" />}
+      </Glass>
+
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+        {/* Pack Details */}
+        <div className="flex flex-col gap-4 min-h-0">
+          {selectedPack ? (
+            <Glass className="p-4 space-y-4 flex-none">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-200">{selectedPack.name}</h3>
+                {selectedPack.description && (
+                  <p className="text-xs text-zinc-500 mt-1">{selectedPack.description}</p>
+                )}
+              </div>
+
+              {selectedPack.capabilities && selectedPack.capabilities.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Capabilities</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedPack.capabilities.map(c => (
+                      <span key={c} className="px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 text-xs border border-violet-500/20">{c}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedPack.allowedProviders && selectedPack.allowedProviders.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Allowed Providers</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedPack.allowedProviders.map(p => (
+                      <span key={p} className="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 text-xs border border-blue-500/20">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedPack.allowedModels && selectedPack.allowedModels.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Allowed Models</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedPack.allowedModels.map(m => (
+                      <span key={m} className="px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs border border-cyan-500/20">{m}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-4 text-xs text-zinc-500">
+                {selectedPack.maxTokens != null && <span>Max tokens: <span className="text-zinc-400">{selectedPack.maxTokens.toLocaleString()}</span></span>}
+                {selectedPack.rateLimit != null && <span>Rate limit: <span className="text-zinc-400">{selectedPack.rateLimit}/min</span></span>}
+              </div>
+            </Glass>
+          ) : (
+            <Glass className="p-4 flex flex-col items-center justify-center flex-1 text-zinc-600 gap-2">
+              <Package size={28} strokeWidth={1.2} />
+              <p className="text-xs">Select a capability pack to inspect</p>
+            </Glass>
+          )}
+
+          {/* Simulation Input */}
+          {selectedPack && (
+            <Glass className="p-4 flex flex-col gap-3 flex-1 min-h-0">
+              <p className="text-xs text-zinc-500 uppercase tracking-wider">Simulate Request</p>
+              <textarea
+                value={simInput}
+                onChange={e => setSimInput(e.target.value)}
+                placeholder="Enter a test prompt to route through this pack..."
+                className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl text-sm text-zinc-200 placeholder:text-zinc-700 p-3 resize-none focus:outline-none focus:border-violet-500/30 min-h-[60px]"
+              />
+              <button
+                onClick={handleSimulate}
+                disabled={simulating || !simInput.trim()}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-white text-sm transition-colors"
+              >
+                {simulating ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                Simulate Routing
+              </button>
+            </Glass>
+          )}
+        </div>
+
+        {/* Simulation Output */}
+        <Glass className="flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-white/[0.06] text-xs text-zinc-500 flex items-center gap-2">
+            <Eye size={12} /> Simulation Result
+          </div>
+
+          {/* Sim Trace */}
+          {simTrace && (
+            <div className="px-3 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2 text-xs">
+              <GitBranch size={12} className="text-violet-400" />
+              <span className="text-blue-400">{simTrace.provider}</span>
+              <ArrowRight size={10} className="text-zinc-600" />
+              <span className="text-violet-400">{simTrace.model}</span>
+              <StatPill icon={Clock} label="" value={`${simTrace.latencyMs}ms`} color="text-amber-400" />
+              {simTrace.fallbackUsed && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px]">Fallback</span>
+              )}
+            </div>
+          )}
+
+          <div className="flex-1 p-4 text-sm text-zinc-300 whitespace-pre-wrap overflow-y-auto min-h-0">
+            {simulating && <Loader2 size={16} className="animate-spin text-violet-400" />}
+            {!simulating && !simResult && (
+              <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
+                <Layers size={28} strokeWidth={1.2} />
+                <p className="text-xs text-center">Simulation output will appear here.<br />Select a pack and send a test prompt.</p>
+              </div>
+            )}
+            {!simulating && simResult}
+          </div>
+        </Glass>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN PAGE
+   ═══════════════════════════════════════════════════════════════ */
+
+export default function PlaygroundPage() {
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('chat')
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [providers, setProviders] = useState<ProviderOption[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      const [modelsRes, providersRes] = await Promise.all([
+        fetch('/api/admin/models?enabled=true').then(r => r.json()).catch(() => ({ models: [] })),
+        fetch('/api/admin/providers').then(r => r.json()).catch(() => []),
+      ])
+      setModels(modelsRes.models ?? [])
+      setProviders(Array.isArray(providersRes) ? providersRes : providersRes.providers ?? [])
+    }
+    load()
+  }, [])
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-4rem)] p-4 lg:p-6 gap-4">
+      {/* Header */}
+      <div className="flex-none flex flex-col sm:flex-row sm:items-center gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-100 flex items-center gap-2">
+            <Terminal size={20} className="text-blue-400" />
+            Dev Lab
+          </h1>
+          <p className="text-xs text-zinc-500 mt-0.5">Full-access AI testing playground &mdash; all providers &amp; models</p>
+        </div>
+
+        {/* Safety Note */}
+        <div className="sm:ml-auto flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-400/80">
+          <Shield size={13} />
+          <span>Legal &amp; safety hard blocks remain active</span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex-none flex items-center gap-1 p-1 rounded-2xl bg-white/[0.02] border border-white/[0.06] overflow-x-auto">
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm whitespace-nowrap transition-colors ${
+              activeTab === tab.key ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {activeTab === tab.key && (
+              <motion.div
+                layoutId="playground-tab-bg"
+                className="absolute inset-0 rounded-xl bg-white/[0.06] border border-white/[0.08]"
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+              />
+            )}
+            <tab.icon size={15} className="relative z-10" />
+            <span className="relative z-10">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Workspace Content */}
+      <div className="flex-1 min-h-0">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15 }}
+            className="h-full"
+          >
+            {activeTab === 'chat'           && <ChatWorkspace models={models} providers={providers} />}
+            {activeTab === 'code'           && <CodeWorkspace />}
+            {activeTab === 'multimodal'     && <MultimodalWorkspace />}
+            {activeTab === 'traces'         && <TracesWorkspace />}
+            {activeTab === 'pack-simulator' && <PackSimulatorWorkspace />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Provider Stats Footer */}
+      <div className="flex-none flex flex-wrap items-center gap-3 text-[11px] text-zinc-600">
+        <Info size={12} />
+        <span>{models.length} model{models.length !== 1 ? 's' : ''} loaded</span>
+        <span className="text-zinc-800">&bull;</span>
+        <span>{providers.filter(p => p.enabled).length} provider{providers.filter(p => p.enabled).length !== 1 ? 's' : ''} active</span>
+        <span className="text-zinc-800">&bull;</span>
+        <span>Routing traces visible on every request</span>
       </div>
     </div>
   )

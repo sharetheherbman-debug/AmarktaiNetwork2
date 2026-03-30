@@ -1,146 +1,181 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Database, RefreshCw, AlertCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Database, RefreshCw, AlertCircle, Search, ChevronLeft, ChevronRight,
+  FileText, Brain, Lightbulb, BookOpen, User, Clock, Download, Trash2,
+  ExternalLink, BarChart3,
+} from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
-interface MemoryStatus {
-  available: boolean
-  totalEntries: number
-  appSlugs: string[]
-  statusLabel: string
-  error?: string
-}
-
-interface RetrievalStatus {
-  available: boolean
-  embeddingsEnabled: boolean
-  rerankEnabled: boolean
-  totalIndexedEntries: number
-  appNamespaces: string[]
-  statusLabel: string
-}
-
+// ── Types ─────────────────────────────────────────────────────────
 interface MemoryEntry {
-  id: number
+  id: number | string
   appSlug: string
   memoryType: string
   key: string
   content: string
   importance: number
   createdAt: string
+  expiresAt?: string | null
 }
 
+interface MemoryStats {
+  total: number
+  byType: Record<string, number>
+  activeUsers: number
+}
+
+interface MemoryResponse {
+  entries: MemoryEntry[]
+  stats: MemoryStats
+  types: string[]
+}
+
+// ── Constants ─────────────────────────────────────────────────────
+const CARD = 'bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl'
+
+const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
+  event:   { label: 'Event',   color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/20',    icon: FileText },
+  summary: { label: 'Summary', color: 'text-violet-400',  bg: 'bg-violet-500/10 border-violet-500/20', icon: Brain },
+  context: { label: 'Context', color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',   icon: Lightbulb },
+  learned: { label: 'Learned', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: BookOpen },
+  profile: { label: 'Profile', color: 'text-pink-400',    bg: 'bg-pink-500/10 border-pink-500/20',     icon: User },
+}
+
+function importanceBar(score: number) {
+  const pct = Math.round(score * 100)
+  const color = score >= 0.8 ? 'bg-emerald-400' : score >= 0.5 ? 'bg-blue-400' : score >= 0.25 ? 'bg-amber-400' : 'bg-slate-500'
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[10px] text-slate-500">{pct}%</span>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────
 export default function MemoryPage() {
-  const [memory, setMemory] = useState<MemoryStatus | null>(null)
-  const [retrieval, setRetrieval] = useState<RetrievalStatus | null>(null)
+  const [data, setData] = useState<MemoryResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Memory entries browsing
-  const [entries, setEntries] = useState<MemoryEntry[]>([])
-  const [entriesPage, setEntriesPage] = useState(1)
-  const [entriesTotalPages, setEntriesTotalPages] = useState(1)
-  const [entriesLoading, setEntriesLoading] = useState(false)
-  const [filterType, setFilterType] = useState('')
-  const [filterApp, setFilterApp] = useState('')
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const perPage = 15
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [memRes, retRes] = await Promise.all([
-        fetch('/api/admin/memory'),
-        fetch('/api/admin/retrieval'),
-      ])
-      const memBody = await memRes.json().catch(() => ({}))
-      const retBody = await retRes.json().catch(() => ({}))
-      if (!memRes.ok) {
-        const msg = memBody.error ?? `Memory API: HTTP ${memRes.status}`
-        const hint = memRes.status === 503 ? ' Configure DATABASE_URL to enable memory.' : ''
-        throw new Error(msg + hint)
-      }
-      if (!retRes.ok) {
-        const msg = retBody.error ?? `Retrieval API: HTTP ${retRes.status}`
-        const hint = retRes.status === 503 ? ' Configure DATABASE_URL to enable retrieval.' : ''
-        throw new Error(msg + hint)
-      }
-      setMemory(memBody)
-      setRetrieval(retBody)
+      const res = await fetch('/api/admin/memory')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setData(await res.json())
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
+      setError(e instanceof Error ? e.message : 'Failed to load memory data')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  const loadEntries = useCallback(async () => {
-    setEntriesLoading(true)
-    try {
-      const params = new URLSearchParams({ page: String(entriesPage), limit: '20' })
-      if (filterType) params.set('type', filterType)
-      // The learning endpoint queries the memoryEntry table which stores
-      // all memory entries — this is shared between the Memory and Learning pages.
-      const res = await fetch(`/api/admin/learning?${params}`)
-      if (res.ok) {
-        const body = await res.json()
-        setEntries(body.entries ?? [])
-        setEntriesTotalPages(body.totalPages ?? 1)
-      }
-    } catch {
-      // Silently fail — entries are optional
-    } finally {
-      setEntriesLoading(false)
-    }
-  }, [entriesPage, filterType])
-
   useEffect(() => { load() }, [load])
-  useEffect(() => { loadEntries() }, [loadEntries])
 
-  const STATUS_COLOR: Record<string, string> = {
-    saving: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    empty: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    not_configured: 'text-red-400 bg-red-500/10 border-red-500/20',
-    active: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    limited: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    unavailable: 'text-red-400 bg-red-500/10 border-red-500/20',
+  const entries = useMemo(() => data?.entries ?? [], [data])
+  const stats = useMemo(() => data?.stats ?? { total: 0, byType: {}, activeUsers: 0 }, [data])
+  const types = useMemo(() => data?.types ?? Object.keys(TYPE_CONFIG), [data])
+
+  const filteredEntries = useMemo(() => {
+    let result = entries
+    if (typeFilter !== 'all') result = result.filter(e => e.memoryType === typeFilter)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(e =>
+        e.content.toLowerCase().includes(q) ||
+        e.key.toLowerCase().includes(q) ||
+        e.appSlug.toLowerCase().includes(q),
+      )
+    }
+    return result
+  }, [entries, typeFilter, search])
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / perPage))
+  const paginatedEntries = filteredEntries.slice((page - 1) * perPage, page * perPage)
+
+  const byType = stats.byType ?? {}
+  const maxTypeCount = Math.max(1, ...Object.values(byType))
+
+  const STAT_CARDS = [
+    { label: 'Total Memories', value: stats.total, icon: Database, color: 'text-emerald-400' },
+    { label: 'Memory Types', value: types.length, icon: BarChart3, color: 'text-violet-400' },
+    { label: 'Active Users', value: stats.activeUsers, icon: User, color: 'text-blue-400' },
+    { label: 'This Page', value: filteredEntries.length, icon: FileText, color: 'text-amber-400' },
+  ]
+
+  const handleExport = () => {
+    if (!entries.length) return
+    const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `amarktai-memory-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
-
-  const TYPE_COLORS: Record<string, string> = {
-    event: 'text-blue-400 bg-blue-500/10',
-    summary: 'text-violet-400 bg-violet-500/10',
-    context: 'text-amber-400 bg-amber-500/10',
-    learned: 'text-emerald-400 bg-emerald-500/10',
-  }
-
-  const filteredEntries = entries.filter(e => !filterApp || e.appSlug === filterApp)
 
   return (
-    <div className="max-w-6xl space-y-5">
-      <div className="flex items-start justify-between">
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 text-transparent bg-clip-text">Memory &amp; Retrieval</h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-300 text-transparent bg-clip-text">
+            Memory Store
+          </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Memory layer status, retrieval engine, and stored entries.
+            Browse, search, and manage stored memory entries across all types.
           </p>
         </div>
-        <button
-          onClick={() => { load(); loadEntries() }}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExport}
+            disabled={!entries.length}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50`}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export
+          </button>
+          <a
+            href="/api/admin/memory/manage"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/5 transition-all`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Manage
+            <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+          <button
+            onClick={load}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
+      {/* Loading / Error */}
       {loading ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-24 bg-white/[0.03] rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className={`h-24 ${CARD} animate-pulse`} />
           ))}
         </div>
       ) : error ? (
-        <div className="bg-white/[0.03] border border-red-500/20 rounded-2xl p-8 text-center">
+        <div className={`${CARD} border-red-500/20 p-8 text-center`}>
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
           <p className="text-sm text-red-400">{error}</p>
         </div>
@@ -148,209 +183,215 @@ export default function MemoryPage() {
         <>
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
-              <p className="text-xs text-slate-500">Total Entries</p>
-              <p className="text-xl font-bold text-white mt-1">{memory?.totalEntries ?? 0}</p>
-            </div>
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
-              <p className="text-xs text-slate-500">App Namespaces</p>
-              <p className="text-xl font-bold text-white mt-1">{memory?.appSlugs?.length ?? 0}</p>
-            </div>
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
-              <p className="text-xs text-slate-500">Indexed Entries</p>
-              <p className="text-xl font-bold text-white mt-1">{retrieval?.totalIndexedEntries ?? 0}</p>
-            </div>
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
-              <p className="text-xs text-slate-500">Retrieval Namespaces</p>
-              <p className="text-xl font-bold text-white mt-1">{retrieval?.appNamespaces?.length ?? 0}</p>
-            </div>
-          </div>
-
-          {/* Memory section */}
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Database className="w-5 h-5 text-green-400" />
-              <h2 className="text-sm font-bold text-white">Memory Layer</h2>
-              <span className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full border ${STATUS_COLOR[memory?.statusLabel ?? ''] ?? 'text-slate-400 bg-slate-500/10 border-slate-500/20'}`}>
-                {memory?.statusLabel ?? 'unknown'}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Available</p>
-                <p className={`text-sm font-medium ${memory?.available ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {memory?.available ? 'Yes' : 'No'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Total Entries</p>
-                <p className="text-sm text-white">{memory?.totalEntries ?? 0}</p>
-              </div>
-            </div>
-            {memory?.appSlugs && memory.appSlugs.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-white/5">
-                <p className="text-[10px] text-slate-500 uppercase mb-2">App Slugs</p>
-                <div className="flex gap-1 flex-wrap">
-                  {memory.appSlugs.map(slug => (
-                    <span key={slug} className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded font-mono">
-                      {slug}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {memory?.error && (
-              <p className="text-xs text-red-400 mt-2">{memory.error}</p>
-            )}
-          </div>
-
-          {/* Retrieval section */}
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Database className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-sm font-bold text-white">Retrieval Engine</h2>
-              <span className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full border ${STATUS_COLOR[retrieval?.statusLabel ?? ''] ?? 'text-slate-400 bg-slate-500/10 border-slate-500/20'}`}>
-                {retrieval?.statusLabel ?? 'unknown'}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Available</p>
-                <p className={`text-sm font-medium ${retrieval?.available ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {retrieval?.available ? 'Yes' : 'No'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Embeddings</p>
-                <p className={`text-sm font-medium ${retrieval?.embeddingsEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  {retrieval?.embeddingsEnabled ? 'Enabled' : 'Disabled'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Rerank</p>
-                <p className={`text-sm font-medium ${retrieval?.rerankEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  {retrieval?.rerankEnabled ? 'Enabled' : 'Disabled'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase mb-1">Indexed</p>
-                <p className="text-sm text-white">{retrieval?.totalIndexedEntries ?? 0}</p>
-              </div>
-            </div>
-            {retrieval?.appNamespaces && retrieval.appNamespaces.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-white/5">
-                <p className="text-[10px] text-slate-500 uppercase mb-2">Retrieval Namespaces</p>
-                <div className="flex gap-1 flex-wrap">
-                  {retrieval.appNamespaces.map(ns => (
-                    <span key={ns} className="text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded font-mono">
-                      {ns}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Memory Growth Chart placeholder */}
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-            <h2 className="text-sm font-bold text-white mb-3">Memory Usage Over Time</h2>
-            <div className="h-32 flex items-end gap-1" aria-label="Memory growth visualization">
-              {Array.from({ length: 30 }, (_, i) => {
-                const height = Math.max(4, Math.min(100, 20 + Math.floor(Math.random() * 50) + i * 2))
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 bg-gradient-to-t from-emerald-500/40 to-emerald-400/20 rounded-t"
-                    style={{ height: `${height}%` }}
-                    title={`Day ${i + 1}`}
-                  />
-                )
-              })}
-            </div>
-            <p className="text-[10px] text-slate-600 mt-2">Last 30 days (simulated — connect to real metrics for live data)</p>
-          </div>
-
-          {/* Memory Entries Browser */}
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3 flex-wrap">
-              <Search className="w-4 h-4 text-slate-500" />
-              <h2 className="text-sm font-bold text-white">Browse Memory Entries</h2>
-              <div className="flex-1" />
-              <select
-                value={filterType}
-                onChange={e => { setFilterType(e.target.value); setEntriesPage(1) }}
-                className="text-xs bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1 text-slate-400 focus:outline-none"
-                aria-label="Filter by type"
+            {STAT_CARDS.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className={`${CARD} p-4`}
               >
-                <option value="">All types</option>
-                <option value="event">Event</option>
-                <option value="summary">Summary</option>
-                <option value="context">Context</option>
-                <option value="learned">Learned</option>
-              </select>
-              {memory?.appSlugs && memory.appSlugs.length > 1 && (
-                <select
-                  value={filterApp}
-                  onChange={e => setFilterApp(e.target.value)}
-                  className="text-xs bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1 text-slate-400 focus:outline-none"
-                  aria-label="Filter by app"
+                <div className="flex items-center gap-2 mb-2">
+                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <p className="text-xs text-slate-500">{stat.label}</p>
+                </div>
+                <p className="text-2xl font-bold text-white">{stat.value.toLocaleString()}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Type breakdown by-type badges + bar chart */}
+          {Object.keys(byType).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className={`${CARD} p-5`}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <BarChart3 className="w-4 h-4 text-violet-400" />
+                <h2 className="text-sm font-bold text-white">Memory Type Distribution</h2>
+              </div>
+              <div className="space-y-3">
+                {types.map(type => {
+                  const count = byType[type] ?? 0
+                  const cfg = TYPE_CONFIG[type] ?? { label: type, color: 'text-slate-400', bg: 'bg-slate-500/10', icon: FileText }
+                  const pct = maxTypeCount > 0 ? (count / maxTypeCount) * 100 : 0
+                  return (
+                    <div key={type} className="flex items-center gap-3">
+                      <div className="w-20 flex items-center gap-1.5">
+                        <cfg.icon className={`w-3 h-3 ${cfg.color} flex-shrink-0`} />
+                        <span className={`text-xs font-medium capitalize ${cfg.color}`}>{cfg.label}</span>
+                      </div>
+                      <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ delay: 0.2, duration: 0.5 }}
+                          className={`h-full rounded-full ${cfg.bg.split(' ')[0].replace('/10', '/30')}`}
+                        />
+                      </div>
+                      <span className="text-xs text-slate-400 w-12 text-right font-mono">{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Search + Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className={`flex items-center gap-2 flex-1 px-3 py-2 rounded-xl ${CARD}`}>
+              <Search className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Search memories by content, key, or app..."
+                className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {['all', ...types].map(t => (
+                <button
+                  key={t}
+                  onClick={() => { setTypeFilter(t); setPage(1) }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                    typeFilter === t
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/[0.06]'
+                  }`}
                 >
-                  <option value="">All apps</option>
-                  {memory.appSlugs.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              )}
+                  {t === 'all' ? 'All Types' : (TYPE_CONFIG[t]?.label ?? t)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Memory Browser */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className={`${CARD} overflow-hidden`}
+          >
+            <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}
+                {search && ` matching "${search}"`}
+              </span>
+              <span className="text-xs text-slate-600 font-mono">Page {page} / {totalPages}</span>
             </div>
 
-            {entriesLoading ? (
-              <div className="p-8 text-center text-slate-500 text-sm">Loading entries...</div>
-            ) : filteredEntries.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                No memory entries found. The brain will store entries as it processes requests.
+            {paginatedEntries.length === 0 ? (
+              <div className="p-12 text-center">
+                <Database className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-sm text-slate-500 mb-1">No memories found</p>
+                <p className="text-xs text-slate-600">
+                  {search ? 'Try a different search query.' : 'The brain will store entries as it processes requests.'}
+                </p>
               </div>
             ) : (
-              <>
-                <div className="divide-y divide-white/[0.04]">
-                  {filteredEntries.map(entry => (
-                    <div key={entry.id} className="px-5 py-3 hover:bg-white/[0.02] transition-colors">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${TYPE_COLORS[entry.memoryType] ?? 'text-slate-400 bg-slate-500/10'}`}>
-                          {entry.memoryType}
-                        </span>
-                        <span className="text-[10px] text-slate-600 font-mono">{entry.appSlug}</span>
-                        <span className="text-[10px] text-slate-600 ml-auto">
-                          importance: {entry.importance}
-                        </span>
+              <div className="divide-y divide-white/[0.04]">
+                {paginatedEntries.map((entry, i) => {
+                  const cfg = TYPE_CONFIG[entry.memoryType] ?? TYPE_CONFIG.event
+                  const Icon = cfg.icon
+                  return (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.02 }}
+                      className="px-5 py-3 hover:bg-white/[0.02] transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 flex-shrink-0 p-1.5 rounded-lg border ${cfg.bg}`}>
+                          <Icon className={`w-3 h-3 ${cfg.color}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className={`text-[10px] font-medium uppercase tracking-wide ${cfg.color}`}>
+                              {cfg.label}
+                            </span>
+                            {entry.appSlug && (
+                              <span className="text-[10px] text-slate-600 font-mono bg-white/5 px-1.5 py-0.5 rounded">
+                                {entry.appSlug}
+                              </span>
+                            )}
+                            {entry.key && (
+                              <span className="text-[10px] text-slate-600 font-mono truncate max-w-[200px]">
+                                {entry.key}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">{entry.content}</p>
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                              <Clock className="w-2.5 h-2.5" />
+                              {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
+                            </div>
+                            {importanceBar(entry.importance)}
+                            {entry.expiresAt && (
+                              <span className="text-[10px] text-slate-600">
+                                Expires {formatDistanceToNow(new Date(entry.expiresAt), { addSuffix: true })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-400 font-mono mb-0.5">{entry.key}</p>
-                      <p className="text-xs text-slate-300 line-clamp-2">{entry.content}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
-                  <button
-                    onClick={() => setEntriesPage(p => Math.max(1, p - 1))}
-                    disabled={entriesPage <= 1}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
-                  >
-                    <ChevronLeft className="w-3 h-3" /> Previous
-                  </button>
-                  <span className="text-xs text-slate-500">Page {entriesPage} / {entriesTotalPages}</span>
-                  <button
-                    onClick={() => setEntriesPage(p => Math.min(entriesTotalPages, p + 1))}
-                    disabled={entriesPage >= entriesTotalPages}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
-                  >
-                    Next <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-              </>
+                    </motion.div>
+                  )
+                })}
+              </div>
             )}
-          </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] disabled:opacity-40 transition-colors`}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </button>
+                <div className="flex gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const p = page <= 3 ? i + 1 : page + i - 2
+                    if (p < 1 || p > totalPages) return null
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-7 h-7 rounded-lg text-xs transition-colors ${
+                          p === page
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'text-slate-500 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl ${CARD} text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] disabled:opacity-40 transition-colors`}
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </motion.div>
         </>
       )}
 
       <p className="text-xs text-slate-600">
-        Memory entries are persisted in the database. Retrieval engine indexes entries for semantic search.
+        Memory entries are persisted in the database. Use the Manage link to export or clear entries via
+        the <code className="text-slate-400">/api/admin/memory/manage</code> endpoint.
       </p>
     </div>
   )

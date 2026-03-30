@@ -2,66 +2,78 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { DollarSign, RefreshCw, AlertTriangle, CheckCircle2, XCircle, AlertCircle, Pencil, X, Save } from 'lucide-react'
+import {
+  DollarSign, RefreshCw, AlertTriangle, TrendingDown,
+  Wallet, CreditCard, AlertCircle, Bell,
+} from 'lucide-react'
 
-interface BudgetEntry {
-  providerKey: string
-  displayName: string
-  monthlyBudgetUsd: number | null
-  currentSpendUsd: number
-  estimatedSpendUsd: number
+interface BudgetProvider {
+  provider: string
+  dailyLimit: number
+  dailySpent: number
+  monthlyLimit: number
+  monthlySpent: number
   usagePercent: number
-  status: 'ok' | 'warning' | 'critical' | 'unknown'
-  warningThresholdPct: number
-  criticalThresholdPct: number
-  lastUpdated: string
+  alertLevel: 'normal' | 'warning' | 'critical'
+}
+
+interface BudgetAlert {
+  id: string
+  timestamp: string
+  provider: string
+  message: string
+  severity: 'info' | 'warning' | 'critical'
 }
 
 interface BudgetSummary {
-  entries: BudgetEntry[]
-  totalEstimatedSpendUsd: number
-  totalBudgetUsd: number | null
-  providersAtWarning: number
-  providersAtCritical: number
+  totalBudget: number
+  totalSpent: number
+  remaining: number
+  criticalAlerts: number
 }
 
-const STATUS_CONFIG = {
-  ok:       { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'OK'       },
-  warning:  { icon: AlertTriangle, color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20',   label: 'Warning'  },
-  critical: { icon: XCircle,       color: 'text-red-400',    bg: 'bg-red-500/10 border-red-500/20',       label: 'Critical' },
-  unknown:  { icon: AlertCircle,   color: 'text-slate-400',  bg: 'bg-slate-500/10 border-slate-500/20',   label: 'No budget'},
+interface BudgetData {
+  budgets: BudgetProvider[]
+  alerts: BudgetAlert[]
+  summary: BudgetSummary
 }
 
-function barColor(status: BudgetEntry['status']) {
-  if (status === 'critical') return 'bg-red-400'
-  if (status === 'warning')  return 'bg-amber-400'
-  if (status === 'ok')       return 'bg-emerald-400'
-  return 'bg-slate-600'
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+}
+
+function usageBarColor(pct: number) {
+  if (pct > 80) return 'bg-red-400'
+  if (pct > 60) return 'bg-amber-400'
+  return 'bg-emerald-400'
+}
+
+function usageTextColor(pct: number) {
+  if (pct > 80) return 'text-red-400'
+  if (pct > 60) return 'text-amber-400'
+  return 'text-emerald-400'
+}
+
+const SEVERITY_STYLE: Record<string, string> = {
+  critical: 'bg-red-500/10 border-red-500/20 text-red-400',
+  warning:  'bg-amber-500/10 border-amber-500/20 text-amber-400',
+  info:     'bg-blue-500/10 border-blue-500/20 text-blue-400',
 }
 
 export default function BudgetsPage() {
-  const [data, setData]       = useState<BudgetSummary | null>(null)
+  const [data, setData] = useState<BudgetData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
-  const [editing, setEditing] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ monthlyBudgetUsd: '', warningThresholdPct: '75', criticalThresholdPct: '90', autoDegrade: false, autoSuspend: false })
-  const [saving, setSaving]   = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/admin/budgets')
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        // Show a meaningful error — 503 means DB not configured
-        const msg = body.error ?? `HTTP ${res.status}`
-        const hint = res.status === 503
-          ? ' Configure DATABASE_URL in your environment to enable budget tracking.'
-          : ''
-        throw new Error(msg + hint)
-      }
-      setData(body)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setData(await res.json())
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load budgets')
     } finally {
@@ -71,231 +83,172 @@ export default function BudgetsPage() {
 
   useEffect(() => { load() }, [load])
 
-  const startEdit = (entry: BudgetEntry) => {
-    setEditing(entry.providerKey)
-    setEditForm({
-      monthlyBudgetUsd: entry.monthlyBudgetUsd?.toString() ?? '',
-      warningThresholdPct: entry.warningThresholdPct.toString(),
-      criticalThresholdPct: entry.criticalThresholdPct.toString(),
-      autoDegrade: false,
-      autoSuspend: false,
-    })
-  }
-
-  const saveBudget = async (providerKey: string) => {
-    setSaving(true)
-    try {
-      const res = await fetch('/api/admin/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerKey,
-          monthlyBudgetUsd: editForm.monthlyBudgetUsd ? parseFloat(editForm.monthlyBudgetUsd) : null,
-          warningThresholdPct: parseFloat(editForm.warningThresholdPct),
-          criticalThresholdPct: parseFloat(editForm.criticalThresholdPct),
-        }),
-      })
-      if (!res.ok) throw new Error('Save failed')
-      setEditing(null)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
-    <div className="max-w-6xl space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Provider Budgets</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Monitor estimated spend per provider and configure monthly budget limits.
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 text-transparent bg-clip-text">
+            Provider Budgets
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Monitor spend across providers with daily and monthly budget limits.
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] text-xs text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
-      </div>
+      </motion.div>
 
+      {/* Loading */}
+      {loading && !data && (
+        <div className="space-y-4 animate-pulse">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white/[0.03] rounded-2xl" />)}
+          </div>
+          <div className="h-48 bg-white/[0.03] rounded-2xl" />
+        </div>
+      )}
+
+      {/* Error */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>
+        <motion.div variants={fadeUp} className="bg-red-500/[0.06] border border-red-500/20 rounded-2xl p-8 text-center">
+          <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <p className="text-sm text-red-400 font-medium">{error}</p>
+        </motion.div>
       )}
 
       {data && (
         <>
-          {/* Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Stats Row */}
+          <motion.div variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Est. MTD Spend',    value: `$${data.totalEstimatedSpendUsd.toFixed(4)}`, color: 'text-white'        },
-              { label: 'Monthly Budget',    value: data.totalBudgetUsd ? `$${data.totalBudgetUsd.toFixed(2)}` : 'None set', color: 'text-slate-300'  },
-              { label: 'At Warning',        value: data.providersAtWarning,    color: 'text-amber-400' },
-              { label: 'At Critical',       value: data.providersAtCritical,   color: 'text-red-400'   },
-            ].map((m) => (
-              <motion.div
-                key={m.label}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center"
-              >
-                <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
-                <p className="text-xs text-slate-500 mt-1">{m.label}</p>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Provider Budget Rows */}
-          <div className="space-y-3">
-            {data.entries.length === 0 ? (
-              <div className="p-8 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center text-slate-500">
-                No providers configured. Add providers in AI Providers first.
-              </div>
-            ) : data.entries.map((entry, i) => {
-              const cfg = STATUS_CONFIG[entry.status]
-              const Icon = cfg.icon
-              const isEdit = editing === entry.providerKey
+              { label: 'Total Budget',    value: `$${data.summary.totalBudget.toLocaleString()}`, icon: Wallet,        color: 'text-blue-400' },
+              { label: 'Spent',           value: `$${data.summary.totalSpent.toLocaleString()}`,  icon: CreditCard,    color: 'text-violet-400' },
+              { label: 'Remaining',       value: `$${data.summary.remaining.toLocaleString()}`,   icon: TrendingDown,  color: 'text-emerald-400' },
+              { label: 'Critical Alerts', value: data.summary.criticalAlerts,                     icon: AlertTriangle, color: 'text-red-400' },
+            ].map((stat) => {
+              const Icon = stat.icon
               return (
-                <motion.div
-                  key={entry.providerKey}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Icon className={`w-4 h-4 ${cfg.color}`} />
-                    <div className="flex-1">
-                      <span className="font-bold text-white">{entry.displayName}</span>
-                      <span className="text-xs text-slate-500 ml-2 font-mono">{entry.providerKey}</span>
-                    </div>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-                    {!isEdit && (
-                      <button
-                        onClick={() => startEdit(entry)}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/[0.06] text-slate-400 hover:text-white transition-colors"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    )}
+                <div key={stat.label} className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className={`w-4 h-4 ${stat.color}`} />
+                    <p className="text-xs text-slate-500 font-medium">{stat.label}</p>
                   </div>
-
-                  {/* Progress bar */}
-                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden mb-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, entry.usagePercent)}%` }}
-                      transition={{ duration: 0.6, ease: 'easeOut' }}
-                      className={`h-full rounded-full ${barColor(entry.status)}`}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>
-                      Est. spend: <span className="text-slate-300">${entry.estimatedSpendUsd.toFixed(4)}</span>
-                      {entry.monthlyBudgetUsd && (
-                        <> / <span className="text-slate-300">${entry.monthlyBudgetUsd.toFixed(2)}</span> budget ({entry.usagePercent.toFixed(1)}%)</>
-                      )}
-                    </span>
-                    {!entry.monthlyBudgetUsd && (
-                      <span className="text-slate-600">No budget set — click edit to configure</span>
-                    )}
-                  </div>
-
-                  {isEdit && (
-                    <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-xs text-slate-500 block mb-1">Monthly Budget (USD)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="e.g. 50"
-                            value={editForm.monthlyBudgetUsd}
-                            onChange={e => setEditForm(f => ({ ...f, monthlyBudgetUsd: e.target.value }))}
-                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500/50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-500 block mb-1">Warning % (default 75)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={editForm.warningThresholdPct}
-                            onChange={e => setEditForm(f => ({ ...f, warningThresholdPct: e.target.value }))}
-                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500/50"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-500 block mb-1">Critical % (default 90)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={editForm.criticalThresholdPct}
-                            onChange={e => setEditForm(f => ({ ...f, criticalThresholdPct: e.target.value }))}
-                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500/50"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-6 mt-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editForm.autoDegrade}
-                            onChange={e => setEditForm(f => ({ ...f, autoDegrade: e.target.checked }))}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500/50"
-                          />
-                          <span className="text-xs text-slate-400">Auto-degrade at warning (switch to cheaper models)</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editForm.autoSuspend}
-                            onChange={e => setEditForm(f => ({ ...f, autoSuspend: e.target.checked }))}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-red-500 focus:ring-red-500/50"
-                          />
-                          <span className="text-xs text-slate-400">Auto-suspend at critical (stop premium tasks)</span>
-                        </label>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => saveBudget(entry.providerKey)}
-                          disabled={saving}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors disabled:opacity-50"
-                        >
-                          <Save className="w-3 h-3" />
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditing(null)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/[0.06] text-slate-400 hover:text-white text-sm transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
+                  <p className={`text-2xl font-bold font-mono ${stat.color}`}>{stat.value}</p>
+                </div>
               )
             })}
-          </div>
+          </motion.div>
+
+          {/* Budget Breakdown Table */}
+          <motion.div variants={fadeUp} className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5">
+            <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-400" />
+              Budget Breakdown
+            </h2>
+            {data.budgets.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">No budget entries configured.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-slate-500 uppercase tracking-wider border-b border-white/[0.06]">
+                      <th className="text-left pb-3 font-medium">Provider</th>
+                      <th className="text-right pb-3 font-medium">Daily Limit</th>
+                      <th className="text-right pb-3 font-medium">Daily Spent</th>
+                      <th className="text-right pb-3 font-medium">Monthly Limit</th>
+                      <th className="text-right pb-3 font-medium">Monthly Spent</th>
+                      <th className="pb-3 font-medium w-40 text-center">Usage</th>
+                      <th className="text-center pb-3 font-medium">Alert</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {data.budgets.map((b) => (
+                      <tr key={b.provider} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 pr-3">
+                          <span className="text-white font-semibold">{b.provider}</span>
+                        </td>
+                        <td className="py-3 text-right text-slate-300 font-mono">${b.dailyLimit.toFixed(2)}</td>
+                        <td className="py-3 text-right text-slate-300 font-mono">${b.dailySpent.toFixed(2)}</td>
+                        <td className="py-3 text-right text-slate-300 font-mono">${b.monthlyLimit.toFixed(2)}</td>
+                        <td className="py-3 text-right text-slate-300 font-mono">${b.monthlySpent.toFixed(2)}</td>
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.min(100, b.usagePercent)}%` }}
+                                transition={{ duration: 0.6, ease: 'easeOut' }}
+                                className={`h-full rounded-full ${usageBarColor(b.usagePercent)}`}
+                              />
+                            </div>
+                            <span className={`text-xs font-mono w-10 text-right ${usageTextColor(b.usagePercent)}`}>
+                              {b.usagePercent.toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`text-xs font-mono px-2 py-0.5 rounded-lg border ${
+                            b.alertLevel === 'critical'
+                              ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                              : b.alertLevel === 'warning'
+                              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                          }`}>
+                            {b.alertLevel}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Budget Alerts */}
+          <motion.div variants={fadeUp} className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5">
+            <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-400" />
+              Recent Budget Alerts
+            </h2>
+            {data.alerts.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">No recent alerts.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`flex items-start gap-3 p-3 rounded-xl border ${SEVERITY_STYLE[alert.severity] ?? SEVERITY_STYLE.info}`}
+                  >
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-white">{alert.provider}</span>
+                        <span className="text-xs font-mono opacity-70 capitalize">{alert.severity}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{alert.message}</p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {new Date(alert.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
         </>
       )}
 
-      {loading && !data && (
-        <div className="flex items-center justify-center h-48">
-          <DollarSign className="w-8 h-8 text-blue-400 animate-pulse" />
-        </div>
-      )}
-    </div>
+      <p className="text-xs text-slate-600">
+        Budget limits are enforced at the routing layer. Providers exceeding critical thresholds may be auto-suspended.
+      </p>
+    </motion.div>
   )
 }

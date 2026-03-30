@@ -5,38 +5,45 @@ import { motion, useMotionValue, useTransform, useSpring, useInView } from 'fram
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import NetworkCanvas from '@/components/NetworkCanvas'
+import StatusBadge from '@/components/ui/StatusBadge'
 import {
   TrendingUp, Globe, Heart, BookOpen, Briefcase, Users, Megaphone, BarChart2,
-  Sparkles, ArrowRight, Lock, Zap, Brain, Shield, type LucideIcon,
+  Sparkles, ArrowRight, Lock, Zap, Brain, Shield, Code2, Rocket,
+  MessageSquare, Plane, Activity,
+  type LucideIcon,
 } from 'lucide-react'
 import Link from 'next/link'
-import { STATUS_CONFIG, type AmarktaiApp } from '@/lib/apps'
+import { type AmarktaiApp } from '@/lib/apps'
 
-// ── Icon lookup (derived from category) ─────────────────────
+// ── Icon lookup ──────────────────────────────────────────
 function iconForCategory(category: string): LucideIcon {
   const lower = category.toLowerCase()
-  if (lower.includes('finance') || lower.includes('crypto') || lower.includes('forex')) return TrendingUp
+  if (lower.includes('platform') || lower.includes('admin')) return Brain
+  if (lower.includes('finance') || lower.includes('crypto') || lower.includes('trading')) return TrendingUp
+  if (lower.includes('assistant') || lower.includes('companion')) return MessageSquare
+  if (lower.includes('travel')) return Plane
+  if (lower.includes('marketing') || lower.includes('campaign')) return Megaphone
+  if (lower.includes('health') || lower.includes('wellness')) return Activity
   if (lower.includes('social') || lower.includes('family')) return Users
   if (lower.includes('community') || lower.includes('faith')) return Heart
   if (lower.includes('education') || lower.includes('learn')) return BookOpen
   if (lower.includes('employment') || lower.includes('job')) return Briefcase
-  if (lower.includes('marketing')) return Megaphone
   if (lower.includes('media')) return Globe
   if (lower.includes('security')) return Shield
   if (lower.includes('analytics') || lower.includes('web')) return BarChart2
   return Sparkles
 }
 
-// ── Visual config per app (deterministic from index) ─────
+// ── Visual config per card ───────────────────────────────
 const GRADIENTS = [
-  { gradient: 'from-blue-900/40 to-cyan-950/40', glow: 'rgba(59,130,246,0.4)', border: 'border-blue-500/30' },
-  { gradient: 'from-cyan-900/40 to-teal-950/40', glow: 'rgba(34,211,238,0.4)', border: 'border-cyan-500/30' },
-  { gradient: 'from-violet-900/40 to-purple-950/40', glow: 'rgba(139,92,246,0.4)', border: 'border-violet-500/30' },
-  { gradient: 'from-emerald-900/40 to-teal-950/40', glow: 'rgba(16,185,129,0.4)', border: 'border-emerald-500/30' },
-  { gradient: 'from-amber-900/40 to-orange-950/40', glow: 'rgba(245,158,11,0.4)', border: 'border-amber-500/30' },
-  { gradient: 'from-pink-900/40 to-rose-950/40', glow: 'rgba(236,72,153,0.4)', border: 'border-pink-500/30' },
-  { gradient: 'from-rose-900/40 to-pink-950/40', glow: 'rgba(244,63,94,0.4)', border: 'border-rose-500/30' },
-  { gradient: 'from-indigo-900/40 to-blue-950/40', glow: 'rgba(99,102,241,0.4)', border: 'border-indigo-500/30' },
+  { gradient: 'from-blue-900/40 to-cyan-950/40',     glow: 'rgba(59,130,246,0.4)',  border: 'border-blue-500/30' },
+  { gradient: 'from-cyan-900/40 to-teal-950/40',     glow: 'rgba(34,211,238,0.4)',  border: 'border-cyan-500/30' },
+  { gradient: 'from-violet-900/40 to-purple-950/40', glow: 'rgba(139,92,246,0.4)',  border: 'border-violet-500/30' },
+  { gradient: 'from-emerald-900/40 to-teal-950/40',  glow: 'rgba(16,185,129,0.4)',  border: 'border-emerald-500/30' },
+  { gradient: 'from-amber-900/40 to-orange-950/40',  glow: 'rgba(245,158,11,0.4)',  border: 'border-amber-500/30' },
+  { gradient: 'from-pink-900/40 to-rose-950/40',     glow: 'rgba(236,72,153,0.4)',  border: 'border-pink-500/30' },
+  { gradient: 'from-rose-900/40 to-pink-950/40',     glow: 'rgba(244,63,94,0.4)',   border: 'border-rose-500/30' },
+  { gradient: 'from-indigo-900/40 to-blue-950/40',   glow: 'rgba(99,102,241,0.4)',  border: 'border-indigo-500/30' },
 ]
 
 function getVisual(index: number) {
@@ -44,6 +51,20 @@ function getVisual(index: number) {
 }
 
 const SPRING_CONFIG = { stiffness: 300, damping: 30 }
+
+// ── Capabilities labels per app ──────────────────────────
+const CAPABILITY_MAP: Record<string, string[]> = {
+  'amarktai-network':   ['Orchestration', 'Routing', 'Monitoring', 'Memory'],
+  'amarktai-crypto':    ['Signals', 'Portfolio', 'Pattern Recognition'],
+  'amarktai-companion': ['Chat', 'Agents', 'Retrieval', 'TTS'],
+  'amarktai-travel':    ['Itinerary', 'Recommendations', 'Booking'],
+  'amarktai-marketing': ['Campaigns', 'Audience AI', 'Analytics'],
+  'amarktai-health':    ['Wellness', 'Insights', 'Tracking'],
+}
+
+function getCapabilities(slug: string): string[] {
+  return CAPABILITY_MAP[slug] || ['AI Enabled']
+}
 
 // ── App Card ─────────────────────────────────────────────
 function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
@@ -55,9 +76,9 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
   const glowX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%'])
   const glowY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%'])
 
-  const status = STATUS_CONFIG[app.status] ?? STATUS_CONFIG['in_development']
   const visual = getVisual(index)
   const Icon = iconForCategory(app.category)
+  const capabilities = getCapabilities(app.slug)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!wrapperRef.current) return
@@ -83,7 +104,7 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: index * 0.07 }}
         whileHover={{ y: -12 }}
-        className={`glass-card relative overflow-hidden rounded-2xl border ${visual.border} bg-gradient-to-br ${visual.gradient} flex flex-col group cursor-default p-6 min-h-[340px]`}
+        className={`glass-card relative overflow-hidden rounded-2xl border ${visual.border} bg-gradient-to-br ${visual.gradient} flex flex-col group cursor-default p-6 min-h-[380px]`}
         style={{
           rotateX,
           rotateY,
@@ -108,7 +129,7 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
           />
         </div>
 
-        {/* Corner radial glow */}
+        {/* Corner glow */}
         <div
           className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-0 group-hover:opacity-25 transition-opacity duration-500 pointer-events-none blur-3xl"
           style={{ background: visual.glow.replace(/[\d.]+\)$/, '0.8)') }}
@@ -127,29 +148,42 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
           </div>
         </div>
 
-        {/* Status row */}
-        <div className="relative z-10 flex items-center justify-end mb-2">
-          <span className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${status.bg} ${status.textColor}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${status.dotColor}`} />
-            {status.label}
-          </span>
+        {/* Status + AI Connection */}
+        <div className="relative z-10 flex items-center justify-between mb-2">
+          <StatusBadge status={app.status} />
+          {app.connectedToBrain && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-cyan-400">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-500" />
+              </span>
+              Brain Connected
+            </span>
+          )}
         </div>
 
         {/* Name */}
-        <h3
-          className="font-heading relative z-10 text-xl font-extrabold text-white leading-tight mb-1"
-        >
+        <h3 className="font-heading relative z-10 text-xl font-extrabold text-white leading-tight mb-1">
           {app.name}
         </h3>
 
         {/* Category */}
-        <p className="relative z-10 text-xs text-slate-500 font-medium tracking-wide mb-4">{app.category}</p>
+        <p className="relative z-10 text-xs text-slate-500 font-medium tracking-wide mb-3">{app.category}</p>
 
         {/* Description */}
         <p className="relative z-10 text-sm text-slate-400 leading-relaxed flex-1">{app.shortDescription}</p>
 
-        {/* Indicators */}
+        {/* Capabilities */}
         <div className="relative z-10 flex flex-wrap gap-1.5 mt-4">
+          {capabilities.map(cap => (
+            <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400 font-mono">
+              {cap}
+            </span>
+          ))}
+        </div>
+
+        {/* Indicators */}
+        <div className="relative z-10 flex flex-wrap gap-1.5 mt-2">
           {app.aiEnabled && (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 font-mono tracking-wide">
               AI Enabled
@@ -158,11 +192,6 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
           {app.monitoringEnabled && (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono tracking-wide">
               Monitored
-            </span>
-          )}
-          {app.connectedToBrain && (
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono tracking-wide">
-              Brain Connected
             </span>
           )}
         </div>
@@ -201,9 +230,9 @@ function AppCard({ app, index }: { app: AmarktaiApp; index: number }) {
 // ── Section heading ──────────────────────────────────────
 function SectionHeading({ label, color = 'blue' }: { label: string; color?: 'blue' | 'violet' | 'amber' | 'emerald' }) {
   const colors = {
-    blue: { line: 'from-blue-500', text: 'text-blue-400', trail: 'from-blue-500/20' },
-    violet: { line: 'from-violet-500', text: 'text-violet-400', trail: 'from-violet-500/20' },
-    amber: { line: 'from-amber-500', text: 'text-amber-400', trail: 'from-amber-500/20' },
+    blue:    { line: 'from-blue-500',    text: 'text-blue-400',    trail: 'from-blue-500/20' },
+    violet:  { line: 'from-violet-500',  text: 'text-violet-400',  trail: 'from-violet-500/20' },
+    amber:   { line: 'from-amber-500',   text: 'text-amber-400',   trail: 'from-amber-500/20' },
     emerald: { line: 'from-emerald-500', text: 'text-emerald-400', trail: 'from-emerald-500/20' },
   }
   const c = colors[color]
@@ -218,7 +247,7 @@ function SectionHeading({ label, color = 'blue' }: { label: string; color?: 'blu
 
 function SkeletonCard() {
   return (
-    <div className="glass-card rounded-2xl border border-white/5 p-6 min-h-[340px] animate-pulse">
+    <div className="glass-card rounded-2xl border border-white/5 p-6 min-h-[380px] animate-pulse">
       <div className="w-16 h-16 rounded-2xl bg-white/5 mb-5" />
       <div className="h-4 bg-white/5 rounded w-2/3 mb-3" />
       <div className="h-3 bg-white/5 rounded w-1/3 mb-4" />
@@ -228,14 +257,24 @@ function SkeletonCard() {
   )
 }
 
-// ── Hardcoded fallback apps ───────────────────────────────
+// ── Filter pills ─────────────────────────────────────────
+const FILTER_OPTIONS = [
+  { key: 'all',            label: 'All' },
+  { key: 'live',           label: 'Live' },
+  { key: 'ready_to_deploy', label: 'Ready' },
+  { key: 'invite_only',   label: 'Invite Only' },
+  { key: 'in_development', label: 'In Dev' },
+  { key: 'concept',       label: 'Concept' },
+]
+
+// ── Hardcoded fallback apps ──────────────────────────────
 const FALLBACK_APPS: AmarktaiApp[] = [
   {
     id: 1,
-    name: 'Amarktai Network',
+    name: 'AmarktAI Network',
     slug: 'amarktai-network',
-    category: 'Platform',
-    shortDescription: 'The intelligence layer and operating platform powering the entire Amarktai ecosystem. AmarktAI coordinates AI execution across all connected apps.',
+    category: 'Platform Admin',
+    shortDescription: 'The central intelligence layer powering the entire AmarktAI ecosystem. Multi-model orchestration, monitoring, and shared context — the brain behind every connected app.',
     longDescription: '',
     status: 'live',
     featured: true,
@@ -250,10 +289,10 @@ const FALLBACK_APPS: AmarktaiApp[] = [
   },
   {
     id: 2,
-    name: 'Amarktai Marketing',
-    slug: 'amarktai-marketing',
-    category: 'Marketing',
-    shortDescription: 'AI-powered marketing intelligence. Campaign creation, audience targeting, and performance analytics — all driven by AmarktAI.',
+    name: 'AmarktAI Crypto',
+    slug: 'amarktai-crypto',
+    category: 'Trading & Finance',
+    shortDescription: 'AI-powered crypto intelligence and portfolio management. Real-time signals, pattern recognition, and execution insights — all connected to the central brain.',
     longDescription: '',
     status: 'live',
     featured: true,
@@ -268,12 +307,12 @@ const FALLBACK_APPS: AmarktaiApp[] = [
   },
   {
     id: 3,
-    name: 'Amarktai Travel',
-    slug: 'amarktai-travel',
-    category: 'Travel',
-    shortDescription: 'Intelligent travel planning and booking powered by AmarktAI. Personalised itineraries, smart recommendations, and real-time insights.',
+    name: 'AmarktAI Companion',
+    slug: 'amarktai-companion',
+    category: 'AI Assistant',
+    shortDescription: 'Your intelligent personal assistant. Multi-turn conversation, task execution, retrieval-augmented generation, and voice — powered by the AmarktAI brain.',
     longDescription: '',
-    status: 'live',
+    status: 'ready_to_deploy',
     featured: true,
     primaryUrl: '',
     hostedHere: false,
@@ -281,53 +320,17 @@ const FALLBACK_APPS: AmarktaiApp[] = [
     monitoringEnabled: true,
     readyToDeploy: true,
     connectedToBrain: true,
-    onboardingStatus: 'connected',
+    onboardingStatus: 'configured',
     sortOrder: 3,
   },
   {
     id: 4,
-    name: 'EquiProfile',
-    slug: 'equiprofile',
-    category: 'Employment',
-    shortDescription: 'AI-driven professional profiling and talent matching. Connecting the right people to the right opportunities with precision.',
+    name: 'AmarktAI Travel',
+    slug: 'amarktai-travel',
+    category: 'Travel Planning',
+    shortDescription: 'Intelligent travel planning powered by AmarktAI. Personalised itineraries, smart recommendations, and real-time insights — all contextually aware.',
     longDescription: '',
-    status: 'live',
-    featured: true,
-    primaryUrl: '',
-    hostedHere: false,
-    aiEnabled: true,
-    monitoringEnabled: true,
-    readyToDeploy: true,
-    connectedToBrain: true,
-    onboardingStatus: 'connected',
-    sortOrder: 4,
-  },
-  {
-    id: 5,
-    name: 'Amarktai Online',
-    slug: 'amarktai-online',
-    category: 'Media',
-    shortDescription: 'A next-generation online platform powered by AmarktAI — intelligent content, community, and commerce in one place.',
-    longDescription: '',
-    status: 'live',
-    featured: true,
-    primaryUrl: '',
-    hostedHere: false,
-    aiEnabled: true,
-    monitoringEnabled: true,
-    readyToDeploy: true,
-    connectedToBrain: true,
-    onboardingStatus: 'connected',
-    sortOrder: 5,
-  },
-  {
-    id: 6,
-    name: 'Amarktai Crypto',
-    slug: 'amarktai-crypto',
-    category: 'Finance',
-    shortDescription: 'AI-powered crypto intelligence and portfolio management. Real-time signals, pattern recognition, and execution insights — invite only.',
-    longDescription: '',
-    status: 'invite_only',
+    status: 'in_development',
     featured: false,
     primaryUrl: '',
     hostedHere: false,
@@ -336,6 +339,42 @@ const FALLBACK_APPS: AmarktaiApp[] = [
     readyToDeploy: false,
     connectedToBrain: true,
     onboardingStatus: 'configuring',
+    sortOrder: 4,
+  },
+  {
+    id: 5,
+    name: 'AmarktAI Marketing',
+    slug: 'amarktai-marketing',
+    category: 'Campaigns & Growth',
+    shortDescription: 'AI-driven marketing intelligence. Campaign creation, audience targeting, and performance analytics — fuelled by shared ecosystem insights.',
+    longDescription: '',
+    status: 'concept',
+    featured: false,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: false,
+    monitoringEnabled: false,
+    readyToDeploy: false,
+    connectedToBrain: false,
+    onboardingStatus: 'unconfigured',
+    sortOrder: 5,
+  },
+  {
+    id: 6,
+    name: 'AmarktAI Health',
+    slug: 'amarktai-health',
+    category: 'Wellness & Insights',
+    shortDescription: 'AI-powered wellness tracking and health insights. Personalised recommendations, habit analysis, and proactive wellness guidance.',
+    longDescription: '',
+    status: 'concept',
+    featured: false,
+    primaryUrl: '',
+    hostedHere: false,
+    aiEnabled: false,
+    monitoringEnabled: false,
+    readyToDeploy: false,
+    connectedToBrain: false,
+    onboardingStatus: 'unconfigured',
     sortOrder: 6,
   },
 ]
@@ -347,13 +386,13 @@ export default function AppsPage() {
 
   const [apps, setApps] = useState<AmarktaiApp[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
 
   useEffect(() => {
     fetch('/api/apps')
       .then(res => res.json())
       .then(data => {
         const fetched = Array.isArray(data) ? data : []
-        // Use fetched data if non-empty, otherwise fall back to hardcoded list
         setApps(fetched.length > 0 ? fetched : FALLBACK_APPS)
       })
       .catch((err) => {
@@ -363,17 +402,22 @@ export default function AppsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const liveApps = apps.filter(a => a.status === 'live')
-  const inviteApps = apps.filter(a => a.status === 'invite_only')
-  const readyApps = apps.filter(a => a.status === 'ready_to_deploy')
-  const devApps = apps.filter(a => ['in_development', 'coming_soon'].includes(a.status))
-  const totalCount = apps.length
+  const filtered = filter === 'all'
+    ? apps
+    : apps.filter(a => a.status === filter)
+
+  const liveApps    = filtered.filter(a => a.status === 'live')
+  const readyApps   = filtered.filter(a => a.status === 'ready_to_deploy')
+  const inviteApps  = filtered.filter(a => a.status === 'invite_only')
+  const devApps     = filtered.filter(a => ['in_development', 'coming_soon'].includes(a.status))
+  const conceptApps = filtered.filter(a => a.status === 'concept')
+  const totalCount  = apps.length
 
   return (
     <div className="min-h-screen bg-[#050816]">
       <Header />
 
-      {/* ── Hero: Ecosystem Overview ── */}
+      {/* ── Hero ── */}
       <section className="relative pt-40 pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <NetworkCanvas className="opacity-50" />
@@ -390,16 +434,16 @@ export default function AppsPage() {
             className="inline-flex items-center gap-2 px-4 py-2 glass rounded-full text-xs font-semibold text-blue-400 mb-8 border border-blue-500/20"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Connected by One Vision · AI-Powered Network
+            Connected by One Brain · AI-Powered Network
           </motion.div>
 
           <motion.h1
             initial={{ opacity: 0, y: 48 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.9, ease: [0.21, 0.47, 0.32, 0.98] }}
-            className="font-heading text-6xl sm:text-7xl lg:text-8xl font-extrabold leading-[1.0] mb-6 tracking-tight"
+            className="font-heading text-5xl sm:text-6xl lg:text-8xl font-extrabold leading-[1.0] mb-6 tracking-tight"
           >
-            <span className="text-white">The</span>
+            <span className="text-white">The AmarktAI</span>
             <br />
             <span className="gradient-text">Ecosystem</span>
           </motion.h1>
@@ -408,14 +452,14 @@ export default function AppsPage() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35, duration: 0.7 }}
-            className="text-xl text-slate-400 max-w-2xl mx-auto mb-14 leading-relaxed"
+            className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-14 leading-relaxed"
           >
             {loading ? (
               <span className="inline-block w-64 h-6 bg-white/5 rounded animate-pulse" />
             ) : (
               <>
-                {totalCount} interconnected {totalCount === 1 ? 'platform' : 'platforms'}. Each built to dominate its domain.
-                All powered by the same AI intelligence layer.
+                {totalCount} interconnected {totalCount === 1 ? 'platform' : 'platforms'} — each built to dominate its domain,
+                all powered by the same AI intelligence layer.
               </>
             )}
           </motion.p>
@@ -432,8 +476,9 @@ export default function AppsPage() {
               <span className="text-sm text-slate-400">Platforms</span>
             </div>
             <div className="flex items-center gap-2.5 glass px-5 py-3 rounded-xl border border-white/[0.08]">
+              <Brain className="w-4 h-4 text-violet-400" />
               <span className="text-2xl font-extrabold gradient-text-blue-cyan">1</span>
-              <span className="text-sm text-slate-400">Network</span>
+              <span className="text-sm text-slate-400">Brain</span>
             </div>
             <div className="flex items-center gap-2.5 glass px-5 py-3 rounded-xl border border-white/[0.08]">
               <span className="text-2xl font-extrabold gradient-text-blue-cyan">AI</span>
@@ -442,6 +487,35 @@ export default function AppsPage() {
           </motion.div>
         </div>
       </section>
+
+      {/* ── Filter bar ── */}
+      {!loading && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-10">
+          <div className="max-w-7xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="flex flex-wrap items-center gap-2"
+            >
+              <span className="text-xs text-slate-500 font-mono mr-2">Filter:</span>
+              {FILTER_OPTIONS.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setFilter(opt.key)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 ${
+                    filter === opt.key
+                      ? 'bg-blue-500/15 border-blue-500/40 text-blue-400'
+                      : 'bg-white/[0.03] border-white/10 text-slate-500 hover:text-white hover:border-white/20'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+      )}
 
       {/* ── Loading Skeletons ── */}
       {loading && (
@@ -510,17 +584,38 @@ export default function AppsPage() {
         </section>
       )}
 
-      {/* ── Empty state ── */}
-      {!loading && apps.length === 0 && (
+      {/* ── Concept ── */}
+      {!loading && conceptApps.length > 0 && (
         <section className="px-4 sm:px-6 lg:px-8 pb-20">
-          <div className="max-w-7xl mx-auto text-center py-20">
-            <Sparkles className="w-10 h-10 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-500">The ecosystem is loading. Check back soon.</p>
+          <div className="max-w-7xl mx-auto">
+            <SectionHeading label="Concept" color="violet" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {conceptApps.map((app, i) => (
+                <AppCard key={app.id} app={app} index={i} />
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* ── Why Apps Connect Through Amarktai AI ── */}
+      {/* ── Empty state ── */}
+      {!loading && filtered.length === 0 && (
+        <section className="px-4 sm:px-6 lg:px-8 pb-20">
+          <div className="max-w-7xl mx-auto text-center py-20">
+            <Sparkles className="w-10 h-10 text-slate-600 mx-auto mb-4" />
+            <p className="text-slate-500 mb-4">
+              {filter === 'all' ? 'The ecosystem is loading. Check back soon.' : 'No apps match this filter.'}
+            </p>
+            {filter !== 'all' && (
+              <button onClick={() => setFilter('all')} className="text-sm text-blue-400 hover:text-white transition-colors">
+                Clear filter
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── How Apps Connect ── */}
       <section className="py-24 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <motion.div
@@ -528,27 +623,85 @@ export default function AppsPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98] }}
-            className="glass rounded-3xl p-12 relative overflow-hidden border border-violet-500/15 text-center"
+            className="glass rounded-3xl p-10 sm:p-14 relative overflow-hidden border border-violet-500/15"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-blue-600/10 pointer-events-none" />
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-violet-600/5 rounded-full blur-[80px] pointer-events-none" />
-            <div className="relative z-10">
+
+            <div className="relative z-10 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-violet-500/40">
                 <Brain className="w-6 h-6 text-white" />
               </div>
-              <h2
-                className="font-heading text-3xl sm:text-4xl font-extrabold text-white mb-4"
-              >
-                Why Apps Connect Through{' '}
+              <h2 className="font-heading text-3xl sm:text-4xl font-extrabold text-white mb-5">
+                How Apps Connect Through{' '}
                 <span className="text-white">Amarkt</span><span className="text-blue-400">AI</span>
               </h2>
-              <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">
-                Every platform in the ecosystem feeds into one shared intelligence layer.
-                Insights from finance sharpen marketing. Community signals inform employment matching.
-                The network gets smarter with every app that connects — creating compounding value no standalone product can match.
+              <div className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed space-y-4">
+                <p>
+                  Every platform in the ecosystem feeds into one shared intelligence layer —
+                  the AmarktAI brain. When an app sends a task, the brain classifies intent,
+                  routes to the optimal AI model, executes with full context, and stores the
+                  result for future use.
+                </p>
+                <p>
+                  Insights from finance sharpen marketing. Community signals inform employment
+                  matching. The network gets smarter with every app that connects — creating
+                  compounding value no standalone product can match.
+                </p>
+              </div>
+
+              {/* Visual indicators */}
+              <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto">
+                {[
+                  { icon: Zap, label: 'Shared Context', desc: 'Cross-app memory' },
+                  { icon: Brain, label: 'Smart Routing', desc: 'Best model, every time' },
+                  { icon: Shield, label: 'Unified Security', desc: 'One trust boundary' },
+                ].map(item => (
+                  <div key={item.label} className="glass-card rounded-xl p-4 text-center">
+                    <item.icon className="w-5 h-5 text-violet-400 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-white">{item.label}</p>
+                    <p className="text-[10px] text-slate-500">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Build on AmarktAI ── */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98] }}
+            className="glass rounded-3xl p-10 sm:p-14 relative overflow-hidden border border-cyan-500/15"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/8 via-transparent to-blue-600/8 pointer-events-none" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
+
+            <div className="relative z-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-cyan-500/40">
+                <Code2 className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="font-heading text-3xl sm:text-4xl font-extrabold text-white mb-4">
+                Build on <span className="gradient-text-blue-cyan">AmarktAI</span>
+              </h2>
+              <p className="text-slate-400 text-lg max-w-xl mx-auto leading-relaxed mb-8">
+                Connect your app to the AmarktAI brain. Access multi-model orchestration,
+                shared context, real-time monitoring, and the full power of the network —
+                through a single API.
               </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/contact" className="btn-primary group">
+                  <Rocket className="w-4 h-4 relative z-10" />
+                  Request Developer Access
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform relative z-10" />
+                </Link>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -566,20 +719,19 @@ export default function AppsPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-violet-600/10 pointer-events-none" />
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-blue-600/5 rounded-full blur-[80px] pointer-events-none" />
+
             <div className="relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/40 glow-blue">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/40">
                 <Lock className="w-6 h-6 text-white" />
               </div>
-              <h2
-                className="font-heading text-4xl font-extrabold text-white mb-4"
-              >
+              <h2 className="font-heading text-4xl font-extrabold text-white mb-4">
                 Ready to join
                 <br />
                 <span className="gradient-text">the network?</span>
               </h2>
               <p className="text-slate-400 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-                Some apps in the ecosystem are in active development or invite-only access. Get in touch to learn more or request early access.
+                Some apps in the ecosystem are in active development or invite-only.
+                Get in touch to learn more or request early access.
               </p>
               <Link href="/contact" className="btn-primary group inline-flex">
                 Apply for Access
