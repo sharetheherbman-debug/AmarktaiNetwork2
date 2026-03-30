@@ -18,6 +18,8 @@ interface MultimodalData {
   capabilities: ModalityCapability[]
   routes: Array<{ id: string; source: string; target: string; provider: string; model: string; latencyMs: number }>
   stats: { availableModalities: number; activeRoutes: number; supportedProviders: number; requestVolume: number }
+  adultMode?: { available: boolean; enabled: boolean; safeMode: boolean; note: string }
+  statusLabel?: string
 }
 
 const MODALITY_META: Record<string, { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: string; label: string }> = {
@@ -160,6 +162,30 @@ export default function MediaPage() {
             </div>
           )
         })}
+      </motion.div>
+
+      {/* Adult 18+ Capability */}
+      <motion.div variants={fadeUp} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6">
+        <h2 className="text-sm font-semibold text-white mb-4">Adult 18+ Content Mode</h2>
+        {data?.adultMode ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border border-white/[0.06] ${
+                data.adultMode.enabled
+                  ? 'bg-amber-500/10 text-amber-400'
+                  : 'bg-white/[0.04] text-slate-400'
+              }`}>
+                {data.adultMode.enabled ? 'Enabled' : 'Disabled'}
+              </span>
+              <span className={`text-xs ${data.adultMode.safeMode ? 'text-emerald-400' : 'text-amber-400'}`}>
+                Safe Mode: {data.adultMode.safeMode ? 'On' : 'Off'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">{data.adultMode.note}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">Adult mode configuration not available.</p>
+        )}
       </motion.div>
 
       {/* Multimodal Status */}

@@ -31,22 +31,21 @@ export async function GET() {
     const videoModels = new Set<string>()
 
     for (const m of models) {
-      const caps = m.capabilities ?? []
       const name = m.model_name ?? m.model_id
 
-      if (caps.includes('chat') || caps.includes('code') || caps.includes('reasoning')) {
+      if (m.supports_chat || m.supports_code || m.supports_reasoning) {
         textProviders.add(m.provider)
         textModels.add(name)
       }
-      if (caps.includes('image') || caps.includes('vision')) {
+      if (m.supports_image_generation || m.supports_vision) {
         imageProviders.add(m.provider)
         imageModels.add(name)
       }
-      if (caps.includes('tts') || caps.includes('stt')) {
+      if (m.supports_tts || m.supports_voice_interaction) {
         voiceProviders.add(m.provider)
         voiceModels.add(name)
       }
-      if (caps.includes('video')) {
+      if (m.supports_video_planning) {
         videoProviders.add(m.provider)
         videoModels.add(name)
       }

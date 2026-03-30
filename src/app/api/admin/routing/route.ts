@@ -23,9 +23,16 @@ export async function GET() {
     const taskTypes = new Set<string>()
     for (const m of enabledModels) {
       providerSet.add(m.provider)
-      for (const cap of m.capabilities ?? []) {
-        taskTypes.add(cap)
-      }
+      if (m.supports_chat) taskTypes.add('chat')
+      if (m.supports_code) taskTypes.add('code')
+      if (m.supports_reasoning) taskTypes.add('reasoning')
+      if (m.supports_embeddings) taskTypes.add('embeddings')
+      if (m.supports_vision) taskTypes.add('vision')
+      if (m.supports_image_generation) taskTypes.add('image')
+      if (m.supports_tts) taskTypes.add('tts')
+      if (m.supports_voice_interaction) taskTypes.add('voice')
+      if (m.supports_video_planning) taskTypes.add('video')
+      if (m.supports_tool_use) taskTypes.add('tool_use')
     }
 
     // Generate sample routing decisions for common task types

@@ -611,7 +611,7 @@ function AppLearningTab({ appSlug }: { appSlug: string }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/learning?view=dashboard&app=${appSlug}`)
+      const res = await fetch(`/api/admin/learning?view=dashboard&app=${encodeURIComponent(appSlug)}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
     } catch (e) {
@@ -694,6 +694,14 @@ function AppLearningTab({ appSlug }: { appSlug: string }) {
 }
 
 /* ── Tab: Events ────────────────────────────────────────── */
+const EVENT_SEVERITY_COLORS: Record<string, string> = {
+  critical: 'text-red-400',
+  error: 'text-red-400',
+  warning: 'text-amber-400',
+  info: 'text-blue-400',
+  debug: 'text-slate-500',
+}
+
 interface EventRecord {
   id: string
   eventType: string
@@ -711,7 +719,7 @@ function AppEventsTab({ appSlug }: { appSlug: string }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/events?app=${appSlug}`)
+      const res = await fetch(`/api/admin/events?app=${encodeURIComponent(appSlug)}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       setEvents(Array.isArray(json) ? json : json.events ?? [])
@@ -754,14 +762,6 @@ function AppEventsTab({ appSlug }: { appSlug: string }) {
     )
   }
 
-  const SEVERITY_COLORS: Record<string, string> = {
-    critical: 'text-red-400',
-    error: 'text-red-400',
-    warning: 'text-amber-400',
-    info: 'text-blue-400',
-    debug: 'text-slate-500',
-  }
-
   return (
     <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden">
       <table className="w-full text-left">
@@ -778,7 +778,7 @@ function AppEventsTab({ appSlug }: { appSlug: string }) {
             <tr key={evt.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
               <td className="px-4 py-3 text-xs text-slate-400 font-mono">{evt.eventType}</td>
               <td className="px-4 py-3">
-                <span className={`text-xs font-medium ${SEVERITY_COLORS[evt.severity] ?? 'text-slate-400'}`}>
+                <span className={`text-xs font-medium ${EVENT_SEVERITY_COLORS[evt.severity] ?? 'text-slate-400'}`}>
                   {evt.severity}
                 </span>
               </td>
