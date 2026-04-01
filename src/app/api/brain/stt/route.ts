@@ -189,9 +189,11 @@ export async function POST(request: NextRequest) {
 
     if (provider === 'huggingface') {
       // HuggingFace Inference API — free fallback STT
+      const ALLOWED_HF_STT_MODELS = ['openai/whisper-large-v3', 'openai/whisper-small', 'openai/whisper-base'];
+      const hfModel = ALLOWED_HF_STT_MODELS.includes(model) ? model : 'openai/whisper-large-v3';
       const audioBytes = Buffer.from(await file.arrayBuffer());
 
-      const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      const response = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${hfKey}`,
@@ -203,7 +205,7 @@ export async function POST(request: NextRequest) {
       if (!response.ok) {
         const err = await response.text();
         return NextResponse.json(
-          { error: 'HuggingFace transcription failed', detail: err, executed: false, provider: 'huggingface', model },
+          { error: 'HuggingFace transcription failed', detail: err, executed: false, provider: 'huggingface', model: hfModel },
           { status: response.status },
         );
       }
@@ -211,7 +213,7 @@ export async function POST(request: NextRequest) {
       const result = await response.json();
       return NextResponse.json({
         transcript: result.text ?? '',
-        model,
+        model: hfModel,
         language,
         provider: 'huggingface',
         executed: true,

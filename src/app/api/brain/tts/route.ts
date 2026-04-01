@@ -182,9 +182,10 @@ export async function POST(request: NextRequest) {
 
     if (provider === 'huggingface') {
       // HuggingFace Inference API — free fallback TTS
-      const model = requestedModel ?? 'facebook/mms-tts-eng';
+      const ALLOWED_HF_TTS_MODELS = ['facebook/mms-tts-eng', 'facebook/mms-tts-fra'];
+      const hfModel = ALLOWED_HF_TTS_MODELS.includes(requestedModel ?? '') ? requestedModel! : 'facebook/mms-tts-eng';
 
-      const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      const response = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${hfKey}`,
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
       if (!response.ok) {
         const err = await response.text();
         return NextResponse.json(
-          { error: 'HuggingFace TTS generation failed', detail: err, executed: false, provider: 'huggingface', model },
+          { error: 'HuggingFace TTS generation failed', detail: err, executed: false, provider: 'huggingface', model: hfModel },
           { status: response.status },
         );
       }
@@ -208,7 +209,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'audio/mpeg',
           'Content-Length': String(audioBuffer.byteLength),
           'X-Provider': 'huggingface',
-          'X-Model': model,
+          'X-Model': hfModel,
         },
       });
     }
