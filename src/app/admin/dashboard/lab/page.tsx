@@ -94,7 +94,10 @@ export default function LabPage() {
         body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok && !data.routedProvider) {
+      // Throw for network-level errors that have no usable routing metadata.
+      // When the response contains routedProvider (even on 4xx/5xx), we still
+      // render the routing decision panel rather than just showing a generic error.
+      if (!res.ok && data.routedProvider == null) {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
       setResult({
@@ -318,6 +321,9 @@ export default function LabPage() {
 
 /* ── Benchmark ──────────────────────────────────────────── */
 
+/** Max providers pre-selected on load — keeps the default comparison focused. */
+const BENCHMARK_DEFAULT_SELECTION = 3
+
 interface BenchmarkResult {
   providerKey: string
   model: string
@@ -355,7 +361,7 @@ function BenchmarkPanel() {
         setProviders(list)
         const usable = list
           .filter(p => p.healthStatus === 'healthy' || p.healthStatus === 'configured')
-          .slice(0, 3)
+          .slice(0, BENCHMARK_DEFAULT_SELECTION)
           .map(p => p.key)
         setSelectedProviders(usable)
       }
