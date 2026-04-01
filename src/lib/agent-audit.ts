@@ -21,7 +21,7 @@ import {
   getAgentDefinitions,
   type AgentType,
   type AgentDefinition,
-} from './agent-runtime'
+} from './agent-runtime';
 
 import {
   getModelsByProvider,
@@ -29,7 +29,7 @@ import {
   isProviderUsable,
   getProviderHealth,
   type ProviderHealthStatus,
-} from './model-registry'
+} from './model-registry';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
