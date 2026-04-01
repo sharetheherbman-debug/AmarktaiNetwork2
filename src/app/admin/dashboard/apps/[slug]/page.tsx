@@ -527,7 +527,7 @@ function StrategyTab({ appSlug, appName, appCategory }: { appSlug: string; appNa
           </span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {strategy.kpis.map((kpi) => (
+          {(strategy.kpis ?? []).map((kpi) => (
             <div key={kpi.metric} className="bg-white/[0.02] rounded-lg p-4 space-y-1">
               <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">{kpi.label}</p>
               <p className="text-lg font-bold text-white">{kpi.currentValue ?? '—'} <span className="text-xs text-slate-500">{kpi.unit}</span></p>
@@ -546,7 +546,7 @@ function StrategyTab({ appSlug, appName, appCategory }: { appSlug: string; appNa
       <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
         <h3 className="text-sm font-semibold text-white">Goals</h3>
         <div className="space-y-3">
-          {strategy.goals.map((goal) => (
+          {(strategy.goals ?? []).map((goal) => (
             <div key={goal.id} className="flex items-center justify-between bg-white/[0.02] rounded-lg p-3">
               <div className="space-y-0.5">
                 <p className="text-sm text-white">{goal.label}</p>
@@ -568,11 +568,11 @@ function StrategyTab({ appSlug, appName, appCategory }: { appSlug: string; appNa
       </div>
 
       {/* Recommendations */}
-      {strategy.recommendations.length > 0 && (
+      {(strategy.recommendations ?? []).length > 0 && (
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
           <h3 className="text-sm font-semibold text-white">Recommendations</h3>
           <div className="space-y-3">
-            {strategy.recommendations.map((rec) => (
+            {(strategy.recommendations ?? []).map((rec) => (
               <div key={rec.id} className="bg-white/[0.02] rounded-lg p-4 space-y-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -671,11 +671,11 @@ function AppLearningTab({ appSlug }: { appSlug: string }) {
       </div>
 
       {/* Insights */}
-      {data.insights.length > 0 && (
+      {(data?.insights ?? []).length > 0 && (
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
           <h3 className="text-sm font-semibold text-white">Insights</h3>
           <div className="space-y-3">
-            {data.insights.map((insight) => (
+            {(data?.insights ?? []).map((insight) => (
               <div key={insight.id} className="bg-white/[0.02] rounded-lg p-4 space-y-1">
                 <p className="text-sm font-medium text-white">{insight.title}</p>
                 <p className="text-xs text-slate-400">{insight.description}</p>
