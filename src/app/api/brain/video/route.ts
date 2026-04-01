@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       : decomposeScriptToScenes(script, duration, style)
 
     // Check for provider API keys
-    // Video generation requires a real provider — never fake success
+    // STRICT: return error when no video generation provider configured
     const geminiKey = process.env.GEMINI_API_KEY;
     const runwayKey = process.env.RUNWAY_API_KEY;
     const pikaKey = process.env.PIKA_API_KEY;
