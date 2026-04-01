@@ -24,7 +24,8 @@ export type FlagCategory =
   | 'non_consensual'
   | 'hate_speech'
   | 'violence'
-  | 'self_harm';
+  | 'self_harm'
+  | 'terrorism';
 
 export interface ContentFilterResult {
   flagged: boolean;
@@ -114,11 +115,17 @@ const CATEGORY_PATTERNS: Record<FlagCategory, RegExp[]> = {
     /\bself[- ]?harm\s+method/i,
     /\bkill\s+yourself/i,
   ],
+  terrorism: [
+    /\bjoin\s+(isis|isil|al[- ]?qaeda|boko\s+haram)/i,
+    /\brecruit.*\b(jiha[di]|extremis)/i,
+    /\b(terror|extremis)\s+(attack|plot|cell)\s+(plan|instruct|manual)/i,
+    /\bradicaliz/i,
+  ],
 };
 
 // ── Always-blocked categories (even in adult mode) ───────────────────
 
-const ALWAYS_BLOCKED: FlagCategory[] = ['csam', 'non_consensual', 'violence', 'self_harm', 'hate_speech'];
+const ALWAYS_BLOCKED: FlagCategory[] = ['csam', 'non_consensual', 'violence', 'self_harm', 'hate_speech', 'terrorism'];
 
 // ── Public helpers ───────────────────────────────────────────────────
 
@@ -228,6 +235,9 @@ function mapOpenAIModerationResult(
   if (result.categories['self-harm'] || result.categories['self-harm/instructions'] || result.categories['self-harm/intent']) {
     flagged.push('self_harm');
   }
+  // OpenAI does not have a dedicated terrorism category — extremist content is
+  // typically caught under harassment/threatening or violence.  Our keyword
+  // scanner covers terrorism patterns explicitly.
 
   // Deduplicate
   const unique = [...new Set(flagged)];
@@ -308,6 +318,7 @@ export function blockedExplanation(categories: FlagCategory[]): string {
     hate_speech: 'Content promoting hatred or violence against groups is not allowed.',
     violence: 'Instructions for creating weapons or causing harm are prohibited.',
     self_harm: 'Content promoting self-harm or suicide is not permitted.',
+    terrorism: 'Content promoting terrorism or violent extremism is strictly prohibited.',
   };
 
   const reasons = categories.map((c) => explanations[c]).filter(Boolean);

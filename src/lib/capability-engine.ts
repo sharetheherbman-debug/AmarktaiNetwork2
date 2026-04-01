@@ -464,7 +464,7 @@ const BACKEND_ROUTE_EXISTS: Record<CapabilityClass, boolean> = {
   voice_input:               true,   // /api/brain/stt + /api/voice/stt (Groq Whisper / OpenAI Whisper / Gemini Live / HuggingFace Whisper)
   voice_output:              true,   // /api/brain/tts + /api/voice/tts (Groq PlayAI / OpenAI TTS / Gemini TTS / HuggingFace MMS)
   realtime_voice:            false,  // BLOCKER: Next.js API routes do not support WebSocket connections required for bidirectional streaming voice. Requires a separate WebSocket server or edge runtime with streaming support.
-  adult_18plus_image:        false,  // no provider reliably supports unrestricted adult content
+  adult_18plus_image:        false,  // BLOCKER: No provider route is integrated for lawful adult 18+ image generation. Requires: (1) a provider with policy-compliant adult content support, (2) an API route to invoke it, (3) per-app adult mode gating, (4) content filter enforcement. All four conditions must be met before this can be set to true.
   moderation:                true,   // /api/brain/request (OpenAI moderation)
   app_analysis:              true,   // /api/brain/request
   research_search:           true,   // /api/brain/request

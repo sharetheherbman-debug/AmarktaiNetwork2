@@ -60,9 +60,10 @@ const HF_FALLBACK_MODELS: Partial<Record<CapabilityClass, HfFallbackSpec[]>> = {
   classification: [
     { model: 'facebook/bart-large-mnli', label: 'BART MNLI', notes: 'Zero-shot classification' },
   ],
-  adult_18plus_image: [
-    { model: 'stabilityai/stable-diffusion-xl-base-1.0', label: 'SDXL Base (unfiltered)', notes: 'Requires unfiltered endpoint / safety bypass' },
-  ],
+  // adult_18plus_image: intentionally excluded — no HuggingFace model can reliably
+  // serve lawful adult 18+ content without safety-bypass infrastructure that does
+  // not exist on this platform. Do not add entries here unless a real, policy-compliant
+  // provider route is implemented and gated through the adult mode enforcement pipeline.
 };
 
 // ---------------------------------------------------------------------------
