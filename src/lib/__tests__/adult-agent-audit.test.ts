@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { auditAllAgents, getAgentReadiness, type AgentReadiness } from '../agent-audit'
+import { auditAllAgents, getAgentReadiness } from '../agent-audit'
 import { setAppSafetyConfig, getAppSafetyConfig } from '../content-filter'
 import {
   resolveCapabilityRoutes,
@@ -101,6 +101,7 @@ describe('Agent Audit System', () => {
     })
 
     it('returns null for unknown agent type', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const entry = getAgentReadiness('nonexistent_agent' as any)
       expect(entry).toBeNull()
     })
