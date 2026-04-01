@@ -180,11 +180,26 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
   const [cardErrors, setCardErrors] = useState<Record<number, string>>({})
   const [localProviders, setLocalProviders] = useState<Provider[]>(providers)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newProvider, setNewProvider] = useState({ providerKey: '', displayName: '', apiKey: '' })
+  const [catalogProviders, setCatalogProviders] = useState<Array<{ key: string; displayName: string }>>([])
+  const [selectedCatalogKey, setSelectedCatalogKey] = useState('')
+  const [newProviderApiKey, setNewProviderApiKey] = useState('')
   const [addingProvider, setAddingProvider] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
   useEffect(() => { setLocalProviders(providers) }, [providers])
+
+  // Load catalog for dropdown when add form opens
+  useEffect(() => {
+    if (!showAddForm) return
+    fetch('/api/admin/providers/catalog')
+      .then(r => r.ok ? r.json() : [])
+      .then((catalog: Array<{ key: string; displayName: string }>) => {
+        // Filter out providers that already exist
+        const existingKeys = new Set(localProviders.map(p => p.providerKey))
+        setCatalogProviders(catalog.filter(c => !existingKeys.has(c.key)))
+      })
+      .catch(() => setCatalogProviders([]))
+  }, [showAddForm, localProviders])
 
   const setCardError = (id: number, msg: string) => {
     setCardErrors(e => ({ ...e, [id]: msg }))
@@ -245,8 +260,13 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
   }
 
   const handleAddProvider = async () => {
-    if (!newProvider.providerKey.trim() || !newProvider.displayName.trim()) {
-      setAddError('Provider key and display name are required')
+    if (!selectedCatalogKey) {
+      setAddError('Select a provider from the dropdown')
+      return
+    }
+    const catalogEntry = catalogProviders.find(c => c.key === selectedCatalogKey)
+    if (!catalogEntry) {
+      setAddError('Invalid provider selection')
       return
     }
     setAddingProvider(true)
@@ -255,7 +275,12 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
       const res = await fetch('/api/admin/providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newProvider, enabled: false }),
+        body: JSON.stringify({
+          providerKey: catalogEntry.key,
+          displayName: catalogEntry.displayName,
+          apiKey: newProviderApiKey,
+          enabled: false,
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -263,7 +288,8 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
       }
       const created = await res.json()
       setLocalProviders(prev => [...prev, created])
-      setNewProvider({ providerKey: '', displayName: '', apiKey: '' })
+      setSelectedCatalogKey('')
+      setNewProviderApiKey('')
       setShowAddForm(false)
       onRefresh()
     } catch (e) {
@@ -295,33 +321,32 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
           <div className="space-y-3 p-4 bg-white/[0.02] border border-white/[0.06] rounded-lg">
             <p className="text-xs text-slate-400 font-medium">New Provider</p>
             {addError && <p className="text-xs text-red-400">{addError}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                placeholder="Provider key (e.g. openai)"
-                value={newProvider.providerKey}
-                onChange={e => setNewProvider(n => ({ ...n, providerKey: e.target.value }))}
-                className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40 transition-colors"
-              />
-              <input
-                type="text"
-                placeholder="Display name (e.g. OpenAI)"
-                value={newProvider.displayName}
-                onChange={e => setNewProvider(n => ({ ...n, displayName: e.target.value }))}
-                className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40 transition-colors"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select
+                value={selectedCatalogKey}
+                onChange={e => setSelectedCatalogKey(e.target.value)}
+                className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/40 transition-colors"
+              >
+                <option value="" className="bg-[#0a0f1a]">Select provider…</option>
+                {catalogProviders.map(c => (
+                  <option key={c.key} value={c.key} className="bg-[#0a0f1a]">{c.displayName} ({c.key})</option>
+                ))}
+              </select>
               <input
                 type="password"
                 placeholder="API key (optional)"
-                value={newProvider.apiKey}
-                onChange={e => setNewProvider(n => ({ ...n, apiKey: e.target.value }))}
+                value={newProviderApiKey}
+                onChange={e => setNewProviderApiKey(e.target.value)}
                 className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40 transition-colors"
               />
             </div>
+            {catalogProviders.length === 0 && (
+              <p className="text-xs text-slate-500">All canonical providers are already added.</p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleAddProvider}
-                disabled={addingProvider}
+                disabled={addingProvider || !selectedCatalogKey}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
               >
                 {addingProvider ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}

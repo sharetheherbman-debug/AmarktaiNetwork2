@@ -408,14 +408,18 @@ async function main() {
   }
   console.log('✅ API keys seeded')
 
-  // ── AI Provider Vault ─────────────────────────────────────────────
+  // ── AI Provider Vault — seeded from canonical provider catalog ────
   const aiProviders = [
-    { providerKey: 'openai',      displayName: 'OpenAI',       sortOrder: 1 },
-    { providerKey: 'gemini',      displayName: 'Google Gemini', sortOrder: 2 },
-    { providerKey: 'grok',        displayName: 'Grok / xAI',   sortOrder: 3 },
-    { providerKey: 'qwen',        displayName: 'Qwen',          sortOrder: 4 },
-    { providerKey: 'huggingface', displayName: 'Hugging Face',  sortOrder: 5 },
-    { providerKey: 'nvidia',      displayName: 'NVIDIA',        sortOrder: 6 },
+    { providerKey: 'openai',      displayName: 'OpenAI',         sortOrder: 0 },
+    { providerKey: 'groq',        displayName: 'Groq',           sortOrder: 1 },
+    { providerKey: 'grok',        displayName: 'Grok / xAI',     sortOrder: 2 },
+    { providerKey: 'deepseek',    displayName: 'DeepSeek',       sortOrder: 3 },
+    { providerKey: 'gemini',      displayName: 'Google Gemini',  sortOrder: 4 },
+    { providerKey: 'huggingface', displayName: 'Hugging Face',   sortOrder: 5 },
+    { providerKey: 'nvidia',      displayName: 'NVIDIA',         sortOrder: 6 },
+    { providerKey: 'openrouter',  displayName: 'OpenRouter',     sortOrder: 7 },
+    { providerKey: 'together',    displayName: 'Together AI',    sortOrder: 8 },
+    { providerKey: 'qwen',        displayName: 'Qwen',           sortOrder: 9 },
   ]
   for (const p of aiProviders) {
     await prisma.aiProvider.upsert({
@@ -433,7 +437,7 @@ async function main() {
       },
     })
   }
-  console.log('✅ AI provider vault seeded (6 providers · all unconfigured)')
+  console.log('✅ AI provider vault seeded (10 providers · all unconfigured)')
 
   console.log('\n✨ Seeding complete!')
   console.log('   Admin login: admin@amarktai.com / admin123!')

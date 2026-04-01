@@ -2057,12 +2057,12 @@ export function clearProviderHealthCache(): void {
  * Whether a provider is usable for routing.
  *
  * A provider is usable when its health status is `healthy` or `configured`.
- * When the health cache is **empty** (no health data recorded yet), all
- * providers are assumed usable so that the system works before the first
- * health check run.
+ * When the health cache is **empty** (no health data recorded yet) or a
+ * provider has no entry in the cache, it is considered **unconfigured** and
+ * therefore NOT usable.  This prevents false availability before the first
+ * health-check run.
  */
 export function isProviderUsable(providerKey: string): boolean {
-  if (providerHealthCache.size === 0) return true;
   const status = getProviderHealth(providerKey);
   return status === 'healthy' || status === 'configured';
 }
@@ -2083,10 +2083,11 @@ export function isProviderDegraded(providerKey: string): boolean {
  * Returns the effective health status for a model, considering the
  * provider health cache.
  *
- * When the cache is empty the model's static `health_status` is returned.
+ * When the cache has no entry for the model's provider, returns
+ * `'unconfigured'` so that unchecked providers are not silently
+ * treated as healthy.
  */
 export function getModelEffectiveHealth(model: ModelEntry): ProviderHealthStatus {
-  if (providerHealthCache.size === 0) return model.health_status;
   return getProviderHealth(model.provider);
 }
 
