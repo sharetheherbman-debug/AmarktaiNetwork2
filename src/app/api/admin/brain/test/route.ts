@@ -4,6 +4,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/session'
 import { callProvider, logBrainEvent } from '@/lib/brain'
 import { orchestrate } from '@/lib/orchestrator'
+import {
+  classifyCapabilities,
+  resolveCapabilityRoutes,
+  type CapabilityClass,
+} from '@/lib/capability-engine'
 
 const testSchema = z.object({
   message: z.string().min(1).max(16_000),
@@ -16,7 +21,8 @@ const testSchema = z.object({
  *
  * Admin-session-authenticated test endpoint for the Brain Chat dashboard.
  * Bypasses app-level auth (admin session is auth).
- * Uses the orchestration layer for natural requests, or direct provider override.
+ * Routes through capability engine: classify → resolve → execute.
+ * Returns structured response with provider/model/capability/executed/fallback/error.
  */
 export async function POST(request: NextRequest) {
   const session = await getSession()
@@ -35,6 +41,42 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Step 1: Classify required capabilities
+  const capabilities = classifyCapabilities(body.taskType, body.message)
+
+  // Step 2: Resolve capability routes to check availability
+  const capabilityRoutes = resolveCapabilityRoutes({ capabilities: capabilities as CapabilityClass[] })
+  const unavailable = capabilityRoutes.routes.filter(r => !r.available)
+
+  // If required capabilities are unavailable and no direct provider override, return error
+  if (unavailable.length > 0 && !body.providerKey) {
+    const latencyMs = Date.now() - start
+    const reasons = unavailable.map(r => r.missingMessage).filter(Boolean)
+    return NextResponse.json(
+      {
+        success: false,
+        executed: false,
+        traceId,
+        output: null,
+        capability: capabilities,
+        capabilityRoutes: capabilityRoutes.routes.map(r => ({
+          capability: r.capability,
+          available: r.available,
+          reason: r.missingMessage,
+        })),
+        routedProvider: null,
+        routedModel: null,
+        executionMode: null,
+        fallback_used: false,
+        routingReason: reasons.join(' '),
+        error: reasons[0] ?? 'Required capability is not available',
+        latencyMs,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503 },
+    )
+  }
+
   // Direct provider override (admin manual test)
   if (body.providerKey) {
     const result = await callProvider(body.providerKey, '', body.message)
@@ -45,7 +87,7 @@ export async function POST(request: NextRequest) {
       appSlug: '__admin_test__',
       taskType: body.taskType,
       executionMode: 'direct',
-      classificationJson: '{}',
+      classificationJson: JSON.stringify({ capabilities }),
       routedProvider: body.providerKey,
       routedModel: result.model,
       validationUsed: false,
@@ -59,13 +101,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: result.ok,
+        executed: result.ok,
         traceId,
         output: result.output,
+        capability: capabilities,
         routedProvider: body.providerKey,
         routedModel: result.model,
         executionMode: 'direct',
         confidenceScore: null,
         fallbackUsed: false,
+        fallback_used: false,
         error: result.error ?? null,
         latencyMs,
         timestamp: new Date().toISOString(),
@@ -87,11 +132,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
+        executed: false,
         traceId,
         output: null,
+        capability: capabilities,
         routedProvider: null,
         routedModel: null,
         executionMode: orchResult.executionMode,
+        fallback_used: false,
         routingReason: orchResult.routingReason ?? orchResult.errors[0] ?? 'No AI provider is configured and enabled',
         error: orchResult.errors[0] ?? 'No AI provider is configured and enabled',
         latencyMs,
@@ -107,7 +155,7 @@ export async function POST(request: NextRequest) {
     appSlug: '__admin_test__',
     taskType: body.taskType,
     executionMode: orchResult.executionMode,
-    classificationJson: JSON.stringify(orchResult.classification),
+    classificationJson: JSON.stringify({ capabilities, ...orchResult.classification }),
     routedProvider: orchResult.routedProvider,
     routedModel: orchResult.routedModel,
     validationUsed: orchResult.validationUsed,
@@ -122,8 +170,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     {
       success,
+      executed: success,
       traceId,
       output: orchResult.output,
+      capability: capabilities,
       routedProvider: orchResult.routedProvider,
       routedModel: orchResult.routedModel,
       executionMode: orchResult.executionMode,
@@ -131,6 +181,7 @@ export async function POST(request: NextRequest) {
       validationUsed: orchResult.validationUsed,
       consensusUsed: orchResult.consensusUsed,
       fallbackUsed: orchResult.fallbackUsed,
+      fallback_used: orchResult.fallbackUsed,
       warnings: orchResult.warnings,
       routingReason: orchResult.routingReason,
       error: orchResult.errors[0] ?? null,
@@ -140,4 +191,3 @@ export async function POST(request: NextRequest) {
     { status: success ? 200 : 502 },
   )
 }
-

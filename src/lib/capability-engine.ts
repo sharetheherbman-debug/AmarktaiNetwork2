@@ -15,6 +15,8 @@ import {
   type ModelEntry,
   type ModelRole,
   getUsableModels,
+  getModelRegistry,
+  getProviderHealth,
   isProviderUsable,
   isProviderDegraded,
 } from './model-registry';
@@ -330,6 +332,19 @@ export function resolveCapabilityRoutes(
       continue;
     }
 
+    // Backend route guard: if no execution route exists, capability is unavailable
+    if (!BACKEND_ROUTE_EXISTS[cap]) {
+      const msg = `Route not implemented: no backend execution route exists for ${req.label}.`;
+      routes.push({
+        capability: cap,
+        models: [],
+        available: false,
+        missingMessage: msg,
+      });
+      missingCapabilities.push(msg);
+      continue;
+    }
+
     // Adult capability guard: adult_18plus_image requires explicit adult mode
     if (cap === 'adult_18plus_image' && !request.adultMode) {
       routes.push({
@@ -417,18 +432,97 @@ export function resolveCapabilityRoutes(
 }
 
 // ---------------------------------------------------------------------------
-// Missing dependency message builder
+// Backend route existence map
+// ---------------------------------------------------------------------------
+// Tracks which capabilities have real, working backend execution routes.
+// If a route does not exist, the capability must show UNAVAILABLE regardless
+// of model/provider configuration.
+
+const BACKEND_ROUTE_EXISTS: Record<CapabilityClass, boolean> = {
+  general_chat:              true,   // /api/brain/request
+  deep_reasoning:            true,   // /api/brain/request
+  coding:                    true,   // /api/brain/request
+  retrieval:                 true,   // /api/brain/request (retrieval_chain)
+  embeddings:                true,   // /api/brain/request (embedding pipeline)
+  reranking:                 false,  // internal retrieval only — no standalone API
+  summarization:             true,   // /api/brain/request
+  classification:            true,   // /api/brain/request
+  validation:                true,   // /api/brain/request
+  agent_planning:            true,   // /api/brain/request (agent_chain)
+  multimodal_understanding:  true,   // /api/brain/request (multimodal_chain)
+  image_generation:          true,   // /api/brain/request (DALL-E / FLUX)
+  image_editing:             true,   // /api/brain/request (DALL-E)
+  video_generation:          false,  // /api/brain/video is stub pipeline only
+  voice_input:               true,   // /api/brain/stt (OpenAI Whisper)
+  voice_output:              true,   // /api/brain/tts (OpenAI TTS)
+  realtime_voice:            false,  // no WebSocket / realtime voice endpoint
+  adult_18plus_image:        false,  // no provider reliably supports unrestricted adult content
+  moderation:                true,   // /api/brain/request (OpenAI moderation)
+  app_analysis:              true,   // /api/brain/request
+  research_search:           true,   // /api/brain/request
+  scraping_extraction:       true,   // /api/brain/request
+};
+
+// ---------------------------------------------------------------------------
+// Missing dependency message builder — specific diagnostics
 // ---------------------------------------------------------------------------
 
 function buildMissingMessage(
   cap: CapabilityClass,
   req: CapabilityRequirement,
 ): string {
+  // 1. Check if backend route exists
+  if (!BACKEND_ROUTE_EXISTS[cap]) {
+    return `Route not implemented: no backend execution route exists for ${req.label}.`;
+  }
+
+  // 2. Check if ANY model in the full registry supports this capability
+  const allModels = getModelRegistry();
+  const registryModels = allModels.filter((m) =>
+    m.enabled && modelSatisfiesCapability(m, req),
+  );
+
+  if (registryModels.length === 0) {
+    return `No model supports this capability: no model in the registry supports ${req.label}.`;
+  }
+
+  // 3. Check provider configuration — are the required providers configured?
+  const neededProviders = new Set(registryModels.map((m) => m.provider));
+  const providerStatuses: string[] = [];
+  let anyConfigured = false;
+
+  for (const provider of Array.from(neededProviders)) {
+    const health = getProviderHealth(provider);
+    if (health === 'unconfigured' || health === 'disabled') {
+      providerStatuses.push(`${provider}: not configured`);
+    } else if (health === 'error') {
+      providerStatuses.push(`${provider}: health check failed`);
+    } else {
+      anyConfigured = true;
+    }
+  }
+
+  if (!anyConfigured) {
+    const suggestions = req.suggestedProviders.join(', ');
+    if (providerStatuses.length > 0) {
+      return `No provider configured: ${req.label} requires a provider such as ${suggestions}. Status: ${providerStatuses.join('; ')}.`;
+    }
+    return `No provider configured: configure a supported provider (${suggestions}) to enable ${req.label}.`;
+  }
+
+  // 4. If providers are configured but still no usable models, likely a key/health issue
+  const usableModels = getUsableModels().filter((m) =>
+    modelSatisfiesCapability(m, req),
+  );
+  if (usableModels.length === 0) {
+    return `Provider key missing or unhealthy: providers are configured for ${req.label} but none are currently usable. Check API keys and provider health.`;
+  }
+
+  // Fallback (shouldn't reach here in normal flow)
   const suggestions = req.suggestedProviders.join(', ');
   return (
-    `This task requires ${req.label} capability that is not currently available ` +
-    `from configured providers. Configure a supported provider such as ${suggestions} ` +
-    `to enable ${req.label}.`
+    `${req.label} capability is not currently available from configured providers. ` +
+    `Configure a supported provider such as ${suggestions} to enable ${req.label}.`
   );
 }
 
@@ -437,6 +531,8 @@ function buildMissingMessage(
 // ---------------------------------------------------------------------------
 
 export function isCapabilityAvailable(cap: CapabilityClass): boolean {
+  // Fast-path: if no backend route exists, capability is never available
+  if (!BACKEND_ROUTE_EXISTS[cap]) return false;
   const result = resolveCapabilityRoutes({ capabilities: [cap] });
   return result.allSatisfied;
 }
@@ -452,6 +548,28 @@ export function getCapabilityStatus(): Record<CapabilityClass, boolean> {
 }
 
 // ---------------------------------------------------------------------------
+// Detailed capability status with reasons
+// ---------------------------------------------------------------------------
+
+export interface CapabilityStatusEntry {
+  capability: CapabilityClass;
+  available: boolean;
+  reason: string | null;
+  routeExists: boolean;
+}
+
+export function getDetailedCapabilityStatus(): CapabilityStatusEntry[] {
+  const all = Object.keys(CAPABILITY_MAP) as CapabilityClass[];
+  const result = resolveCapabilityRoutes({ capabilities: all });
+  return result.routes.map((route) => ({
+    capability: route.capability,
+    available: route.available,
+    reason: route.available ? null : (route.missingMessage ?? 'Unknown reason'),
+    routeExists: BACKEND_ROUTE_EXISTS[route.capability] ?? false,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Exports for testing
 // ---------------------------------------------------------------------------
-export { CAPABILITY_MAP };
+export { CAPABILITY_MAP, BACKEND_ROUTE_EXISTS };
