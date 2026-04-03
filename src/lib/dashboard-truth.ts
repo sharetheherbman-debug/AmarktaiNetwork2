@@ -229,6 +229,15 @@ const SETTINGS_GATED = new Set([
   'suggestive_video_generation',
 ]);
 
+/** Type-safe lookup of a boolean capability flag on a model entry. */
+function modelHasFlag(
+  m: (typeof MODEL_REGISTRY)[number],
+  flag: string,
+): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (m as any)[flag] === true;
+}
+
 /** Map capability name → model boolean flag key for quick lookup. */
 const CAP_TO_MODEL_FLAG: Record<string, string> = {
   general_chat: 'supports_chat',
@@ -280,7 +289,7 @@ export async function getCapabilityTruth(
     const flagKey = CAP_TO_MODEL_FLAG[cap] as keyof (typeof MODEL_REGISTRY)[number] | undefined;
 
     const capableModels = flagKey
-      ? MODEL_REGISTRY.filter((m) => (m as unknown as Record<string, unknown>)[flagKey] === true)
+      ? MODEL_REGISTRY.filter((m) => modelHasFlag(m, flagKey))
       : [];
     const hasCapableModel = capableModels.length > 0;
     const hasActiveProvider = capableModels.some((m) =>
@@ -349,11 +358,17 @@ export interface ModelTruth {
  * Synchronous — relies on in-memory health state from model-registry.
  */
 export function getModelTruth(): ModelTruth[] {
+  // Pre-compute per-model capabilities to avoid O(n²) re-scanning
   return MODEL_REGISTRY.map((m) => {
     const providerHealthy = isProviderUsable(m.provider);
     const providerState: ProviderState = providerHealthy
       ? 'HEALTHY'
       : 'AVAILABLE_IN_CATALOG';
+
+    const caps: string[] = [];
+    for (const [cap, flag] of Object.entries(CAP_TO_MODEL_FLAG)) {
+      if (modelHasFlag(m, flag)) caps.push(cap);
+    }
 
     return {
       provider: m.provider,
@@ -364,10 +379,7 @@ export function getModelTruth(): ModelTruth[] {
       providerState,
       costTier: m.cost_tier,
       latencyTier: m.latency_tier,
-      capabilities: collectCapabilities(m.provider).filter((cap) => {
-        const flag = CAP_TO_MODEL_FLAG[cap] as keyof typeof m | undefined;
-        return flag ? (m as unknown as Record<string, unknown>)[flag] === true : false;
-      }),
+      capabilities: caps,
     };
   });
 }
