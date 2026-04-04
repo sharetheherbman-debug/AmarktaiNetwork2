@@ -29,7 +29,6 @@ export function getRedisClient(): Redis | null {
       if (times > 5) return null          // give up after 5 retries
       return Math.min(times * 200, 2000)  // exponential backoff
     },
-    lazyConnect: true,
   })
   _client.on('error', (err) => {
     console.error('[Redis] connection error:', err.message)

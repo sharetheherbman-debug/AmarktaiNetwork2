@@ -36,10 +36,12 @@ function getConnection() {
 
 const _queues = new Map<string, Queue>()
 
+const JOB_QUEUE_NAME = 'amarktai-jobs'
+
 /**
  * Get or create a named queue. Returns `null` if Redis is unavailable.
  */
-export function getQueue(name: string): Queue | null {
+export function getQueue(name: string = JOB_QUEUE_NAME): Queue | null {
   if (_queues.has(name)) return _queues.get(name)!
   const connection = getConnection()
   if (!connection) return null
@@ -70,7 +72,7 @@ export async function enqueueJob(
   payload: JobPayload,
   opts?: { delay?: number; priority?: number },
 ): Promise<string | null> {
-  const queue = getQueue('amarktai-jobs')
+  const queue = getQueue(JOB_QUEUE_NAME)
   if (!queue) return null
   try {
     const job = await queue.add(payload.type, payload, {
@@ -94,7 +96,7 @@ export function createWorker(
 ): Worker | null {
   const connection = getConnection()
   if (!connection) return null
-  const worker = new Worker<JobPayload>('amarktai-jobs', processor, {
+  const worker = new Worker<JobPayload>(JOB_QUEUE_NAME, processor, {
     connection,
     concurrency: 5,
   })
@@ -108,7 +110,7 @@ export function createWorker(
  * Returns true when the job queue backend is available.
  */
 export async function isJobQueueHealthy(): Promise<boolean> {
-  const queue = getQueue('amarktai-jobs')
+  const queue = getQueue(JOB_QUEUE_NAME)
   if (!queue) return false
   try {
     await queue.getJobCounts()
