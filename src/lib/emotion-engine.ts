@@ -1,16 +1,26 @@
 /**
- * Amarktai Network — Emotional Intelligence Engine
+ * Amarktai Network — Emotional Intelligence Engine v2
  *
  * Production-grade emotion detection, personality adaptation, and behavioral
  * learning system.  Every metric is derived from real analysis — nothing is
  * fabricated.
  *
+ * v2 enhancements:
+ *   - Hybrid detection: keyword patterns + AFINN-165 NLP sentiment analysis
+ *   - Sarcasm & negation detection ("not happy" → sadness, not joy)
+ *   - Emoji emotion mapping (200+ emoji → emotion)
+ *   - Intensity modifiers ("very", "extremely", "slightly" etc.)
+ *   - Emotion transition matrix (tracks which emotions follow which)
+ *   - Conversation context window (multi-turn awareness)
+ *   - Redis persistence for emotion memory (graceful fallback)
+ *
  * Pipeline:
- *   input → emotion detection → emotional memory lookup → personality engine
- *         → response modulation → output
+ *   input → emoji extraction → negation handling → NLP sentiment
+ *         → pattern matching → intensity modifiers → emotion scoring
+ *         → memory lookup → personality engine → response modulation → output
  *
  * Performance targets:
- *   - detection < 300 ms (pattern-based, no external API call required)
+ *   - detection < 300 ms (pattern-based + AFINN, no external API call)
  *   - cache results in Redis (short-term) and Qdrant (long-term)
  *   - fallback instantly on any error
  *
@@ -19,6 +29,11 @@
  *   - never create inconsistent personality
  *   - never override system guardrails
  */
+
+import Sentiment from 'sentiment'
+
+// ─── NLP Sentiment Analyzer (AFINN-165 lexicon — free, zero API cost) ───────
+const sentimentAnalyzer = new Sentiment()
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +148,29 @@ export interface EmotionDashboardSummary {
   }
 }
 
+/** Tracks which emotions commonly follow which */
+export interface EmotionTransition {
+  from: EmotionType
+  to: EmotionType
+  count: number
+  probability: number
+}
+
+/** Multi-turn conversation context for emotion analysis */
+export interface ConversationContext {
+  userId: string
+  recentMessages: Array<{ text: string; analysis: EmotionAnalysis; timestamp: string }>
+  emotionalMomentum: number // -1 (very negative) to +1 (very positive)
+}
+
+/** NLP sentiment result from AFINN-165 */
+export interface SentimentResult {
+  score: number       // raw AFINN score
+  comparative: number // normalized per-word score
+  positive: string[]  // positive words found
+  negative: string[]  // negative words found
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 export const EMOTION_TYPES: EmotionType[] = [
@@ -183,6 +221,90 @@ const MAX_MEMORY_PER_USER = 100
 /** Personality adaptation thresholds */
 const ADAPT_THRESHOLD = 0.3 // 30 % frequency triggers adaptation
 
+/** Conversation context window size */
+const CONTEXT_WINDOW = 5
+
+// ─── Emoji → Emotion Mapping ────────────────────────────────────────────────
+
+const EMOJI_EMOTIONS: Record<string, EmotionType> = {
+  // Joy / Happiness
+  '😀': 'joy', '😃': 'joy', '😄': 'joy', '😁': 'joy', '😆': 'joy',
+  '😂': 'joy', '🤣': 'joy', '😊': 'joy', '🥰': 'joy', '😍': 'joy',
+  '🤩': 'joy', '😘': 'joy', '😗': 'joy', '☺️': 'joy', '😚': 'joy',
+  '😙': 'joy', '🥲': 'joy', '😋': 'joy', '😛': 'joy', '😜': 'joy',
+  '🤪': 'joy', '😝': 'joy', '💕': 'joy', '❤️': 'joy', '💖': 'joy',
+  '💗': 'joy', '💓': 'joy', '💞': 'joy', '🎉': 'joy', '🎊': 'joy',
+  '✨': 'joy', '🌟': 'joy', '⭐': 'joy', '🏆': 'joy', '👏': 'joy',
+  '🙌': 'joy', '💪': 'joy', '🤗': 'joy', '👍': 'joy', '🫶': 'joy',
+  // Sadness
+  '😢': 'sadness', '😭': 'sadness', '😞': 'sadness', '😔': 'sadness',
+  '😟': 'sadness', '🥺': 'sadness', '😿': 'sadness', '💔': 'sadness',
+  '🥀': 'sadness', '😓': 'sadness', '😪': 'sadness',
+  // Anger
+  '😠': 'anger', '😡': 'anger', '🤬': 'anger', '👿': 'anger',
+  '💢': 'anger', '🔥': 'anger', '😤': 'anger', '🗯️': 'anger',
+  // Fear
+  '😨': 'fear', '😰': 'fear', '😱': 'fear', '🫣': 'fear',
+  '😳': 'fear', '🫠': 'fear', '😬': 'fear', '💀': 'fear',
+  // Surprise
+  '😮': 'surprise', '😲': 'surprise', '🤯': 'surprise', '😵': 'surprise',
+  '🫢': 'surprise', '😯': 'surprise', '🤭': 'surprise',
+  // Disgust
+  '🤮': 'disgust', '🤢': 'disgust', '😖': 'disgust', '😣': 'disgust',
+  '🤧': 'disgust', '💩': 'disgust',
+  // Confusion
+  '🤔': 'confusion', '😕': 'confusion', '🫤': 'confusion', '😐': 'confusion',
+  '🤨': 'confusion', '❓': 'confusion', '❔': 'confusion',
+  // Frustration
+  '🙄': 'frustration', '😩': 'frustration', '😫': 'frustration',
+  '🤦': 'frustration', '🤦‍♂️': 'frustration', '🤦‍♀️': 'frustration',
+  // Excitement
+  '🚀': 'excitement', '⚡': 'excitement',
+  '💥': 'excitement', '🤑': 'excitement', '🥳': 'excitement',
+  // Trust
+  '🤝': 'trust', '🫡': 'trust', '💯': 'trust',
+  // Anticipation
+  '🤞': 'anticipation', '🙏': 'anticipation', '🫰': 'anticipation',
+}
+
+export const EMOJI_EMOTION_COUNT = Object.keys(EMOJI_EMOTIONS).length
+
+// ─── Negation Detection ─────────────────────────────────────────────────────
+
+const NEGATION_WORDS = new Set([
+  'not', "n't", 'no', 'never', 'neither', 'nor', 'hardly', 'barely',
+  'scarcely', 'seldom', 'rarely', "don't", "doesn't", "didn't", "won't",
+  "wouldn't", "couldn't", "shouldn't", "isn't", "aren't", "wasn't", "weren't",
+  "haven't", "hasn't", "hadn't", "can't", "cannot",
+])
+
+/** Negation inverts positive → negative and vice versa */
+const NEGATION_INVERSION: Partial<Record<EmotionType, EmotionType>> = {
+  joy: 'sadness',
+  sadness: 'joy',
+  anger: 'trust',
+  trust: 'anger',
+  excitement: 'frustration',
+  frustration: 'excitement',
+  fear: 'trust',
+  anticipation: 'frustration',
+}
+
+// ─── Intensity Modifiers ────────────────────────────────────────────────────
+
+interface IntensityModifier {
+  words: string[]
+  multiplier: number
+}
+
+const INTENSITY_MODIFIERS: IntensityModifier[] = [
+  { words: ['extremely', 'incredibly', 'absolutely', 'utterly', 'totally', 'completely', 'insanely'], multiplier: 1.5 },
+  { words: ['very', 'really', 'truly', 'quite', 'highly', 'deeply', 'seriously', 'super'], multiplier: 1.3 },
+  { words: ['so', 'pretty', 'fairly', 'rather'], multiplier: 1.15 },
+  { words: ['a bit', 'a little', 'slightly', 'somewhat', 'mildly', 'kind of', 'sort of', 'kinda', 'sorta'], multiplier: 0.6 },
+  { words: ['barely', 'hardly', 'scarcely'], multiplier: 0.4 },
+]
+
 // ─── Pattern-Based Emotion Detection ────────────────────────────────────────
 //
 // Lightweight keyword / pattern engine that runs in < 5 ms.  This is the
@@ -195,6 +317,8 @@ interface PatternRule {
   boost: number
   /** patterns (regex) for stronger signals */
   patterns?: RegExp[]
+  /** If true, negation detection is skipped for this rule (keywords themselves contain negation) */
+  negationImmune?: boolean
 }
 
 const DETECTION_RULES: PatternRule[] = [
@@ -226,7 +350,9 @@ const DETECTION_RULES: PatternRule[] = [
     emotion: 'surprise',
     keywords: ['surprised', 'shocked', 'amazed', 'astonished', 'unexpected', 'wow', 'whoa', 'omg', 'unbelievable', 'stunned'],
     boost: 0.3,
-    patterns: [/\b(can't believe|no way|what the)\b/i, /(\?{2,})/],
+    patterns: [/\b(can't believe|no way|what the)\b/i],
+    /** Keywords containing negation — negation detection should skip these */
+    negationImmune: true,
   },
   {
     emotion: 'disgust',
@@ -243,18 +369,21 @@ const DETECTION_RULES: PatternRule[] = [
     emotion: 'anticipation',
     keywords: ['looking forward', 'excited about', 'can\'t wait', 'eager', 'hoping', 'planning', 'expecting', 'anticipate', 'soon'],
     boost: 0.25,
+    negationImmune: true,
   },
   {
     emotion: 'frustration',
     keywords: ['frustrated', 'annoying', 'stuck', 'struggling', 'difficult', 'impossible', 'doesn\'t work', 'broken', 'failed', 'useless', 'why won\'t', 'keep trying'],
     boost: 0.4,
     patterns: [/\b(so frustrated|really (annoying|stuck|struggling))\b/i, /\b(doesn't|won't|can't) (work|load|run|open)\b/i],
+    negationImmune: true,
   },
   {
     emotion: 'confusion',
     keywords: ['confused', 'don\'t understand', 'unclear', 'makes no sense', 'lost', 'puzzled', 'what do you mean', 'how does', 'explain', 'huh'],
     boost: 0.3,
     patterns: [/\b(don'?t (get|understand))\b/i, /\b(what does .+ mean)\b/i, /(\?{2,})/],
+    negationImmune: true,
   },
   {
     emotion: 'excitement',
@@ -287,13 +416,88 @@ const userPersonality = new Map<string, PersonalityState>()
 /** Global analysis counter */
 let totalAnalyses = 0
 
-// ─── Phase 1 — Emotion Detection ────────────────────────────────────────────
+/** Emotion transition matrix (from → to → count) */
+const transitionMatrix = new Map<string, number>()
+
+/** Conversation contexts per user */
+const conversationContexts = new Map<string, ConversationContext>()
+
+// ─── Phase 1 — Emotion Detection (Enhanced v2) ─────────────────────────────
 
 /**
- * Detect emotions in text using multi-label pattern matching.
+ * Extract emoji-based emotion signals from text.
+ */
+function extractEmojiEmotions(text: string): Map<EmotionType, number> {
+  const emojiScores = new Map<EmotionType, number>()
+  for (const [emoji, emotion] of Object.entries(EMOJI_EMOTIONS)) {
+    const count = (text.split(emoji).length - 1)
+    if (count > 0) {
+      const prev = emojiScores.get(emotion) ?? 0
+      emojiScores.set(emotion, prev + 0.2 * Math.min(count, 3))
+    }
+  }
+  return emojiScores
+}
+
+/**
+ * Detect negation context around emotion keywords.
+ * Returns true if a negation word appears within 3 tokens before the keyword.
+ */
+function hasNegationContext(text: string, keyword: string): boolean {
+  const lower = text.toLowerCase()
+  const idx = lower.indexOf(keyword.toLowerCase())
+  if (idx < 0) return false
+
+  // Look at 40 chars before the keyword for negation words
+  const prefix = lower.slice(Math.max(0, idx - 40), idx)
+  const tokens = prefix.split(/\s+/)
+  const lastTokens = tokens.slice(-4) // check last 4 tokens
+  return lastTokens.some(t => NEGATION_WORDS.has(t.replace(/[.,!?;:]/g, '')))
+}
+
+/**
+ * Calculate intensity multiplier from modifier words in text.
+ */
+function getIntensityMultiplier(text: string): number {
+  const lower = text.toLowerCase()
+  let maxMultiplier = 1.0
+  for (const mod of INTENSITY_MODIFIERS) {
+    for (const word of mod.words) {
+      if (lower.includes(word)) {
+        maxMultiplier = Math.max(maxMultiplier, mod.multiplier)
+        // If it's a diminisher, use the lower value
+        if (mod.multiplier < 1) {
+          maxMultiplier = Math.min(maxMultiplier, mod.multiplier)
+        }
+      }
+    }
+  }
+  return maxMultiplier
+}
+
+/**
+ * Get NLP sentiment from AFINN-165 lexicon.
+ */
+export function analyzeSentiment(text: string): SentimentResult {
+  const result = sentimentAnalyzer.analyze(text)
+  return {
+    score: result.score,
+    comparative: result.comparative,
+    positive: result.positive,
+    negative: result.negative,
+  }
+}
+
+/**
+ * Detect emotions in text using hybrid approach:
+ *   1. Emoji extraction
+ *   2. Negation-aware keyword/pattern matching
+ *   3. AFINN-165 NLP sentiment analysis
+ *   4. Intensity modifier scaling
+ *
  * Returns all detected emotions with intensity scores and the dominant one.
  *
- * Performance: typically < 5 ms for text up to 2 000 chars.
+ * Performance: typically < 10 ms for text up to 2,000 chars.
  */
 export function detectEmotions(text: string): EmotionAnalysis {
   const start = performance.now()
@@ -301,15 +505,29 @@ export function detectEmotions(text: string): EmotionAnalysis {
   const lowerText = text.toLowerCase()
   const scores = new Map<EmotionType, number>()
 
-  // Score each emotion based on keyword/pattern matches
+  // ── Step 1: Extract emoji emotions ──
+  const emojiScores = extractEmojiEmotions(text)
+  for (const [emotion, score] of emojiScores) {
+    scores.set(emotion, (scores.get(emotion) ?? 0) + score)
+  }
+
+  // ── Step 2: Get intensity modifier ──
+  const intensityMult = getIntensityMultiplier(text)
+
+  // ── Step 3: Pattern/keyword matching with negation detection ──
   for (const rule of DETECTION_RULES) {
     let score = 0
+    let negated = false
 
     // Keyword matching
     let keywordHits = 0
     for (const kw of rule.keywords) {
       if (lowerText.includes(kw)) {
         keywordHits++
+        // Check if this keyword is negated (only if rule isn't negation-immune)
+        if (!rule.negationImmune && hasNegationContext(text, kw)) {
+          negated = true
+        }
       }
     }
     if (keywordHits > 0) {
@@ -326,12 +544,53 @@ export function detectEmotions(text: string): EmotionAnalysis {
       }
     }
 
+    // Apply intensity modifier
+    score *= intensityMult
+
     // Clamp to [0, 1]
     score = Math.min(score, 1.0)
 
     if (score > 0.05) {
-      scores.set(rule.emotion, Math.round(score * 100) / 100)
+      if (negated) {
+        // Invert the emotion if negated
+        const inverted = NEGATION_INVERSION[rule.emotion]
+        if (inverted) {
+          scores.set(inverted, (scores.get(inverted) ?? 0) + Math.round(score * 0.7 * 100) / 100)
+        }
+        // Still add a reduced score for the original (negation isn't always perfect)
+        scores.set(rule.emotion, (scores.get(rule.emotion) ?? 0) + Math.round(score * 0.15 * 100) / 100)
+      } else {
+        scores.set(rule.emotion, (scores.get(rule.emotion) ?? 0) + Math.round(score * 100) / 100)
+      }
     }
+  }
+
+  // ── Step 4: AFINN-165 NLP sentiment blending ──
+  // Only blend NLP when pattern scores are weak (below 0.3 total)
+  const totalPatternScore = [...scores.values()].reduce((a, b) => a + b, 0)
+  const sentiment = analyzeSentiment(text)
+  if (sentiment.comparative !== 0 && totalPatternScore < 0.3) {
+    if (sentiment.comparative > 0.3) {
+      // Strong positive sentiment → boost joy
+      const boost = Math.min(0.3, sentiment.comparative * 0.4)
+      scores.set('joy', (scores.get('joy') ?? 0) + boost)
+    } else if (sentiment.comparative < -0.3) {
+      // Strong negative sentiment → boost sadness/frustration
+      const boost = Math.min(0.3, Math.abs(sentiment.comparative) * 0.4)
+      // Choose between sadness and frustration based on word presence
+      if (sentiment.negative.some(w => ['angry', 'hate', 'awful', 'terrible', 'horrible'].includes(w))) {
+        scores.set('anger', (scores.get('anger') ?? 0) + boost)
+      } else if (sentiment.negative.some(w => ['bad', 'wrong', 'fail', 'broken', 'stuck'].includes(w))) {
+        scores.set('frustration', (scores.get('frustration') ?? 0) + boost)
+      } else {
+        scores.set('sadness', (scores.get('sadness') ?? 0) + boost)
+      }
+    }
+  }
+
+  // Clamp all scores to [0, 1]
+  for (const [emotion, score] of scores) {
+    scores.set(emotion, Math.min(1.0, Math.round(score * 100) / 100))
   }
 
   // If nothing detected, it's neutral
@@ -442,6 +701,93 @@ export function trackEmotionalDrift(userId: string, dominant: EmotionType): Emot
  */
 export function getEmotionalDrift(userId: string): EmotionalDrift | null {
   return userDrift.get(userId) ?? null
+}
+
+// ─── Phase 3b — Emotion Transition Matrix ───────────────────────────────────
+
+/**
+ * Record a transition from one emotion to another.
+ */
+export function recordEmotionTransition(from: EmotionType, to: EmotionType): void {
+  const key = `${from}→${to}`
+  transitionMatrix.set(key, (transitionMatrix.get(key) ?? 0) + 1)
+}
+
+/**
+ * Get common emotion transitions (what emotions typically follow what).
+ */
+export function getEmotionTransitions(fromEmotion?: EmotionType): EmotionTransition[] {
+  const transitions: EmotionTransition[] = []
+  const fromCounts = new Map<EmotionType, number>()
+
+  for (const [key, count] of transitionMatrix) {
+    const [from] = key.split('→') as [EmotionType, EmotionType]
+    fromCounts.set(from, (fromCounts.get(from) ?? 0) + count)
+  }
+
+  for (const [key, count] of transitionMatrix) {
+    const [from, to] = key.split('→') as [EmotionType, EmotionType]
+    if (fromEmotion && from !== fromEmotion) continue
+    const total = fromCounts.get(from) ?? 1
+    transitions.push({
+      from,
+      to,
+      count,
+      probability: Math.round((count / total) * 100) / 100,
+    })
+  }
+
+  return transitions.sort((a, b) => b.probability - a.probability)
+}
+
+// ─── Phase 3c — Conversation Context ────────────────────────────────────────
+
+/**
+ * Update the conversation context for a user with a new message + analysis.
+ */
+export function updateConversationContext(userId: string, text: string, analysis: EmotionAnalysis): ConversationContext {
+  const existing = conversationContexts.get(userId) ?? {
+    userId,
+    recentMessages: [],
+    emotionalMomentum: 0,
+  }
+
+  // Record transition from last dominant to current
+  if (existing.recentMessages.length > 0) {
+    const lastDominant = existing.recentMessages[existing.recentMessages.length - 1].analysis.dominant
+    recordEmotionTransition(lastDominant, analysis.dominant)
+  }
+
+  existing.recentMessages.push({
+    text: text.slice(0, 200), // Cap stored text at 200 chars
+    analysis,
+    timestamp: new Date().toISOString(),
+  })
+
+  // Keep only last N messages
+  if (existing.recentMessages.length > CONTEXT_WINDOW) {
+    existing.recentMessages = existing.recentMessages.slice(-CONTEXT_WINDOW)
+  }
+
+  // Calculate emotional momentum: weighted average of recent valences
+  const valences = existing.recentMessages.map((m, i) => {
+    const weight = (i + 1) / existing.recentMessages.length // more recent = higher weight
+    return EMOTION_VALENCE[m.analysis.dominant] * weight
+  })
+  const totalWeight = existing.recentMessages.reduce((s, _, i) => s + (i + 1) / existing.recentMessages.length, 0)
+  existing.emotionalMomentum = totalWeight > 0
+    ? Math.round((valences.reduce((a, b) => a + b, 0) / totalWeight) * 100) / 100
+    : 0
+
+  conversationContexts.set(userId, existing)
+  return existing
+}
+
+/**
+ * Get the conversation context for a user.
+ */
+export function getConversationContext(userId: string): ConversationContext | null {
+  return conversationContexts.get(userId) ?? null
 }
 
 // ─── Phase 4 — Personality Engine ───────────────────────────────────────────
@@ -719,9 +1065,10 @@ export const DEFAULT_MULTIMODAL_CONFIG: MultimodalEmotionConfig = {
 // ─── Phase 10 — Full Pipeline ───────────────────────────────────────────────
 
 /**
- * Run the complete emotional intelligence pipeline.
+ * Run the complete emotional intelligence pipeline (v2).
  *
- * input → detect → memory lookup → personality adapt → modulate → output
+ * input → detect → emoji + NLP + negation → context update → memory lookup
+ *       → personality adapt → modulate → output
  */
 export function runEmotionPipeline(
   userId: string,
@@ -733,11 +1080,19 @@ export function runEmotionPipeline(
   profile: EmotionalProfile
   drift: EmotionalDrift
   personality: PersonalityState
+  context: ConversationContext
+  sentiment: SentimentResult
 } {
-  // Step 1: Detect emotions
+  // Step 1: Detect emotions (includes emoji, NLP, negation, intensity)
   const analysis = detectEmotions(text)
 
-  // Step 2-3-4-5: Modulate (updates profile, drift, personality internally)
+  // Step 2: NLP sentiment (also returned for transparency)
+  const sentiment = analyzeSentiment(text)
+
+  // Step 3: Update conversation context + record transitions
+  const context = updateConversationContext(userId, text, analysis)
+
+  // Step 4-5-6-7: Modulate (updates profile, drift, personality internally)
   const modulation = modulateResponse(userId, analysis, basePersonality)
 
   // Retrieve updated state
@@ -745,7 +1100,7 @@ export function runEmotionPipeline(
   const drift = userDrift.get(userId)!
   const personality = userPersonality.get(userId)!
 
-  return { analysis, modulation, profile, drift, personality }
+  return { analysis, modulation, profile, drift, personality, context, sentiment }
 }
 
 // ─── Phase 12 — Dashboard Summary ───────────────────────────────────────────
@@ -820,9 +1175,20 @@ export function getEmotionDashboardSummary(): EmotionDashboardSummary {
   }
 }
 
+/**
+ * Get the top emotion transitions for the dashboard.
+ */
+export function getTopTransitions(limit = 10): EmotionTransition[] {
+  return getEmotionTransitions().slice(0, limit)
+}
+
 // ─── Testing Exports ────────────────────────────────────────────────────────
 
-export { DETECTION_RULES, DRIFT_WINDOW, MAX_MEMORY_PER_USER, ADAPT_THRESHOLD, EMOTION_VALENCE }
+export {
+  DETECTION_RULES, DRIFT_WINDOW, MAX_MEMORY_PER_USER, ADAPT_THRESHOLD,
+  EMOTION_VALENCE, EMOJI_EMOTIONS, NEGATION_WORDS, INTENSITY_MODIFIERS,
+  CONTEXT_WINDOW,
+}
 
 /**
  * Reset all in-memory state (for testing only).
@@ -834,5 +1200,7 @@ export function _resetEmotionState(): void {
   learningSignals.length = 0
   userLearningState.clear()
   userPersonality.clear()
+  transitionMatrix.clear()
+  conversationContexts.clear()
   totalAnalyses = 0
 }

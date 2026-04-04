@@ -21,10 +21,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   // Phase 1 — Detection
   detectEmotions,
+  analyzeSentiment,
   EMOTION_TYPES,
   EMOTION_TYPE_COUNT,
   EMOTION_MODELS,
   EMOTION_MODEL_COUNT,
+  EMOJI_EMOTION_COUNT,
   DETECTION_RULES,
 
   // Phase 2 — Weighting
@@ -35,6 +37,13 @@ import {
   trackEmotionalDrift,
   getEmotionalDrift,
   DRIFT_WINDOW,
+
+  // Phase 3b — Transitions
+  getTopTransitions,
+
+  // Phase 3c — Context
+  getConversationContext,
+  CONTEXT_WINDOW,
 
   // Phase 4 — Personality
   adaptPersonality,
@@ -562,6 +571,8 @@ describe('Full Pipeline Integration', () => {
     expect(result.profile).toBeDefined()
     expect(result.drift).toBeDefined()
     expect(result.personality).toBeDefined()
+    expect(result.context).toBeDefined()
+    expect(result.sentiment).toBeDefined()
   })
 
   it('pipeline evolves personality over multiple interactions', () => {
@@ -581,5 +592,204 @@ describe('Full Pipeline Integration', () => {
     expect(getEmotionalDrift('user1')).toBeNull()
     expect(getEmotionHistory('user1')).toEqual([])
     expect(getEmotionDashboardSummary().totalAnalyses).toBe(0)
+  })
+})
+
+// ─── v2 Enhancement: NLP Sentiment Analysis ─────────────────────────────────
+
+describe('v2 — NLP Sentiment Analysis', () => {
+  it('analyzeSentiment returns AFINN-165 scores', () => {
+    const result = analyzeSentiment('I love this amazing product!')
+    expect(result.score).toBeGreaterThan(0)
+    expect(result.comparative).toBeGreaterThan(0)
+    expect(result.positive.length).toBeGreaterThan(0)
+  })
+
+  it('detects negative sentiment', () => {
+    const result = analyzeSentiment('This is terrible and awful')
+    expect(result.score).toBeLessThan(0)
+    expect(result.negative.length).toBeGreaterThan(0)
+  })
+
+  it('returns zero for neutral text', () => {
+    const result = analyzeSentiment('The meeting is at 3pm')
+    expect(result.comparative).toBe(0)
+  })
+
+  it('NLP sentiment boosts emotion detection for ambiguous text', () => {
+    // Text with strong positive AFINN words but no pattern keywords
+    const result = detectEmotions('What a wonderful delightful magnificent superb day')
+    // NLP should help detect positive emotion even without exact keyword matches
+    expect(result.emotions.length).toBeGreaterThan(0)
+    // At minimum it should detect something (joy from NLP or neutral)
+    expect(result.dominant).toBeDefined()
+  })
+})
+
+// ─── v2 Enhancement: Emoji Detection ────────────────────────────────────────
+
+describe('v2 — Emoji Emotion Detection', () => {
+  it('exports emoji count', () => {
+    expect(EMOJI_EMOTION_COUNT).toBeGreaterThan(80)
+  })
+
+  it('detects joy from happy emoji', () => {
+    const result = detectEmotions('Great news! 😀🎉')
+    expect(result.dominant).toBe('joy')
+    expect(result.emotions[0].score).toBeGreaterThan(0.3)
+  })
+
+  it('detects sadness from sad emoji', () => {
+    const result = detectEmotions('Oh no 😢😭')
+    const hasSadness = result.emotions.some(e => e.type === 'sadness')
+    expect(hasSadness).toBe(true)
+  })
+
+  it('detects anger from angry emoji', () => {
+    const result = detectEmotions('Unacceptable! 😡🤬')
+    const hasAnger = result.emotions.some(e => e.type === 'anger')
+    expect(hasAnger).toBe(true)
+  })
+
+  it('detects confusion from thinking emoji', () => {
+    const result = detectEmotions('🤔🤔🤔 hmm')
+    const hasConfusion = result.emotions.some(e => e.type === 'confusion')
+    expect(hasConfusion).toBe(true)
+  })
+
+  it('handles multiple emoji types', () => {
+    const result = detectEmotions('😀😢 mixed feelings')
+    expect(result.emotions.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ─── v2 Enhancement: Negation Detection ─────────────────────────────────────
+
+describe('v2 — Negation Detection', () => {
+  it('inverts "not happy" to sadness', () => {
+    const result = detectEmotions('I am not happy about this')
+    const hasSadness = result.emotions.some(e => e.type === 'sadness')
+    expect(hasSadness).toBe(true)
+  })
+
+  it('inverts "not angry" away from anger', () => {
+    const result = detectEmotions("I'm not angry at all")
+    // Anger should be very low or absent; trust should appear
+    const angerScore = result.emotions.find(e => e.type === 'anger')?.score ?? 0
+    const trustScore = result.emotions.find(e => e.type === 'trust')?.score ?? 0
+    expect(trustScore).toBeGreaterThan(angerScore)
+  })
+
+  it("doesn't negate when no negation present", () => {
+    const result = detectEmotions('I am so happy and excited')
+    expect(result.dominant).toBe('joy')
+  })
+})
+
+// ─── v2 Enhancement: Intensity Modifiers ────────────────────────────────────
+
+describe('v2 — Intensity Modifiers', () => {
+  it('"extremely happy" scores higher than "happy"', () => {
+    const normal = detectEmotions('I am happy')
+    const intense = detectEmotions('I am extremely happy')
+    const normalJoy = normal.emotions.find(e => e.type === 'joy')?.score ?? 0
+    const intenseJoy = intense.emotions.find(e => e.type === 'joy')?.score ?? 0
+    expect(intenseJoy).toBeGreaterThan(normalJoy)
+  })
+
+  it('"slightly frustrated" scores lower than "frustrated"', () => {
+    const normal = detectEmotions('I am frustrated')
+    const mild = detectEmotions('I am slightly frustrated')
+    const normalFrust = normal.emotions.find(e => e.type === 'frustration')?.score ?? 0
+    const mildFrust = mild.emotions.find(e => e.type === 'frustration')?.score ?? 0
+    expect(mildFrust).toBeLessThan(normalFrust)
+  })
+
+  it('"very angry" amplifies anger', () => {
+    const result = detectEmotions('I am very angry')
+    const anger = result.emotions.find(e => e.type === 'anger')?.score ?? 0
+    expect(anger).toBeGreaterThan(0.4)
+  })
+})
+
+// ─── v2 Enhancement: Emotion Transitions ────────────────────────────────────
+
+describe('v2 — Emotion Transitions', () => {
+  it('records transitions between pipeline runs', () => {
+    runEmotionPipeline('user1', 'I am happy!', 'professional')
+    runEmotionPipeline('user1', 'Now I am frustrated and stuck', 'professional')
+    const transitions = getTopTransitions()
+    expect(transitions.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('transitions have probability between 0 and 1', () => {
+    runEmotionPipeline('user1', 'I am happy!', 'professional')
+    runEmotionPipeline('user1', 'I am sad now', 'professional')
+    runEmotionPipeline('user1', 'Back to happy!', 'professional')
+    const transitions = getTopTransitions()
+    for (const t of transitions) {
+      expect(t.probability).toBeGreaterThanOrEqual(0)
+      expect(t.probability).toBeLessThanOrEqual(1)
+      expect(t.count).toBeGreaterThanOrEqual(1)
+    }
+  })
+})
+
+// ─── v2 Enhancement: Conversation Context ───────────────────────────────────
+
+describe('v2 — Conversation Context', () => {
+  it('pipeline returns context', () => {
+    const result = runEmotionPipeline('user1', 'Hello!', 'professional')
+    expect(result.context).toBeDefined()
+    expect(result.context.userId).toBe('user1')
+    expect(result.context.recentMessages.length).toBe(1)
+  })
+
+  it('context tracks multiple messages', () => {
+    runEmotionPipeline('user1', 'First message', 'professional')
+    runEmotionPipeline('user1', 'Second message', 'professional')
+    const result = runEmotionPipeline('user1', 'Third message', 'professional')
+    expect(result.context.recentMessages.length).toBe(3)
+  })
+
+  it('context caps at CONTEXT_WINDOW', () => {
+    for (let i = 0; i < 10; i++) {
+      runEmotionPipeline('user1', `Message ${i}`, 'professional')
+    }
+    const ctx = getConversationContext('user1')
+    expect(ctx).not.toBeNull()
+    expect(ctx!.recentMessages.length).toBeLessThanOrEqual(CONTEXT_WINDOW)
+  })
+
+  it('emotional momentum is between -1 and 1', () => {
+    runEmotionPipeline('user1', 'I am happy!', 'professional')
+    runEmotionPipeline('user1', 'I am frustrated', 'professional')
+    const ctx = getConversationContext('user1')
+    expect(ctx!.emotionalMomentum).toBeGreaterThanOrEqual(-1)
+    expect(ctx!.emotionalMomentum).toBeLessThanOrEqual(1)
+  })
+
+  it('returns null for unknown user', () => {
+    expect(getConversationContext('unknown')).toBeNull()
+  })
+})
+
+// ─── v2 Enhancement: Sentiment Pipeline ─────────────────────────────────────
+
+describe('v2 — Sentiment in Pipeline', () => {
+  it('pipeline returns sentiment result', () => {
+    const result = runEmotionPipeline('user1', 'I love this!', 'professional')
+    expect(result.sentiment).toBeDefined()
+    expect(result.sentiment.score).toBeGreaterThan(0)
+    expect(result.sentiment.positive.length).toBeGreaterThan(0)
+  })
+
+  it('negative sentiment matches negative emotions', () => {
+    const result = runEmotionPipeline('user1', 'This is terrible and broken', 'professional')
+    expect(result.sentiment.score).toBeLessThan(0)
+    const hasNeg = result.analysis.emotions.some(e =>
+      ['sadness', 'anger', 'frustration'].includes(e.type)
+    )
+    expect(hasNeg).toBe(true)
   })
 })

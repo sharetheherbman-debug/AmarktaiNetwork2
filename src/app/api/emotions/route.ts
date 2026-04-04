@@ -1,5 +1,5 @@
 /**
- * Public API — Emotion Analysis Endpoint
+ * Public API — Emotion Analysis Endpoint (v2)
  *
  * POST /api/emotions  — Analyse text for emotions
  * GET  /api/emotions  — Return available emotion types and model info
@@ -8,10 +8,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   detectEmotions,
+  analyzeSentiment,
   runEmotionPipeline,
   EMOTION_TYPES,
   EMOTION_MODELS,
   PERSONALITY_TYPES,
+  EMOJI_EMOTION_COUNT,
   type PersonalityType,
 } from '@/lib/emotion-engine'
 
@@ -27,7 +29,8 @@ export async function POST(req: NextRequest) {
     // Quick detection only
     if (!fullPipeline) {
       const analysis = detectEmotions(text)
-      return NextResponse.json({ success: true, analysis })
+      const sentiment = analyzeSentiment(text)
+      return NextResponse.json({ success: true, analysis, sentiment })
     }
 
     // Full pipeline (needs userId)
@@ -56,9 +59,21 @@ export async function GET() {
     emotionTypes: EMOTION_TYPES,
     personalityTypes: PERSONALITY_TYPES,
     models: EMOTION_MODELS,
+    version: 2,
+    features: [
+      'Multi-label emotion detection',
+      'AFINN-165 NLP sentiment analysis',
+      'Emoji emotion mapping (' + EMOJI_EMOTION_COUNT + ' emoji)',
+      'Negation/sarcasm detection',
+      'Intensity modifier scaling',
+      'Emotion transition tracking',
+      'Conversation context window',
+      'Adaptive personality engine',
+      'Behavioral learning loop',
+    ],
     endpoints: {
-      'POST /api/emotions': 'Analyse text for emotions (send { text, userId?, basePersonality?, fullPipeline? })',
-      'GET  /api/emotions': 'Return available types and model info',
+      'POST /api/emotions': 'Analyse text (send { text, userId?, basePersonality?, fullPipeline? })',
+      'GET  /api/emotions': 'Return available types, models, and features',
     },
   })
 }

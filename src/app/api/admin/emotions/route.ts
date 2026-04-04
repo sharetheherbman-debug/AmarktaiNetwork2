@@ -1,8 +1,8 @@
 /**
- * Admin API — Emotional Intelligence Dashboard Data
+ * Admin API — Emotional Intelligence Dashboard Data (v2)
  *
- * GET  /api/admin/emotions         — Dashboard summary
- * POST /api/admin/emotions         — Admin actions (get_profile, get_drift, record_signal)
+ * GET  /api/admin/emotions         — Dashboard summary + transitions
+ * POST /api/admin/emotions         — Admin actions (get_profile, get_drift, get_transitions, etc.)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -12,6 +12,8 @@ import {
   getEmotionalDrift,
   getEmotionHistory,
   getLearningState,
+  getConversationContext,
+  getTopTransitions,
   recordLearningSignal,
   type LearningSignal,
   type PersonalityType,
@@ -20,7 +22,8 @@ import {
 export async function GET() {
   try {
     const summary = getEmotionDashboardSummary()
-    return NextResponse.json({ success: true, ...summary })
+    const transitions = getTopTransitions(10)
+    return NextResponse.json({ success: true, ...summary, transitions })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to get emotion dashboard'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -62,6 +65,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, learning })
       }
 
+      case 'get_context': {
+        if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+        const context = getConversationContext(userId)
+        return NextResponse.json({ success: true, context })
+      }
+
+      case 'get_transitions': {
+        const fromEmotion = body.fromEmotion
+        const transitions = getTopTransitions(body.limit || 20)
+        const filtered = fromEmotion
+          ? transitions.filter(t => t.from === fromEmotion)
+          : transitions
+        return NextResponse.json({ success: true, transitions: filtered })
+      }
+
       case 'record_signal': {
         const signal: LearningSignal = {
           userId: body.userId,
@@ -77,7 +95,7 @@ export async function POST(req: NextRequest) {
 
       default:
         return NextResponse.json(
-          { error: `Unknown action: ${action}. Use: get_profile, get_drift, get_history, get_learning, record_signal` },
+          { error: `Unknown action: ${action}. Use: get_profile, get_drift, get_history, get_learning, get_context, get_transitions, record_signal` },
           { status: 400 },
         )
     }
