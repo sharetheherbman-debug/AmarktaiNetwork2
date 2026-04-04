@@ -144,6 +144,22 @@ export const CANONICAL_PROVIDERS: readonly CanonicalProviderEntry[] = [
     supportedCapabilityFamilies: ['video_generation', 'image_generation'],
     sortOrder: 10,
   },
+  {
+    key: 'anthropic',
+    displayName: 'Anthropic',
+    defaultBaseUrl: 'https://api.anthropic.com',
+    healthCheckSupported: true,
+    supportedCapabilityFamilies: ['chat', 'reasoning', 'code', 'vision', 'agent_planning'],
+    sortOrder: 11,
+  },
+  {
+    key: 'cohere',
+    displayName: 'Cohere',
+    defaultBaseUrl: 'https://api.cohere.com',
+    healthCheckSupported: true,
+    supportedCapabilityFamilies: ['chat', 'embeddings', 'reranking'],
+    sortOrder: 12,
+  },
 ] as const;
 
 /**

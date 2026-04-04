@@ -122,7 +122,7 @@ export interface AppProfile {
 // ── Shared constants ────────────────────────────────────────────────────────
 
 const ALL_PROVIDERS = [
-  'openai', 'groq', 'gemini', 'huggingface', 'together', 'openrouter', 'deepseek', 'nvidia', 'replicate', 'grok',
+  'openai', 'groq', 'gemini', 'huggingface', 'together', 'openrouter', 'deepseek', 'nvidia', 'replicate', 'grok', 'anthropic', 'cohere',
 ];
 
 const BACKBONE_PROVIDERS = [

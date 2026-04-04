@@ -52,6 +52,16 @@ const COST_RATES: Record<string, { input: number; output: number }> = {
   'wan-ai/wan2.1-t2v-480p':  { input: 0.0032, output: 0.0032 },
   // HuggingFace (mostly free inference)
   'meta-llama/Llama-3.3-70B-Instruct': { input: 0.00059, output: 0.00079 },
+  // Anthropic
+  'claude-3.5-sonnet':       { input: 0.003, output: 0.015 },
+  'claude-3-opus':           { input: 0.015, output: 0.075 },
+  'claude-3-haiku':          { input: 0.00025, output: 0.00125 },
+  'claude-sonnet-4':         { input: 0.003, output: 0.015 },
+  // Cohere
+  'command-r-plus':          { input: 0.003, output: 0.015 },
+  'command-r':               { input: 0.0005, output: 0.0015 },
+  'embed-english-v3.0':     { input: 0.0001, output: 0.0001 },
+  'rerank-english-v3.0':    { input: 0.002, output: 0.002 },
   // Fallback
   'default':                 { input: 0.001,  output: 0.002 },
 }

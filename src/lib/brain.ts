@@ -263,6 +263,56 @@ export async function callProvider(
         return { ok: true, output: data?.choices?.[0]?.message?.content ?? null, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
       }
 
+      // ── Anthropic (Claude) ────────────────────────────────────────────────
+      case 'anthropic': {
+        const base = vault.baseUrl || 'https://api.anthropic.com'
+        const res = await fetch(`${base}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': vault.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: resolvedModel,
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: message }],
+          }),
+          signal: AbortSignal.timeout(timeout),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+          return { ok: false, output: null, error: `Anthropic HTTP ${res.status}: ${body?.error?.message ?? 'request failed'}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+        const data = await res.json() as { content?: Array<{ text?: string }> }
+        const text = data?.content?.[0]?.text ?? null
+        return { ok: true, output: text, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+      }
+
+      // ── Cohere ────────────────────────────────────────────────────────────
+      case 'cohere': {
+        const base = vault.baseUrl || 'https://api.cohere.com'
+        const res = await fetch(`${base}/v2/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${vault.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: resolvedModel,
+            messages: [{ role: 'user', content: message }],
+          }),
+          signal: AbortSignal.timeout(timeout),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { message?: string }
+          return { ok: false, output: null, error: `Cohere HTTP ${res.status}: ${body?.message ?? 'request failed'}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+        const data = await res.json() as { message?: { content?: Array<{ text?: string }> } }
+        const text = data?.message?.content?.[0]?.text ?? null
+        return { ok: true, output: text, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+      }
+
       default:
         return { ok: false, output: null, error: `Unknown provider: "${providerKey}"`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
     }
