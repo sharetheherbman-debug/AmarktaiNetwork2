@@ -77,16 +77,17 @@ describe('STT Expansion', () => {
     expect(small!.fallback_priority).toBeGreaterThanOrEqual(9)
   })
 
-  it('STT models span 5 providers', () => {
+  it('STT models span 6 providers', () => {
     const all = getModelRegistry()
     const stt = all.filter((m) => 'supports_stt' in m && m.supports_stt)
     const providers = new Set(stt.map((m) => m.provider))
-    expect(providers.size).toBe(5)
+    expect(providers.size).toBe(6)
     expect(providers).toContain('groq')
     expect(providers).toContain('openai')
     expect(providers).toContain('gemini')
     expect(providers).toContain('huggingface')
     expect(providers).toContain('replicate')
+    expect(providers).toContain('qwen')
   })
 })
 
