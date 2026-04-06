@@ -441,7 +441,7 @@ async function main() {
       },
     })
   }
-  console.log('✅ AI provider vault seeded (13 providers · all unconfigured)')
+  console.log('✅ AI provider vault seeded (14 providers · all unconfigured)')
 
   console.log('\n✨ Seeding complete!')
   console.log('   Admin login: admin@amarktai.com / admin123!')

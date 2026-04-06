@@ -58,8 +58,10 @@ export async function POST(request: NextRequest) {
     capabilities.some(c => SPECIALIST_CAPABILITIES.has(c))
 
   if (isSpecialist && !body.providerKey) {
-    const baseUrl = new URL(request.url)
-    const origin = `${baseUrl.protocol}//${baseUrl.host}`
+    // Use a safe, hardcoded internal origin to prevent SSRF via Host header manipulation
+    const origin = process.env.NEXTAUTH_URL?.replace(/\/$/, '')
+      || process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+      || 'http://localhost:3000'
 
     if (['tts', 'voice', 'voice_output'].includes(body.taskType)) {
       const ttsRes = await fetch(`${origin}/api/brain/tts`, {

@@ -135,24 +135,14 @@ export function getAppSafetyConfig(appSlug: string): SafetyConfig {
  */
 export async function loadAppSafetyConfigFromDB(appSlug: string): Promise<SafetyConfig> {
   try {
-    // Use dynamic access because AppAiProfile was recently extended with adultMode
-    const db = prisma as unknown as {
-      appAiProfile?: {
-        findUnique: (args: unknown) => Promise<{
-          safeMode: boolean;
-          adultMode: boolean;
-          suggestiveMode: boolean;
-        } | null>;
-      };
-    };
-    const row = await db.appAiProfile?.findUnique({
+    const row = await prisma.appAiProfile.findUnique({
       where: { appSlug },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+      select: { safeMode: true, adultMode: true, suggestiveMode: true },
+    });
     if (row) {
       const cfg: SafetyConfig = {
         safeMode:       row.safeMode,
-        adultMode:      Boolean(row.adultMode),
+        adultMode:      row.adultMode,
         suggestiveMode: row.suggestiveMode,
       };
       appSafetyConfigs.set(appSlug, cfg);
