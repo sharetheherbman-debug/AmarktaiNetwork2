@@ -1,0 +1,69 @@
+# ─── AmarktAI Network — systemd service unit ────────────────────────────────
+#
+# Install:
+#   cp /var/www/amarktai/repo/deploy/amarktai.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable amarktai
+#   systemctl start amarktai
+#
+# View logs:
+#   journalctl -u amarktai -f
+#
+# IMPORTANT: The ExecStart path points at .next/standalone/server.js.
+# Ensure you have run `scripts/deploy.sh` which copies .next/static into
+# the standalone directory before starting this service.
+
+[Unit]
+Description=AmarktAI Network — Next.js Application Server
+Documentation=https://github.com/sharetheherbman-debug/Amarktai-Network
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Run as a non-privileged user to prevent EACCES issues.
+# If www-data does not exist, substitute an appropriate low-privilege user.
+User=www-data
+Group=www-data
+
+# The standalone server.js must be run from within the standalone directory
+# so that it can locate its bundled node_modules and .next/static correctly.
+WorkingDirectory=/var/www/amarktai/repo/.next/standalone
+
+# Run the standalone server built by `next build` (output: 'standalone')
+ExecStart=/usr/bin/node /var/www/amarktai/repo/.next/standalone/server.js
+
+# Graceful stop: send SIGTERM and wait up to 30s before SIGKILL
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Environment
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+Environment=NEXT_TELEMETRY_DISABLED=1
+
+# Load runtime secrets from the .env file in the repo root.
+# Each KEY=value line in the file becomes an environment variable.
+EnvironmentFile=-/var/www/amarktai/repo/.env
+
+# Filesystem hardening
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/amarktai/repo/.next /var/www/amarktai/repo/prisma /tmp
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

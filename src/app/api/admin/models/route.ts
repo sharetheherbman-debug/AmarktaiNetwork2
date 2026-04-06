@@ -96,13 +96,44 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    models: Array.from(models).map((m) => ({
-      ...m,
-      display_name: m.model_name,
-      roles: [m.primary_role, ...m.secondary_roles],
-      health: m.health_status,
-      effectiveHealth: getProviderHealth(m.provider),
-    })),
+    models: Array.from(models).map((m) => {
+      // Derive a capabilities string array from the model's boolean flags
+      // so that UI components can render them without knowing the flag names.
+      const capabilities: string[] = []
+      if (m.supports_chat) capabilities.push('chat')
+      if (m.supports_reasoning) capabilities.push('reasoning')
+      if (m.supports_code) capabilities.push('code')
+      if (m.supports_tool_use) capabilities.push('tool_use')
+      if (m.supports_multilingual) capabilities.push('multilingual')
+      if (m.supports_structured_output) capabilities.push('structured_output')
+      if (m.supports_embeddings) capabilities.push('embeddings')
+      if (m.supports_reranking) capabilities.push('reranking')
+      if (m.supports_vision) capabilities.push('vision')
+      if (m.supports_image_generation) capabilities.push('image_generation')
+      if (m.supports_video_planning) capabilities.push('video_planning')
+      if (m.supports_video_generation) capabilities.push('video_generation')
+      if (m.supports_stt) capabilities.push('stt')
+      if (m.supports_tts) capabilities.push('tts')
+      if (m.supports_voice_interaction) capabilities.push('voice_interaction')
+      if (m.supports_agent_planning) capabilities.push('agent_planning')
+
+      return {
+        ...m,
+        // camelCase aliases expected by UI components
+        id: m.model_id,
+        displayName: m.model_name,
+        role: m.primary_role,
+        capabilities,
+        contextWindow: m.context_window,
+        latencyTier: m.latency_tier,
+        costTier: m.cost_tier,
+        // legacy snake_case aliases kept for backward compat
+        display_name: m.model_name,
+        roles: [m.primary_role, ...m.secondary_roles],
+        health: m.health_status,
+        effectiveHealth: getProviderHealth(m.provider),
+      }
+    }),
     total: models.length,
     registrySize: getModelRegistry().length,
     categorySummary: getCategorySummary(),
