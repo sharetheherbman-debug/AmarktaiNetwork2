@@ -14,6 +14,7 @@ const testSchema = z.object({
   message: z.string().min(1).max(16_000),
   taskType: z.string().default('chat'),
   providerKey: z.string().optional(), // override routing if specified
+  modelId: z.string().optional(),     // override model selection if specified
   appSlug: z.string().optional(),     // app context for safety/adult mode
 })
 
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
 
   // Direct provider override (admin manual test)
   if (body.providerKey) {
-    const result = await callProvider(body.providerKey, '', body.message)
+    const result = await callProvider(body.providerKey, body.modelId ?? '', body.message)
     const latencyMs = Date.now() - start
     await logBrainEvent({
       traceId,

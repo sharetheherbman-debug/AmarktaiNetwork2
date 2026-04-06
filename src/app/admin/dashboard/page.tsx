@@ -181,11 +181,13 @@ export default function DashboardOverview() {
   const totalReqs  = data?.brainStats?.totalRequests ?? 0
   const successReqs = data?.brainStats?.successCount ?? 0
   const errorReqs  = data?.brainStats?.errorCount ?? 0
-  const successRate = totalReqs > 0 ? Math.round((successReqs / totalReqs) * 100) : 100
+  const successRate = totalReqs > 0 ? Math.round((successReqs / totalReqs) * 100) : 0
 
+  // Compute local health score from real data only — no hardcoded fallback values.
+  // When the truth API provides a systemHealth score, that takes priority (see rendering below).
   const systemHealth = totalReqs > 0
     ? Math.round(((successReqs / totalReqs) * 0.7 + (healthyProviders.length > 0 ? 0.3 : 0)) * 100)
-    : healthyProviders.length > 0 ? 85 : enabledProviders.length > 0 ? 50 : 0
+    : 0
   const alertEvents = (data?.recentEvents ?? []).filter(e => e.severity === 'critical' || e.severity === 'error')
   const errorEvents = alertEvents.slice(0, 6)
 
