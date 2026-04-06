@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getVaultApiKey } from '@/lib/brain';
 
 /**
  * POST /api/brain/tts — Text-to-Speech endpoint
@@ -9,9 +10,13 @@ import { NextRequest, NextResponse } from 'next/server';
  *   - Gemini TTS (premium multimodal — gemini-2.5-flash-preview-tts)
  *   - HuggingFace TTS (free fallback — facebook/mms-tts-eng / facebook/mms-tts-fra)
  *
+ * API keys are resolved from the DB vault first, then env var fallback.
+ *
  * Accepts a JSON body with:
  *   - text (string, required) — the text to synthesise
  *   - voiceId (string, optional) — voice identifier (default: provider-specific)
+ *   - gender (string, optional) — 'male' | 'female' — maps to a default voice for the provider
+ *   - accent (string, optional) — accent hint used for model/voice selection
  *   - model (string, optional) — TTS model (default: auto-selected by provider)
  *   - speed (number, optional) — playback speed 0.25–4.0 (default: 1.0)
  *   - provider (string, optional) — 'groq' | 'openai' | 'gemini' | 'huggingface' | 'auto' (default: 'auto')
@@ -21,10 +26,42 @@ import { NextRequest, NextResponse } from 'next/server';
  * STRICT RULE: Never fakes success. Returns error if no provider configured.
  */
 
+/** Default voice mappings per provider and gender */
+const VOICE_BY_GENDER: Record<string, { male: string; female: string; default: string }> = {
+  groq: {
+    male:    'Atlas-PlayAI',
+    female:  'Arista-PlayAI',
+    default: 'Arista-PlayAI',
+  },
+  openai: {
+    male:    'onyx',
+    female:  'nova',
+    default: 'alloy',
+  },
+  gemini: {
+    male:    'Charon',
+    female:  'Kore',
+    default: 'Kore',
+  },
+  huggingface: {
+    male:    'facebook/mms-tts-eng',
+    female:  'facebook/mms-tts-eng',
+    default: 'facebook/mms-tts-eng',
+  },
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, voiceId, model: requestedModel, speed = 1.0, provider: requestedProvider = 'auto' } = body;
+    const {
+      text,
+      voiceId,
+      gender,
+      accent,
+      model: requestedModel,
+      speed = 1.0,
+      provider: requestedProvider = 'auto',
+    } = body;
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json(
@@ -33,17 +70,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const groqKey = process.env.GROQ_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    // Resolve API keys from DB vault (with env fallback)
+    const groqKey  = await getVaultApiKey('groq');
+    const openaiKey = await getVaultApiKey('openai');
+    const geminiKey = await getVaultApiKey('gemini');
+    const hfKey    = await getVaultApiKey('huggingface');
 
     // Determine provider
     let provider: 'groq' | 'openai' | 'gemini' | 'huggingface';
     if (requestedProvider === 'groq') {
       if (!groqKey) {
         return NextResponse.json(
-          { error: 'Groq TTS requested but GROQ_API_KEY is not configured.', executed: false, provider: 'groq', capability: 'voice_output' },
+          { error: 'Groq TTS requested but no Groq API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'groq', capability: 'voice_output' },
           { status: 503 },
         );
       }
@@ -51,7 +89,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'openai') {
       if (!openaiKey) {
         return NextResponse.json(
-          { error: 'OpenAI TTS requested but OPENAI_API_KEY is not configured.', executed: false, provider: 'openai', capability: 'voice_output' },
+          { error: 'OpenAI TTS requested but no OpenAI API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'openai', capability: 'voice_output' },
           { status: 503 },
         );
       }
@@ -59,7 +97,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'gemini') {
       if (!geminiKey) {
         return NextResponse.json(
-          { error: 'Gemini TTS requested but GEMINI_API_KEY is not configured.', executed: false, provider: 'gemini', capability: 'voice_output' },
+          { error: 'Gemini TTS requested but no Gemini API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'gemini', capability: 'voice_output' },
           { status: 503 },
         );
       }
@@ -67,7 +105,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'huggingface') {
       if (!hfKey) {
         return NextResponse.json(
-          { error: 'HuggingFace TTS requested but HUGGINGFACE_API_KEY is not configured.', executed: false, provider: 'huggingface', capability: 'voice_output' },
+          { error: 'HuggingFace TTS requested but no HuggingFace API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'huggingface', capability: 'voice_output' },
           { status: 503 },
         );
       }
@@ -84,16 +122,30 @@ export async function POST(request: NextRequest) {
         provider = 'huggingface';
       } else {
         return NextResponse.json(
-          { error: 'No TTS provider configured. Set GROQ_API_KEY (low cost), OPENAI_API_KEY (premium), GEMINI_API_KEY (multimodal), or HUGGINGFACE_API_KEY (free fallback) to enable voice output.', executed: false, capability: 'voice_output' },
+          {
+            error: 'No TTS provider configured. Add an API key via Admin → AI Providers. Supported providers: Groq (low cost), OpenAI (premium), Gemini (multimodal), HuggingFace (free fallback).',
+            executed: false,
+            capability: 'voice_output',
+          },
           { status: 503 },
         );
       }
     }
 
+    // Resolve the effective voice ID based on gender preference (if no explicit voiceId given)
+    const resolveVoice = (prov: string): string => {
+      if (voiceId) return voiceId;
+      const map = VOICE_BY_GENDER[prov];
+      if (!map) return '';
+      if (gender === 'male') return map.male;
+      if (gender === 'female') return map.female;
+      return map.default;
+    };
+
     if (provider === 'groq') {
       // Groq TTS via OpenAI-compatible endpoint
-      const model = requestedModel ?? 'playai-tts';
-      const voice = voiceId ?? 'Arista-PlayAI';
+      const model = requestedModel ?? (accent === 'arabic' ? 'playai-tts-arabic' : 'playai-tts');
+      const voice = resolveVoice('groq');
 
       const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
         method: 'POST',
@@ -132,7 +184,7 @@ export async function POST(request: NextRequest) {
     if (provider === 'gemini') {
       // Gemini TTS via Google Generative Language API
       const model = requestedModel ?? 'gemini-2.5-flash-preview-tts';
-      const voice = voiceId ?? 'Kore';
+      const voice = resolveVoice('gemini');
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
@@ -217,7 +269,7 @@ export async function POST(request: NextRequest) {
 
     // OpenAI TTS (premium path)
     const model = requestedModel ?? 'tts-1';
-    const voice = voiceId ?? 'alloy';
+    const voice = resolveVoice('openai');
 
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',

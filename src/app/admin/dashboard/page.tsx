@@ -29,6 +29,16 @@ interface DashboardData {
     timestamp: string
     product: { name: string } | null
   }>
+  recentBrainEvents?: Array<{
+    id: number
+    traceId: string
+    appSlug: string
+    taskType: string
+    routedProvider: string | null
+    success: boolean
+    latencyMs: number | null
+    timestamp: string
+  }>
   productStats: Array<{
     id: number
     name: string
@@ -86,6 +96,7 @@ const H = {
   disabled:     { label: 'Disabled', color: 'text-slate-500',   dot: 'bg-slate-600',   icon: WifiOff },
 } as const
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SEV = {
   critical: { color: 'text-red-400',   bg: 'bg-red-400/10',   dot: 'bg-red-400' },
   error:    { color: 'text-red-400',   bg: 'bg-red-400/10',   dot: 'bg-red-400' },
@@ -498,42 +509,58 @@ export default function DashboardOverview() {
 
       {/* ─── Bottom Section ─────────────────────────────────────── */}
       <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity (spans 2 cols) */}
+        {/* Recent Activity (spans 2 cols) — shows BrainEvents as primary feed */}
         <div className={`${CARD} lg:col-span-2`}>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-400" /> Recent Activity
+              <Brain className="w-4 h-4 text-violet-400" /> Recent AI Activity
             </h2>
             <Link href="/admin/dashboard/events" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
               View All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="p-4">
-            {(data?.recentEvents?.length ?? 0) === 0 ? (
+            {(data?.recentBrainEvents?.length ?? 0) === 0 ? (
               <div className="py-8 text-center">
-                <Activity className="w-6 h-6 text-slate-700 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No events logged yet</p>
+                <Brain className="w-6 h-6 text-slate-700 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">No AI requests logged yet</p>
+                <p className="text-xs text-slate-600 mt-1">Brain events appear here once apps start making requests</p>
               </div>
             ) : (
               <div className="space-y-1">
-                {(data?.recentEvents ?? []).slice(0, 8).map(ev => {
-                  const sev = SEV[ev.severity as keyof typeof SEV] ?? { color: 'text-slate-400', bg: 'bg-white/[0.03]', dot: 'bg-slate-500' }
-                  return (
-                    <div key={ev.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sev.dot}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">{ev.title}</p>
-                        <p className="text-[11px] text-slate-600">{ev.product?.name ?? '—'}</p>
-                      </div>
-                      <div className="text-right shrink-0 flex items-center gap-2">
-                        <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md ${sev.bg} ${sev.color}`}>{ev.severity}</span>
-                        <span className="text-[10px] text-slate-600 font-mono w-20 text-right">
-                          {formatDistanceToNow(new Date(ev.timestamp), { addSuffix: true })}
-                        </span>
-                      </div>
+                {(data?.recentBrainEvents ?? []).slice(0, 8).map(ev => (
+                  <div key={ev.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.success ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate font-mono">{ev.taskType}</p>
+                      <p className="text-[11px] text-slate-600 truncate">{ev.appSlug} · {ev.routedProvider ?? 'no provider'}</p>
                     </div>
-                  )
-                })}
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${ev.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {ev.success ? 'ok' : 'err'}
+                      </span>
+                      {ev.latencyMs != null && (
+                        <span className="text-[10px] text-slate-600 font-mono">{ev.latencyMs}ms</span>
+                      )}
+                      <span className="text-[10px] text-slate-600 font-mono w-20 text-right">
+                        {formatDistanceToNow(new Date(ev.timestamp), { addSuffix: true })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Secondary: app events if any critical ones */}
+            {(data?.recentEvents ?? []).some(e => e.severity === 'critical' || e.severity === 'error') && (
+              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                <p className="text-[10px] uppercase tracking-wider text-red-400 font-mono mb-2">⚠ App Alerts</p>
+                {(data?.recentEvents ?? []).filter(e => e.severity === 'critical' || e.severity === 'error').slice(0, 3).map(ev => (
+                  <div key={ev.id} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-red-500/5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <p className="text-xs text-red-300 truncate flex-1">{ev.title}</p>
+                    <span className="text-[10px] text-slate-600">{ev.product?.name ?? '—'}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

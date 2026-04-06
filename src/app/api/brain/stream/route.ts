@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
-import { authenticateApp } from '@/lib/brain'
+import { authenticateApp, getVaultApiKey } from '@/lib/brain'
 import { scanContent } from '@/lib/content-filter'
 
 // ── Provider streaming configuration ──────────────────────────────────────────
 
 /** Base URLs for OpenAI-compatible streaming providers */
-const STREAMING_PROVIDERS: Record<string, { baseUrl: string; envKey: string }> = {
-  openai:     { baseUrl: 'https://api.openai.com',                             envKey: 'OPENAI_API_KEY' },
-  groq:       { baseUrl: 'https://api.groq.com/openai',                        envKey: 'GROQ_API_KEY' },
-  deepseek:   { baseUrl: 'https://api.deepseek.com',                           envKey: 'DEEPSEEK_API_KEY' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api',                          envKey: 'OPENROUTER_API_KEY' },
-  together:   { baseUrl: 'https://api.together.xyz',                           envKey: 'TOGETHER_API_KEY' },
-  grok:       { baseUrl: 'https://api.x.ai',                                   envKey: 'GROK_API_KEY' },
-  qwen:       { baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode', envKey: 'QWEN_API_KEY' },
-  nvidia:     { baseUrl: 'https://integrate.api.nvidia.com',                    envKey: 'NVIDIA_API_KEY' },
+const STREAMING_PROVIDERS: Record<string, { baseUrl: string }> = {
+  openai:     { baseUrl: 'https://api.openai.com' },
+  groq:       { baseUrl: 'https://api.groq.com/openai' },
+  deepseek:   { baseUrl: 'https://api.deepseek.com' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api' },
+  together:   { baseUrl: 'https://api.together.xyz' },
+  grok:       { baseUrl: 'https://api.x.ai' },
+  qwen:       { baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode' },
+  nvidia:     { baseUrl: 'https://integrate.api.nvidia.com' },
+  mistral:    { baseUrl: 'https://api.mistral.ai' },
 }
 
 /** Default models per provider for streaming */
@@ -31,6 +32,7 @@ const DEFAULT_STREAM_MODELS: Record<string, string> = {
   gemini:     'gemini-2.0-flash',
   anthropic:  'claude-sonnet-4-20250514',
   cohere:     'command-r-plus',
+  mistral:    'mistral-small-latest',
 }
 
 // ── Request schema ────────────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Resolve provider and model ────────────────────────────────────────
-  const resolvedProvider = resolveProvider(body.provider)
+  const resolvedProvider = await resolveProvider(body.provider)
   if (!resolvedProvider) {
     return NextResponse.json(
       { error: 'No streaming provider is configured — add at least one API key.', traceId },
@@ -122,9 +124,9 @@ export async function POST(request: NextRequest) {
       try {
         // ── Anthropic streaming (Messages API with SSE) ──────────────
         if (resolvedProvider === 'anthropic') {
-          const apiKey = process.env.ANTHROPIC_API_KEY
+          const apiKey = await getVaultApiKey('anthropic')
           if (!apiKey) {
-            send({ type: 'error', message: 'Provider anthropic is not configured — no API key found.' })
+            send({ type: 'error', message: 'Provider anthropic is not configured — add an API key via Admin → AI Providers.' })
             controller.close()
             return
           }
@@ -170,9 +172,9 @@ export async function POST(request: NextRequest) {
 
         // ── Gemini streaming (generateContent with stream) ───────────
         if (resolvedProvider === 'gemini') {
-          const apiKey = process.env.GEMINI_API_KEY
+          const apiKey = await getVaultApiKey('gemini')
           if (!apiKey) {
-            send({ type: 'error', message: 'Provider gemini is not configured — no API key found.' })
+            send({ type: 'error', message: 'Provider gemini is not configured — add an API key via Admin → AI Providers.' })
             controller.close()
             return
           }
@@ -210,9 +212,9 @@ export async function POST(request: NextRequest) {
 
         // ── Cohere streaming (chat endpoint with stream) ─────────────
         if (resolvedProvider === 'cohere') {
-          const apiKey = process.env.COHERE_API_KEY
+          const apiKey = await getVaultApiKey('cohere')
           if (!apiKey) {
-            send({ type: 'error', message: 'Provider cohere is not configured — no API key found.' })
+            send({ type: 'error', message: 'Provider cohere is not configured — add an API key via Admin → AI Providers.' })
             controller.close()
             return
           }
@@ -253,7 +255,7 @@ export async function POST(request: NextRequest) {
           return
         }
 
-        // ── OpenAI-compatible streaming (8 providers) ────────────────
+        // ── OpenAI-compatible streaming (9 providers incl. Mistral) ──
         const providerConfig = STREAMING_PROVIDERS[resolvedProvider]
         if (!providerConfig) {
           send({ type: 'error', message: `Provider "${resolvedProvider}" does not support streaming.` })
@@ -261,9 +263,9 @@ export async function POST(request: NextRequest) {
           return
         }
 
-        const apiKey = process.env[providerConfig.envKey]
+        const apiKey = await getVaultApiKey(resolvedProvider)
         if (!apiKey) {
-          send({ type: 'error', message: `Provider ${resolvedProvider} is not configured — no API key found.` })
+          send({ type: 'error', message: `Provider ${resolvedProvider} is not configured — add an API key via Admin → AI Providers.` })
           controller.close()
           return
         }
@@ -329,26 +331,29 @@ export async function POST(request: NextRequest) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Resolve which provider to use (auto-select first available or explicit). */
-function resolveProvider(requested?: string): string | null {
-  if (requested && (STREAMING_PROVIDERS[requested] || requested === 'anthropic' || requested === 'gemini' || requested === 'cohere')) {
+/**
+ * Resolve which provider to use (auto-select first available or explicit).
+ * Checks DB vault first via getVaultApiKey(), falls back to env vars.
+ */
+async function resolveProvider(requested?: string): Promise<string | null> {
+  const allSupported = [...Object.keys(STREAMING_PROVIDERS), 'anthropic', 'gemini', 'cohere']
+
+  if (requested && allSupported.includes(requested)) {
     return requested
   }
 
-  // Auto-select: check environment for first available provider
-  const priority = ['openai', 'groq', 'anthropic', 'gemini', 'deepseek', 'together', 'qwen', 'grok', 'openrouter', 'nvidia', 'cohere']
-  const envMap: Record<string, string> = {
-    openai: 'OPENAI_API_KEY', groq: 'GROQ_API_KEY', anthropic: 'ANTHROPIC_API_KEY',
-    gemini: 'GEMINI_API_KEY', deepseek: 'DEEPSEEK_API_KEY', together: 'TOGETHER_API_KEY',
-    qwen: 'QWEN_API_KEY', grok: 'GROK_API_KEY', openrouter: 'OPENROUTER_API_KEY',
-    nvidia: 'NVIDIA_API_KEY', cohere: 'COHERE_API_KEY',
-  }
+  // Auto-select: check DB vault + env for first available provider
+  const priority = [
+    'openai', 'groq', 'anthropic', 'gemini', 'mistral',
+    'deepseek', 'together', 'qwen', 'grok', 'openrouter', 'nvidia', 'cohere',
+  ]
 
   for (const provider of priority) {
-    if (process.env[envMap[provider]]) return provider
+    const key = await getVaultApiKey(provider)
+    if (key) return provider
   }
 
-  return null // No provider available
+  return null
 }
 
 /** Process an SSE stream, calling handler for each data line. */

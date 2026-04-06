@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { getAppSafetyConfig, setAppSafetyConfig } from '@/lib/content-filter'
+import { getAppSafetyConfig, setAppSafetyConfig, loadAppSafetyConfigFromDB } from '@/lib/content-filter'
 
 /**
  * GET /api/admin/app-safety?appSlug=<slug> — returns safety config for an app.
@@ -28,11 +28,13 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const config = getAppSafetyConfig(appSlug)
+  // Hydrate from DB first so the response always reflects the persisted state,
+  // not just whatever is currently in the in-memory cache.
+  const config = await loadAppSafetyConfigFromDB(appSlug)
   return NextResponse.json({
     appSlug,
-    safeMode: config.safeMode,
-    adultMode: config.adultMode,
+    safeMode:       config.safeMode,
+    adultMode:      config.adultMode,
     suggestiveMode: config.suggestiveMode,
     note: 'CSAM, violence, and self-harm content is ALWAYS blocked regardless of adult mode setting.',
   })

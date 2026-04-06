@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSafetyConfig, validateSuggestivePrompt } from '@/lib/content-filter';
+import { getVaultApiKey } from '@/lib/brain';
 
 /**
  * POST /api/brain/suggestive-image — Suggestive (non-explicit) image generation
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     const promptRewritten = finalPrompt !== prompt.trim();
 
     // ── Provider: OpenAI DALL-E 3 ───────────────────────────────────────
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const openaiKey = await getVaultApiKey('openai');
     if (openaiKey) {
       try {
         const response = await fetch('https://api.openai.com/v1/images/generations', {
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Provider fallback: Together AI (FLUX / SDXL) ───────────────────
-    const togetherKey = process.env.TOGETHER_API_KEY;
+    const togetherKey = await getVaultApiKey('together');
     if (togetherKey) {
       for (const { id: modelId, steps } of TOGETHER_IMAGE_MODELS) {
         try {
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Provider fallback: HuggingFace SDXL ────────────────────────────
-    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    const hfKey = await getVaultApiKey('huggingface');
     if (hfKey) {
       const hfModel = ALLOWED_HF_IMAGE_MODELS[0];
       try {
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest) {
         executed: false,
         error:
           'No image generation provider is configured. ' +
-          'Add OPENAI_API_KEY, TOGETHER_API_KEY, or HUGGINGFACE_API_KEY to enable suggestive image generation.',
+          'Add an API key via Admin → AI Providers. Supported: OpenAI (DALL-E 3), Together AI (FLUX/SDXL), HuggingFace (SDXL).',
         providers_checked: ['openai', 'together', 'huggingface'],
       },
       { status: 503 },

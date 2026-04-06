@@ -24,7 +24,7 @@ export interface BrainRequestInput {
   taskType: string           // e.g. 'chat' | 'analysis' | 'content' | 'support'
   message: string            // the prompt / payload
   metadata?: Record<string, unknown>
-  requestMode?: 'sync' | 'async'  // 'async' is a future placeholder
+  requestMode?: 'sync' | 'async'  // 'async' queues via batch-processor; 'sync' (default) returns immediately
   traceId?: string           // caller-supplied trace ID; generated if omitted
 }
 
@@ -133,6 +133,52 @@ export interface ProviderCallResult {
   latencyMs: number
   model: string
   providerKey: string
+}
+
+/**
+ * Look up an API key for a provider from the database vault first,
+ * then fall back to the corresponding environment variable.
+ *
+ * This is the single source of truth for API key resolution across ALL
+ * brain/* routes — stream, tts, stt, research, suggestive-image etc.
+ * must use this helper instead of reading process.env directly.
+ *
+ * @param providerKey - Provider key, e.g. 'openai', 'mistral'
+ * @returns The API key string, or null if not configured anywhere
+ */
+export async function getVaultApiKey(providerKey: string): Promise<string | null> {
+  // DB vault is the authoritative source (set via the Admin → AI Providers UI)
+  try {
+    const row = await prisma.aiProvider.findUnique({
+      where: { providerKey },
+      select: { apiKey: true },
+    })
+    if (row?.apiKey) return row.apiKey
+  } catch {
+    // DB unavailable — fall through to env
+  }
+
+  // Env-var fallback for local dev / CI where the DB may not be provisioned
+  const envMap: Record<string, string> = {
+    openai:      'OPENAI_API_KEY',
+    anthropic:   'ANTHROPIC_API_KEY',
+    gemini:      'GEMINI_API_KEY',
+    groq:        'GROQ_API_KEY',
+    deepseek:    'DEEPSEEK_API_KEY',
+    openrouter:  'OPENROUTER_API_KEY',
+    together:    'TOGETHER_API_KEY',
+    grok:        'GROK_API_KEY',
+    qwen:        'QWEN_API_KEY',
+    nvidia:      'NVIDIA_API_KEY',
+    huggingface: 'HUGGINGFACE_API_KEY',
+    replicate:   'REPLICATE_API_KEY',
+    cohere:      'COHERE_API_KEY',
+    mistral:     'MISTRAL_API_KEY',
+  }
+  const envVar = envMap[providerKey]
+  if (envVar && process.env[envVar]) return process.env[envVar]!
+
+  return null
 }
 
 /**
@@ -313,6 +359,30 @@ export async function callProvider(
         const data = await res.json() as { message?: { content?: Array<{ text?: string }> } }
         const text = data?.message?.content?.[0]?.text ?? null
         return { ok: true, output: text, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+      }
+
+      // ── Mistral AI (OpenAI-compatible) ─────────────────────────────────────
+      case 'mistral': {
+        const base = vault.baseUrl || 'https://api.mistral.ai'
+        const res = await fetch(`${base}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${vault.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: resolvedModel,
+            messages: [{ role: 'user', content: message }],
+            max_tokens: 1024,
+          }),
+          signal: AbortSignal.timeout(timeout),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as { message?: string }
+          return { ok: false, output: null, error: `Mistral HTTP ${res.status}: ${body?.message ?? 'request failed'}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+        const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+        return { ok: true, output: data?.choices?.[0]?.message?.content ?? null, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
       }
 
       default:

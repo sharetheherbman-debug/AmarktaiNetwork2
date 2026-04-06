@@ -105,8 +105,8 @@ describe('Provider Catalog', () => {
     expect(replicate?.supportedCapabilityFamilies).toContain('video_generation');
   });
 
-  it('has 13 canonical providers (including Replicate, Anthropic, Cohere)', () => {
-    expect(CANONICAL_PROVIDERS.length).toBe(13);
+  it('has 14 canonical providers (including Replicate, Anthropic, Cohere, Mistral)', () => {
+    expect(CANONICAL_PROVIDERS.length).toBe(14);
   });
 });
 

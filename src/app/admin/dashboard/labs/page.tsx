@@ -41,6 +41,8 @@ interface GenerationSession {
   history: GenerationEvent[]
   createdAt: string
   updatedAt: string
+  /** Which AI provider was used, or null when falling back to scaffold template. */
+  aiProvider?: string | null
 }
 
 // ── Animations ───────────────────────────────────────────────────────────────
@@ -383,6 +385,20 @@ export default function LabsPage() {
               )}
             </button>
           </motion.div>
+
+          {/* Template mode warning — shown when AI was unavailable */}
+          {session && session.aiProvider === null && (
+            <motion.div variants={fadeUp} className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+              <span className="text-amber-400 text-lg leading-none">⚠</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-400">AI provider not configured — generated from template</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  No AI provider API key is configured. The code was scaffolded from a built-in template, not AI-generated.
+                  Add an API key via <span className="text-blue-400">Admin → Operations → Providers</span> to generate real AI-powered code.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           {/* File Tree */}
           {session && (

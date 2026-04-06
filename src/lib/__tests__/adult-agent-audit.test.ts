@@ -22,8 +22,8 @@ describe('Agent Audit System', () => {
   describe('auditAllAgents', () => {
     it('audits all 16 registered agents', () => {
       const result = auditAllAgents()
-      expect(result.agents.length).toBe(16)
-      expect(result.summary.total).toBe(16)
+      expect(result.agents.length).toBe(18)
+      expect(result.summary.total).toBe(18)
     })
 
     it('returns correct summary counts', () => {

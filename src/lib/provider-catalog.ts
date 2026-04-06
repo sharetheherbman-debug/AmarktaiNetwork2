@@ -160,6 +160,14 @@ export const CANONICAL_PROVIDERS: readonly CanonicalProviderEntry[] = [
     supportedCapabilityFamilies: ['chat', 'embeddings', 'reranking'],
     sortOrder: 12,
   },
+  {
+    key: 'mistral',
+    displayName: 'Mistral AI',
+    defaultBaseUrl: 'https://api.mistral.ai',
+    healthCheckSupported: true,
+    supportedCapabilityFamilies: ['chat', 'reasoning', 'code'],
+    sortOrder: 13,
+  },
 ] as const;
 
 /**

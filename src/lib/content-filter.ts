@@ -11,11 +11,15 @@
  *  - hate speech / slurs
  *  - graphic violence / gore
  *  - self-harm / suicide instructions
+ *  - terrorism / extremist incitement
  *
  * Safety modes:
  *  - SAFE MODE  — all adult/explicit content blocked (default)
  *  - ADULT MODE — relaxes non-harmful adult content blocks (opt-in, gated)
+ *  - SUGGESTIVE MODE — allows tasteful suggestive content (lingerie, topless, etc.)
  */
+
+import { prisma } from '@/lib/prisma'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -67,18 +71,18 @@ const DEFAULT_SAFETY_CONFIG: SafetyConfig = {
   suggestiveMode: false,
 };
 
-/** Runtime per-app safety overrides. */
+/** Runtime per-app safety overrides (write-through cache). */
 const appSafetyConfigs = new Map<string, SafetyConfig>();
 
 /**
- * Set the safety configuration for an app.
+ * Set the safety configuration for an app and persist it to the database.
  * Adult mode can only be enabled when safe mode is explicitly disabled.
  */
 export function setAppSafetyConfig(appSlug: string, config: Partial<SafetyConfig>): SafetyConfig {
   const current = appSafetyConfigs.get(appSlug) ?? { ...DEFAULT_SAFETY_CONFIG };
   const updated: SafetyConfig = {
-    safeMode: config.safeMode ?? current.safeMode,
-    adultMode: config.adultMode ?? current.adultMode,
+    safeMode:       config.safeMode       ?? current.safeMode,
+    adultMode:      config.adultMode      ?? current.adultMode,
     suggestiveMode: config.suggestiveMode ?? current.suggestiveMode,
   };
   // Adult mode and suggestive mode both require safe mode to be off
@@ -88,49 +92,172 @@ export function setAppSafetyConfig(appSlug: string, config: Partial<SafetyConfig
   if (updated.suggestiveMode && updated.safeMode) {
     updated.suggestiveMode = false;
   }
+  // Write to in-memory cache
   appSafetyConfigs.set(appSlug, updated);
+
+  // Persist to DB asynchronously — fire-and-forget; in-memory is authoritative for this request
+  prisma.appAiProfile
+    .upsert({
+      where: { appSlug },
+      update: {
+        safeMode:       updated.safeMode,
+        adultMode:      updated.adultMode,
+        suggestiveMode: updated.suggestiveMode,
+      },
+      create: {
+        appSlug,
+        appName: appSlug,
+        safeMode:       updated.safeMode,
+        adultMode:      updated.adultMode,
+        suggestiveMode: updated.suggestiveMode,
+      },
+    })
+    .catch((err: unknown) => {
+      console.error('[content-filter] Failed to persist safety config for', appSlug, err)
+    })
+
   return updated;
 }
 
 /**
- * Get the safety configuration for an app.
+ * Get the safety configuration for an app from the in-memory cache.
+ * Use `loadAppSafetyConfigFromDB` to warm the cache from the database.
  */
 export function getAppSafetyConfig(appSlug: string): SafetyConfig {
   return appSafetyConfigs.get(appSlug) ?? { ...DEFAULT_SAFETY_CONFIG };
 }
 
-// ── Keyword dictionaries (minimal, non-exhaustive) ───────────────────
+/**
+ * Load the safety configuration for an app from the database and warm
+ * the in-memory cache. Returns the loaded config (or default if not found).
+ *
+ * Call this from any GET endpoint that needs to return the persisted state.
+ */
+export async function loadAppSafetyConfigFromDB(appSlug: string): Promise<SafetyConfig> {
+  try {
+    const row = await prisma.appAiProfile.findUnique({
+      where: { appSlug },
+      select: { safeMode: true, adultMode: true, suggestiveMode: true },
+    });
+    if (row) {
+      const cfg: SafetyConfig = {
+        safeMode:       row.safeMode,
+        adultMode:      row.adultMode,
+        suggestiveMode: row.suggestiveMode,
+      };
+      appSafetyConfigs.set(appSlug, cfg);
+      return cfg;
+    }
+  } catch (err) {
+    console.error('[content-filter] Failed to load safety config from DB for', appSlug, err)
+  }
+  return appSafetyConfigs.get(appSlug) ?? { ...DEFAULT_SAFETY_CONFIG };
+}
+
+// ── Keyword dictionaries ─────────────────────────────────────────────
 
 const CATEGORY_PATTERNS: Record<FlagCategory, RegExp[]> = {
   csam: [
     /\bchild\s+(sexual|porn|abuse|exploit)/i,
-    /\b(minor|underage)\s+(sex|porn|exploit|nude)/i,
+    /\b(minor|underage)\s+(sex|porn|exploit|nude|naked)/i,
     /\bpedophil/i,
+    /\bchild\s+(erotica|abuse\s+material)/i,
+    /\b(preteen|prepubescent)\s+(sex|porn|nude)/i,
+    /\bkiddie\s+porn/i,
+    /\blolicon\b/i,
+    /\bshota(con)?\b/i,
+    /\bmap\s+(community|rights|attraction)\b/i,       // "minor-attracted person" euphemism
+    /\bage\s+of\s+consent\s+(lower|change|remove)/i,
+    /\bchild\s+molest/i,
+    /\bgrooming\s+(child|minor|teen|kid)/i,
+    /\bsend\s+(nudes?|pics?)\s+(to\s+a\s+)?(kid|minor|child|teen)/i,
   ],
   non_consensual: [
     /\bnon[- ]?consensual\s+(sex|porn|explicit)/i,
-    /\brape\s+(porn|video|fantasy)/i,
+    /\brape\s+(porn|video|fantasy|scene)/i,
     /\brevenge\s+porn/i,
+    /\bsex(ual)?\s+(assault|coercion)\s+(how|instruct|guide)/i,
+    /\bdrugging?\s+(for\s+sex|someone\s+for)/i,
+    /\bsleep\s*raping?\b/i,
+    /\bdate\s+rape\s+(drug|rohypnol|ghb)\s+(dose|how|administer)/i,
+    /\bblackmail\s+(for\s+sex|into\s+sex)/i,
+    /\bcoerce\s+(someone\s+)?(into\s+)?(sex|intercourse|nude)/i,
+    /\bstalk(ing)?\s+(ex|someone|her|him)\s+(to|for|how)/i,
+    /\bupskirt\s+(photo|video|take|record)/i,
+    /\bhidden\s+camera\s+(bathroom|bedroom|shower|changing)/i,
+    /\bvoyeur\s+(how|install|set\s+up)/i,
   ],
   hate_speech: [
-    /\b(kill|exterminate|genocide)\s+(all\s+)?(jews|muslims|blacks|whites|gays|trans)/i,
+    /\b(kill|exterminate|genocide)\s+(all\s+)?(jews|muslims|blacks|whites|gays|trans|christians|immigrants)/i,
     /\bethnic\s+cleansing/i,
     /\b(racial|ethnic)\s+supremacy/i,
+    /\bhitler\s+(was\s+right|did\s+nothing\s+wrong)/i,
+    /\b(jewish|muslim|black|gay)\s+(conspiracy|problem|infestation|plague)/i,
+    /\b(gas|hang|lynch)\s+the\s+(jews|blacks|gays|muslims)/i,
+    /\bwhite\s+genocide\b/i,
+    /\b(n|k|f)[aeiou]gg[aeiou]r/i,
+    /\bfinal\s+solution\s+(for|to)\s+the\s+(jewish|black|muslim|gay)/i,
+    /\b(black|jewish|asian|muslim|hispanic)\s+people\s+(are|deserve|should\s+be)\s+(inferior|eliminated|deported|exterminated)/i,
+    /\btransgender\s+(shouldn.t\s+exist|should\s+be\s+(killed|banned|eliminat))/i,
+    /\b(inferior|subhuman)\s+race\b/i,
+    /\b(kill|exterminate|deport)\s+(all\s+)?(immigrants|foreigners|refugees)\b/i,
+    /\bgreat\s+replacement\s+theory\b/i,
+    /\brace\s+war\s+(now|coming|start)/i,
+    /\bkalergi\s+plan\b/i,
   ],
   violence: [
-    /\bhow\s+to\s+(make|build)\s+(a\s+)?(bomb|weapon|explosive)/i,
-    /\bmanufacture\s+(poison|toxin|bioweapon)/i,
+    /\bhow\s+to\s+(make|build|create|construct)\s+(a\s+)?(bomb|weapon|explosive|ied|grenade)/i,
+    /\bmanufacture\s+(poison|toxin|bioweapon|nerve\s+agent|sarin|vx\s+nerve)/i,
+    /\bsynthesize\s+(ricin|sarin|vx|anthrax)/i,
+    /\b(chlorine|mustard)\s+gas\s+(synthesis|production)/i,
+    /\b3d\s+print\s+(a\s+)?gun\b/i,
+    /\bconvert\s+(a\s+)?(gun|rifle|pistol)\s+to\s+(full\s+)?auto/i,
+    /\bhow\s+to\s+(stab|shoot|strangle|poison|bludgeon)\s+(a\s+)?(person|someone|man|woman|kid|child)/i,
+    /\bhow\s+to\s+(kill|murder|assassinate)\s+(without\s+)?(getting\s+caught|leaving\s+evidence|being\s+detected)/i,
+    /\bhow\s+to\s+(dispose\s+of|hide)\s+(a\s+)?(body|corpse)/i,
+    /\bsilencer\s+(make|build|diy|how\s+to)/i,
+    /\bghost\s+gun\s+(how|build|make|instructions)/i,
+    /\buntraceable\s+(weapon|gun|knife|firearm)/i,
+    /\bmail\s+bomb\s+(instructions|how|build)/i,
+    /\bpipe\s+bomb\s+(make|build|instructions)/i,
+    /\bfentanyl\s+(lace|poison)\s+(someone|food|drink)/i,
+    /\bhire\s+(a\s+)?(hitman|assassin|killer)/i,
+    /\bdark\s+web\s+(weapon|hitman|explosives?)/i,
   ],
   self_harm: [
     /\bhow\s+to\s+(commit\s+)?suicide/i,
     /\bself[- ]?harm\s+method/i,
-    /\bkill\s+yourself/i,
+    /\bkill\s+yourself\b/i,
+    /\bsuicide\s+(method|plan|note|letter|how\s+to)/i,
+    /\bmost\s+painless\s+way\s+to\s+die/i,
+    /\blethal\s+dose\s+of\s+(pills|medication|drug)/i,
+    /\bhow\s+to\s+(cut|slash)\s+(yourself|wrists)/i,
+    /\bself-harm\s+(guide|tutorial|instruction)/i,
+    /\bsuicide\s+(bridge|spot|location|jump)/i,
+    /\bhow\s+many\s+(pills|tablets)\s+(to\s+)?(overdose|kill\s+yourself|die)/i,
+    /\bsuicide\s+(pact|partner|together)/i,
+    /\b(hang|hanging)\s+yourself\s+(how|instructions|setup)/i,
+    /\bstarving\s+yourself\s+(how|tips|goal)/i,
+    /\banorexia\s+(tips|thinspo|goals|pro\s*ana)/i,
+    /\bpro[- ]?(ana|mia|ed)\b/i,
   ],
   terrorism: [
-    /\bjoin\s+(isis|isil|al[- ]?qaeda|boko\s+haram)/i,
+    /\bjoin\s+(isis|isil|al[- ]?qaeda|boko\s+haram|hamas|hezbollah)\b/i,
     /\brecruit.*\b(jiha[di]|extremis)/i,
     /\b(terror|extremis)\s+(attack|plot|cell)\s+(plan|instruct|manual)/i,
     /\bradicaliz/i,
+    /\b(isis|isil|al[- ]?qaeda)\s+(manual|training|recruitment)/i,
+    /\bmartyrdom\s+(operation|attack|video)/i,
+    /\b(bomb|attack)\s+(airport|subway|train|school|mosque|synagogue|church)\s+(how|plan|target)/i,
+    /\bwear\s+(a\s+)?(suicide|bomb)\s+vest\b/i,
+    /\bactive\s+shooter\s+(guide|plan|tactic|manual)/i,
+    /\bmass\s+(shooting|stabbing|attack)\s+(plan|target|how|instructions)/i,
+    /\bmanifesto\s+(attack|shooting|bombing)\s+(template|write|post)/i,
+    /\bfar[- ]right\s+(accelerationism|attack|cell)/i,
+    /\bsolitary\s+wolf\s+(attack|bomb|shoot)/i,
+    /\bvehicle\s+(ramming|attack)\s+(how|plan|target|crowd)/i,
+    /\bpoison\s+(water\s+supply|food\s+supply|reservoir)\b/i,
+    /\bnuclear\s+(dirty\s+bomb|device|weapon)\s+(make|build|how)/i,
   ],
 };
 
@@ -150,7 +277,7 @@ const BLOCKED_MESSAGE =
  * This is a lightweight keyword-based classifier. For production use,
  * the OpenAI Moderation API is preferred (see scanContentWithModeration).
  */
-export function scanContent(text: string): ContentFilterResult {
+export function scanContent(text: string, appSlug?: string): ContentFilterResult {
   const flagged: FlagCategory[] = [];
 
   for (const [category, patterns] of Object.entries(CATEGORY_PATTERNS) as [FlagCategory, RegExp[]][]) {
@@ -164,6 +291,18 @@ export function scanContent(text: string): ContentFilterResult {
 
   if (flagged.length === 0) {
     return { flagged: false, categories: [], message: '', confidence: 0, scanner: 'keyword_fallback' };
+  }
+
+  // Apply per-app safety config if provided
+  if (appSlug) {
+    const result: ContentFilterResult = {
+      flagged: true,
+      categories: flagged,
+      message: BLOCKED_MESSAGE,
+      confidence: 1.0,
+      scanner: 'keyword_fallback',
+    };
+    return applySafetyConfig(result, appSlug);
   }
 
   return {

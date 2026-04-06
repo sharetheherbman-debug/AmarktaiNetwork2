@@ -420,6 +420,10 @@ async function main() {
     { providerKey: 'openrouter',  displayName: 'OpenRouter',     sortOrder: 7 },
     { providerKey: 'together',    displayName: 'Together AI',    sortOrder: 8 },
     { providerKey: 'qwen',        displayName: 'Qwen',           sortOrder: 9 },
+    { providerKey: 'replicate',   displayName: 'Replicate',      sortOrder: 10 },
+    { providerKey: 'anthropic',   displayName: 'Anthropic',      sortOrder: 11 },
+    { providerKey: 'cohere',      displayName: 'Cohere',         sortOrder: 12 },
+    { providerKey: 'mistral',     displayName: 'Mistral AI',     sortOrder: 13 },
   ]
   for (const p of aiProviders) {
     await prisma.aiProvider.upsert({
@@ -437,7 +441,7 @@ async function main() {
       },
     })
   }
-  console.log('✅ AI provider vault seeded (10 providers · all unconfigured)')
+  console.log('✅ AI provider vault seeded (14 providers · all unconfigured)')
 
   console.log('\n✨ Seeding complete!')
   console.log('   Admin login: admin@amarktai.com / admin123!')

@@ -7,7 +7,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock, WifiOff,
   LayoutDashboard, Brain, BarChart3, BookOpen, Target, FileText,
-  Activity, Cpu, Users, Zap, Globe, Shield,
+  Activity, Zap, Globe, Shield, Bot, Copy, Check, Loader2,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -53,11 +53,12 @@ const HEALTH: Record<string, { color: string; icon: typeof CheckCircle; label: s
   offline:  { color: 'text-slate-500',   icon: WifiOff,     label: 'Offline' },
 }
 
-const TABS = ['Overview', 'AI Stack', 'Metrics', 'Learning', 'Strategy', 'Events', 'Safety'] as const
+const TABS = ['Overview', 'AI Stack', 'Agents', 'Metrics', 'Learning', 'Strategy', 'Events', 'Safety'] as const
 type Tab = (typeof TABS)[number]
 const TAB_ICONS: Record<Tab, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   Overview:  LayoutDashboard,
   'AI Stack': Brain,
+  Agents:    Bot,
   Metrics:   BarChart3,
   Learning:  BookOpen,
   Strategy:  Target,
@@ -260,7 +261,8 @@ export default function AppDetailPage() {
       >
         {tab === 'Overview' && <OverviewTab app={app} />}
         {tab === 'AI Stack' && <AIStackTab app={app} />}
-        {tab === 'Metrics' && <MetricsTab />}
+        {tab === 'Agents' && <AgentsTab appSlug={app.slug} appId={app.slug} appSecret={app.appSecret} />}
+        {tab === 'Metrics' && <MetricsTab appSlug={app.slug} />}
         {tab === 'Learning' && <AppLearningTab appSlug={app.slug} />}
         {tab === 'Strategy' && <StrategyTab appSlug={app.slug} appName={app.name} appCategory={app.category} />}
         {tab === 'Events' && <AppEventsTab appSlug={app.slug} />}
@@ -334,6 +336,278 @@ function OverviewTab({ app }: { app: AppRecord }) {
   )
 }
 
+/* ── Tab: Agents ─────────────────────────────────────────── */
+interface AgentEntry {
+  id: string
+  name: string
+  type: string
+  description: string
+  capabilities: string[]
+  defaultProvider: string
+  defaultModel: string
+  readiness: string
+  enabledForApp: boolean
+}
+
+const CONSUMER_AGENT_TYPES = new Set(['chatbot', 'marketing_agent'])
+
+/** Map a consumer agent type to the taskType used in Brain Gateway requests. */
+const AGENT_TASK_TYPE: Record<string, string> = {
+  chatbot:          'chat',
+  marketing_agent:  'campaign',
+}
+const READINESS_COLOR: Record<string, string> = {
+  CONNECTED:     'text-emerald-400',
+  PARTIAL:       'text-amber-400',
+  NOT_CONNECTED: 'text-slate-500',
+}
+
+function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: string; appSecret: string }) {
+  const [agents, setAgents] = useState<AgentEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [secretRevealed, setSecretRevealed] = useState(false)
+
+  const maskedSecret = appSecret.length > 8
+    ? `${appSecret.slice(0, 4)}${'•'.repeat(Math.max(0, appSecret.length - 8))}${appSecret.slice(-4)}`
+    : '••••••••'
+  const displaySecret = secretRevealed ? appSecret : maskedSecret
+
+  const loadAgents = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/agents?appSlug=${encodeURIComponent(appSlug)}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setAgents(data.agents ?? [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load agents')
+    } finally {
+      setLoading(false)
+    }
+  }, [appSlug])
+
+  useEffect(() => { loadAgents() }, [loadAgents])
+
+  const toggle = (type: string) => {
+    setAgents(prev => prev.map(a => a.type === type ? { ...a, enabledForApp: !a.enabledForApp } : a))
+    setSaved(false)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const enabled = agents.filter(a => a.enabledForApp).map(a => a.type)
+      const res = await fetch('/api/admin/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appSlug, agentTypes: enabled }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `HTTP ${res.status}`)
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 2000)
+  }
+
+  const enabledAgents = agents.filter(a => a.enabledForApp)
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Agent Assignment</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Assign AI agents to this app. Consumer-facing agents (Chatbot, Marketing Agent) generate live endpoint URLs.
+          </p>
+        </div>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : saved ? <Check className="w-3 h-3 text-emerald-300" /> : null}
+          {saved ? 'Saved!' : 'Save Assignment'}
+        </button>
+      </div>
+
+      {error && <p className="text-xs text-red-400">{error}</p>}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-slate-500 py-8">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading agents…
+        </div>
+      ) : (
+        <>
+          {/* Consumer-facing agents (highlighted) */}
+          <div className="space-y-3">
+            <p className="text-[10px] uppercase tracking-wider text-blue-400 font-mono">Consumer-Facing Agents</p>
+            {agents.filter(a => CONSUMER_AGENT_TYPES.has(a.type)).map(agent => (
+              <div
+                key={agent.type}
+                onClick={() => toggle(agent.type)}
+                className={`cursor-pointer rounded-xl p-5 border transition-all ${
+                  agent.enabledForApp
+                    ? 'bg-blue-500/10 border-blue-500/30'
+                    : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${agent.enabledForApp ? 'bg-blue-500 border-blue-500' : 'border-white/20'}`}>
+                    {agent.enabledForApp && <Check className="w-2.5 h-2.5 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-white">{agent.name}</p>
+                      <span className="text-[10px] font-mono text-slate-500 bg-white/[0.04] px-1.5 py-0.5 rounded">{agent.type}</span>
+                      <span className={`text-[10px] ${READINESS_COLOR[agent.readiness] ?? 'text-slate-500'}`}>● {agent.readiness.replace('_', ' ')}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">{agent.description}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {agent.capabilities.slice(0, 5).map(c => (
+                        <span key={c} className="text-[10px] font-mono text-slate-500 bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">{c}</span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-600 mt-1.5">Default: {agent.defaultProvider} / {agent.defaultModel || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Other agents */}
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Internal Agents</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {agents.filter(a => !CONSUMER_AGENT_TYPES.has(a.type)).map(agent => (
+                <div
+                  key={agent.type}
+                  onClick={() => toggle(agent.type)}
+                  className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
+                    agent.enabledForApp
+                      ? 'bg-violet-500/10 border-violet-500/20'
+                      : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.1]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${agent.enabledForApp ? 'bg-violet-500 border-violet-500' : 'border-white/20'}`}>
+                      {agent.enabledForApp && <Check className="w-2 h-2 text-white" />}
+                    </div>
+                    <p className="text-xs font-medium text-white flex-1">{agent.name}</p>
+                    <span className={`text-[9px] ${READINESS_COLOR[agent.readiness] ?? 'text-slate-600'}`}>●</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1 ml-5 line-clamp-2">{agent.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Endpoint URL panel — only shown when consumer agents are enabled */}
+          {enabledAgents.some(a => CONSUMER_AGENT_TYPES.has(a.type)) && (
+            <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-semibold text-white">Live Endpoint URLs</h4>
+                <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">SAVE to activate</span>
+                <button
+                  onClick={() => setSecretRevealed(r => !r)}
+                  className="ml-auto text-[10px] text-slate-500 hover:text-slate-300 transition-colors font-mono"
+                >
+                  {secretRevealed ? '🙈 Hide secret' : '👁 Reveal secret'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">Use these URLs in your app to send requests through the Brain Gateway. All requests are authenticated with your App ID and Secret.</p>
+
+              {enabledAgents.filter(a => CONSUMER_AGENT_TYPES.has(a.type)).map(agent => {
+                const endpointUrl = `${baseUrl}/api/brain/execute`
+                const agentTaskType = AGENT_TASK_TYPE[agent.type] ?? 'chat'
+                const snippet = JSON.stringify({
+                  appId: appId,
+                  appSecret: displaySecret,
+                  taskType: agentTaskType,
+                  message: '<user message here>',
+                }, null, 2)
+                const realSnippet = JSON.stringify({
+                  appId: appId,
+                  appSecret: appSecret,
+                  taskType: agentTaskType,
+                  message: '<user message here>',
+                }, null, 2)
+                const curlCmd = `curl -X POST ${endpointUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"appId":"${appId}","appSecret":"${displaySecret}","taskType":"${agentTaskType}","message":"Hello"}'`
+                const realCurlCmd = `curl -X POST ${endpointUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"appId":"${appId}","appSecret":"${appSecret}","taskType":"${agentTaskType}","message":"Hello"}'`
+                return (
+                  <div key={agent.type} className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">{agent.name} — {agent.type}</p>
+
+                    {/* Endpoint */}
+                    <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2">
+                      <span className="text-xs text-emerald-400 font-mono font-medium shrink-0">POST</span>
+                      <span className="text-xs text-slate-300 font-mono flex-1 truncate">{endpointUrl}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(endpointUrl, `${agent.type}-url`) }}
+                        className="shrink-0 text-slate-500 hover:text-white transition-colors"
+                      >
+                        {copiedKey === `${agent.type}-url` ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    {/* JSON snippet */}
+                    <div className="relative">
+                      <pre className="text-[11px] text-slate-400 font-mono bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 overflow-x-auto leading-relaxed">{snippet}</pre>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(realSnippet, `${agent.type}-json`) }}
+                        className="absolute top-2 right-2 text-slate-600 hover:text-slate-300 transition-colors"
+                      >
+                        {copiedKey === `${agent.type}-json` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+
+                    {/* cURL */}
+                    <details>
+                      <summary className="text-[10px] text-slate-600 hover:text-slate-400 cursor-pointer transition-colors font-mono uppercase tracking-wider">
+                        cURL example
+                      </summary>
+                      <div className="relative mt-1">
+                        <pre className="text-[11px] text-slate-400 font-mono bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 overflow-x-auto leading-relaxed mt-1">{curlCmd}</pre>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); copyToClipboard(realCurlCmd, `${agent.type}-curl`) }}
+                          className="absolute top-2 right-2 text-slate-600 hover:text-slate-300 transition-colors"
+                        >
+                          {copiedKey === `${agent.type}-curl` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ── Tab: AI Stack ───────────────────────────────────────── */
 function AIStackTab({ app }: { app: AppRecord }) {
   return (
@@ -385,36 +659,120 @@ function AIStackTab({ app }: { app: AppRecord }) {
 }
 
 /* ── Tab: Metrics ────────────────────────────────────────── */
-function MetricsTab() {
+interface AppMetrics {
+  totalRequests: number
+  successfulAiCalls: number
+  failedCalls: number
+  avgLatencyMs: number | null
+  taskBreakdown: Record<string, number>
+}
+
+function MetricsTab({ appSlug }: { appSlug: string }) {
+  const [metrics, setMetrics] = useState<AppMetrics | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadMetrics = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/events?appSlug=${encodeURIComponent(appSlug)}&limit=200`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const events: Array<{ success: boolean; latencyMs: number | null; taskType: string }> = data.events ?? []
+      const totalRequests = data.total ?? events.length
+      const successfulAiCalls = events.filter((e) => e.success).length
+      const failedCalls = events.filter((e) => !e.success).length
+      const latencies = events.map((e) => e.latencyMs).filter((l): l is number => l !== null)
+      const avgLatencyMs = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : null
+      const taskBreakdown: Record<string, number> = {}
+      for (const e of events) {
+        if (e.taskType) taskBreakdown[e.taskType] = (taskBreakdown[e.taskType] ?? 0) + 1
+      }
+      setMetrics({ totalRequests, successfulAiCalls, failedCalls, avgLatencyMs, taskBreakdown })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load metrics')
+    } finally {
+      setLoading(false)
+    }
+  }, [appSlug])
+
+  useEffect(() => { loadMetrics() }, [loadMetrics])
+
+  const fmtNum = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+
+  const cards = metrics
+    ? [
+        { label: 'Total AI Requests', value: fmtNum(metrics.totalRequests), icon: Activity, color: 'text-blue-400' },
+        { label: 'Successful Calls', value: fmtNum(metrics.successfulAiCalls), icon: CheckCircle, color: 'text-emerald-400' },
+        { label: 'Failed Calls', value: fmtNum(metrics.failedCalls), icon: AlertCircle, color: 'text-red-400' },
+        { label: 'Avg Latency', value: metrics.avgLatencyMs !== null ? `${metrics.avgLatencyMs}ms` : '—', icon: Clock, color: 'text-amber-400' },
+      ]
+    : [
+        { label: 'Total AI Requests', value: '—', icon: Activity, color: 'text-blue-400' },
+        { label: 'Successful Calls', value: '—', icon: CheckCircle, color: 'text-emerald-400' },
+        { label: 'Failed Calls', value: '—', icon: AlertCircle, color: 'text-red-400' },
+        { label: 'Avg Latency', value: '—', icon: Clock, color: 'text-amber-400' },
+      ]
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: 'Total Requests', value: '—', icon: Activity, color: 'text-blue-400' },
-          { label: 'Active Users', value: '—', icon: Users, color: 'text-emerald-400' },
-          { label: 'AI Calls', value: '—', icon: Cpu, color: 'text-violet-400' },
-        ].map((m) => {
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-white">Brain Request Metrics</h3>
+        <button
+          onClick={loadMetrics}
+          disabled={loading}
+          className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
+        >
+          <RefreshCw className={`w-2.5 h-2.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {error && <p className="text-xs text-red-400">{error}</p>}
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {cards.map((m) => {
           const Icon = m.icon
           return (
-            <div
-              key={m.label}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-2"
-            >
+            <div key={m.label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-2">
               <div className="flex items-center gap-2">
                 <Icon className={`w-4 h-4 ${m.color}`} />
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">
-                  {m.label}
-                </p>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">{m.label}</p>
               </div>
-              <p className="text-2xl font-bold text-white font-heading">{m.value}</p>
+              <p className="text-2xl font-bold text-white font-heading">
+                {loading ? <span className="text-slate-600">…</span> : m.value}
+              </p>
             </div>
           )
         })}
       </div>
 
-      <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-        <p className="text-xs text-slate-400">Metrics are collected from brain events for this app. No events logged yet.</p>
-      </div>
+      {/* Task breakdown */}
+      {metrics && Object.keys(metrics.taskBreakdown).length > 0 && (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-3">
+          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">By Task Type</h4>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(metrics.taskBreakdown)
+              .sort(([, a], [, b]) => b - a)
+              .map(([task, count]) => (
+                <span key={task} className="text-xs font-mono text-slate-400 bg-white/[0.04] border border-white/[0.06] px-2 py-1 rounded">
+                  {task} <span className="text-white font-semibold">{count}</span>
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {metrics && metrics.totalRequests === 0 && (
+        <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
+          <p className="text-xs text-slate-400">
+            No brain requests recorded for this app yet. Requests appear here once the app sends messages through the Brain Gateway.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

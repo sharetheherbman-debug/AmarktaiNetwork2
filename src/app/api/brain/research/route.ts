@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getVaultApiKey } from '@/lib/brain';
 
 /**
  * POST /api/brain/research — Research & deep multi-step reasoning endpoint
@@ -72,7 +73,7 @@ async function callOpenAI(
   query: string,
   depth: 'shallow' | 'deep',
 ): Promise<{ response: ResearchResponse; model: string } | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getVaultApiKey('openai');
   if (!apiKey) return null;
 
   const systemPrompt = depth === 'deep' ? DEEP_SYSTEM_PROMPT : SHALLOW_SYSTEM_PROMPT;
@@ -113,7 +114,7 @@ async function callGemini(
   query: string,
   depth: 'shallow' | 'deep',
 ): Promise<{ response: ResearchResponse; model: string } | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = await getVaultApiKey('gemini');
   if (!apiKey) return null;
 
   const systemPrompt = depth === 'deep' ? DEEP_SYSTEM_PROMPT : SHALLOW_SYSTEM_PROMPT;
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
           executed: false,
           error:
             'No research provider is configured. ' +
-            'Add OPENAI_API_KEY or GEMINI_API_KEY to enable research capabilities.',
+            'Add an OpenAI or Gemini API key via Admin → AI Providers to enable research capabilities.',
           providers_checked: ['openai', 'gemini'],
         },
         { status: 503 },

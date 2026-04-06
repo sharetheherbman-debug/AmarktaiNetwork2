@@ -30,6 +30,7 @@ describe('Integration Verification', () => {
     setProviderHealth('anthropic', 'configured')
     setProviderHealth('cohere', 'configured')
     setProviderHealth('qwen', 'configured')
+    setProviderHealth('mistral', 'configured')
   }
 
   beforeEach(() => {
@@ -145,9 +146,9 @@ describe('Integration Verification', () => {
   })
 
   describe('Agent Runtime Connectivity', () => {
-    it('all 16 agents have definitions', () => {
+    it('all 18 agents have definitions', () => {
       const defs = getAgentDefinitions()
-      expect(defs.size).toBe(16)
+      expect(defs.size).toBe(18)
     })
 
     it('network app has full agent permissions', () => {

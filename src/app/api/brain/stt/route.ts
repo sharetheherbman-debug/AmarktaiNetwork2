@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getVaultApiKey } from '@/lib/brain';
 
 /**
  * POST /api/brain/stt — Speech-to-Text endpoint
@@ -8,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
  *   - OpenAI STT (premium — whisper-1)
  *   - Gemini STT (premium multimodal — gemini-2.0-flash-live-001)
  *   - HuggingFace STT (free fallback — openai/whisper-large-v3 / openai/whisper-small)
+ *
+ * API keys are resolved from the DB vault first, then env var fallback.
  *
  * Accepts multipart/form-data with:
  *   - file (audio file, required) — audio to transcribe
@@ -47,17 +50,18 @@ export async function POST(request: NextRequest) {
     const language = formData.get('language') as string | null;
     const requestedProvider = (formData.get('provider') as string | null) ?? 'auto';
 
-    const groqKey = process.env.GROQ_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    // Resolve API keys from DB vault (with env fallback)
+    const groqKey  = await getVaultApiKey('groq');
+    const openaiKey = await getVaultApiKey('openai');
+    const geminiKey = await getVaultApiKey('gemini');
+    const hfKey    = await getVaultApiKey('huggingface');
 
     // Determine provider
     let provider: 'groq' | 'openai' | 'gemini' | 'huggingface';
     if (requestedProvider === 'groq') {
       if (!groqKey) {
         return NextResponse.json(
-          { error: 'Groq STT requested but GROQ_API_KEY is not configured.', executed: false, provider: 'groq', capability: 'voice_input' },
+          { error: 'Groq STT requested but no Groq API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'groq', capability: 'voice_input' },
           { status: 503 },
         );
       }
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'openai') {
       if (!openaiKey) {
         return NextResponse.json(
-          { error: 'OpenAI STT requested but OPENAI_API_KEY is not configured.', executed: false, provider: 'openai', capability: 'voice_input' },
+          { error: 'OpenAI STT requested but no OpenAI API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'openai', capability: 'voice_input' },
           { status: 503 },
         );
       }
@@ -73,7 +77,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'gemini') {
       if (!geminiKey) {
         return NextResponse.json(
-          { error: 'Gemini STT requested but GEMINI_API_KEY is not configured.', executed: false, provider: 'gemini', capability: 'voice_input' },
+          { error: 'Gemini STT requested but no Gemini API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'gemini', capability: 'voice_input' },
           { status: 503 },
         );
       }
@@ -81,7 +85,7 @@ export async function POST(request: NextRequest) {
     } else if (requestedProvider === 'huggingface') {
       if (!hfKey) {
         return NextResponse.json(
-          { error: 'HuggingFace STT requested but HUGGINGFACE_API_KEY is not configured.', executed: false, provider: 'huggingface', capability: 'voice_input' },
+          { error: 'HuggingFace STT requested but no HuggingFace API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'huggingface', capability: 'voice_input' },
           { status: 503 },
         );
       }
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest) {
         provider = 'huggingface';
       } else {
         return NextResponse.json(
-          { error: 'No STT provider configured. Set GROQ_API_KEY (low cost), OPENAI_API_KEY (premium), GEMINI_API_KEY (multimodal), or HUGGINGFACE_API_KEY (free fallback) to enable voice input.', executed: false, capability: 'voice_input' },
+          { error: 'No STT provider configured. Add an API key via Admin → AI Providers. Supported: Groq (low cost), OpenAI (premium), Gemini (multimodal), HuggingFace (free fallback).', executed: false, capability: 'voice_input' },
           { status: 503 },
         );
       }

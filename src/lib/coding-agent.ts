@@ -117,6 +117,8 @@ export interface GenerationSession {
   history: GenerationEvent[]
   createdAt: string
   updatedAt: string
+  /** Which AI provider was used, or null when falling back to scaffold template. */
+  aiProvider: string | null
 }
 
 export interface GenerateOptions {
@@ -956,6 +958,7 @@ export async function generateApp(
     description,
     projectType,
     files,
+    aiProvider,
     history: [
       {
         id: randomUUID(),
@@ -1014,6 +1017,7 @@ export async function refineApp(
   const now = new Date().toISOString()
 
   session.files = refinedFiles
+  session.aiProvider = aiProvider  // track whether this refine used AI or template
   session.history.push({
     id: randomUUID(),
     type: 'refine',

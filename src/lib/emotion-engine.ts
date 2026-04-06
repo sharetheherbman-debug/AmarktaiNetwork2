@@ -1047,8 +1047,9 @@ export function modulateResponse(
 // ─── Phase 9 — Multimodal Foundation ────────────────────────────────────────
 
 /**
- * Placeholder for future voice-tone and facial-expression emotion detection.
- * Currently only text-based detection is fully implemented.
+ * Multimodal emotion detection API types.
+ * Text-based detection is fully implemented. Voice-tone and facial-expression
+ * detection are defined here as future phases — not yet wired to a backend.
  */
 export type MultimodalEmotionSource = 'text' | 'voice_tone' | 'facial' | 'combined'
 

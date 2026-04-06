@@ -415,6 +415,8 @@ model AppAiProfile {
 
   // Safety
   safeMode       Boolean @default(true) @map("safe_mode")
+  /// Allows lawful non-harmful adult 18+ content. Requires safeMode=false. CSAM/violence/terrorism always blocked.
+  adultMode      Boolean @default(false) @map("adult_mode")
   /// Allows lingerie, swimwear, fashion poses, topless nudity. Blocks explicit sex, genitalia, minors. Requires safeMode=false.
   suggestiveMode Boolean @default(false) @map("suggestive_mode")
 

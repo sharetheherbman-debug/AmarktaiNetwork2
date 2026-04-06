@@ -10,8 +10,9 @@ import { orchestrate } from '@/lib/orchestrator'
 import { saveMemory } from '@/lib/memory'
 import { retrieve } from '@/lib/retrieval-engine'
 import { logRouteOutcome } from '@/lib/learning-engine'
-import { scanContent, blockedExplanation } from '@/lib/content-filter'
+import { scanContent, blockedExplanation, loadAppSafetyConfigFromDB } from '@/lib/content-filter'
 import { getBudgetSummary } from '@/lib/budget-tracker'
+import { runEmotionPipeline, type PersonalityType } from '@/lib/emotion-engine'
 
 // ── Request schema ────────────────────────────────────────────────────────────
 
@@ -68,9 +69,11 @@ export async function POST(request: NextRequest) {
 
   const traceId = body.traceId || randomUUID()
 
-  // ── Content filter — scan input for policy violations ───────────────
-  const inputFilter = scanContent(body.message)
-  if (inputFilter.flagged) {
+  // ── Fast pre-auth content scan (always-blocked categories only) ───────
+  // This runs before auth for efficiency — catches CSAM/violence/terrorism fast.
+  // A second app-slug-aware scan is performed after auth using the app's safety config.
+  const preAuthFilter = scanContent(body.message)
+  if (preAuthFilter.flagged) {
     return NextResponse.json(
       {
         success: false,
@@ -86,8 +89,8 @@ export async function POST(request: NextRequest) {
         output: null,
         warnings: [],
         errors: ['Input blocked by safety filter'],
-        categories: inputFilter.categories,
-        message: blockedExplanation(inputFilter.categories),
+        categories: preAuthFilter.categories,
+        message: blockedExplanation(preAuthFilter.categories),
         latencyMs: Date.now() - start,
         memoryUsed: false,
         fallbackUsed: false,
@@ -124,6 +127,30 @@ export async function POST(request: NextRequest) {
   }
 
   const { app } = auth
+
+  // ── Load app safety config (DB-backed, warm cache) ────────────────────
+  // This warms the in-memory cache so all subsequent scanContent(text, app.slug)
+  // calls in this request reflect the persisted safety policy.
+  await loadAppSafetyConfigFromDB(app.slug)
+
+  // ── Emotion engine — detect user emotion and build personality context ─
+  // Uses the synchronous pipeline to avoid adding streaming latency.
+  // Emotion state is persisted to Redis/Qdrant in a fire-and-forget manner.
+  const emotionUserId = body.externalUserId || app.slug
+  const appPersonality = mapAppPersonality(app.category)
+  let emotionContext = ''
+  try {
+    const emotionResult = runEmotionPipeline(emotionUserId, body.message, appPersonality)
+    const { modulation, analysis } = emotionResult
+    if (modulation.tonePrefix) {
+      const dominantEmotion = analysis.dominant
+      emotionContext =
+        `[Tone: ${modulation.tonePrefix} Dominant emotion detected: ${dominantEmotion}. ` +
+        `Personality: ${modulation.personalityApplied}.]\n\n`
+    }
+  } catch {
+    // Emotion engine error must never crash the request pipeline
+  }
 
   // ── Retrieve relevant memory context via retrieval-engine ──────────
   let memoryUsed = false
@@ -167,7 +194,7 @@ export async function POST(request: NextRequest) {
     appSlug: app.slug,
     appCategory: app.category,
     taskType: body.taskType,
-    message: memoryContext + body.message,
+    message: emotionContext + memoryContext + body.message,
   })
 
   const latencyMs = Date.now() - start
@@ -208,7 +235,7 @@ export async function POST(request: NextRequest) {
 
   // ── Content filter — scan output for policy violations ──────────────
   if (success && result.output) {
-    const filterResult = scanContent(result.output)
+    const filterResult = scanContent(result.output, app.slug)
     if (filterResult.flagged) {
       return NextResponse.json(
         {
@@ -318,3 +345,26 @@ function errorResponse(opts: {
   }
 }
 
+/**
+ * Map an app category/type to a base personality for the emotion engine.
+ * The emotion engine will further adapt this based on the user's emotional state.
+ */
+function mapAppPersonality(category: string): PersonalityType {
+  const cat = (category ?? '').toLowerCase()
+  if (cat.includes('crypto') || cat.includes('trading') || cat.includes('finance') || cat.includes('forex')) {
+    return 'analytical'
+  }
+  if (cat.includes('dating') || cat.includes('social')) {
+    return 'flirty'
+  }
+  if (cat.includes('market') || cat.includes('marketing') || cat.includes('sales')) {
+    return 'assertive'
+  }
+  if (cat.includes('support') || cat.includes('help') || cat.includes('health')) {
+    return 'empathetic'
+  }
+  if (cat.includes('travel') || cat.includes('lifestyle')) {
+    return 'friendly'
+  }
+  return 'professional'
+}

@@ -8,6 +8,15 @@
  */
 
 import { randomUUID } from 'crypto'
+import { callProvider, getVaultApiKey } from './brain'
+
+// ── Limits ───────────────────────────────────────────────────────────────────
+/** Max characters sent to TTS; OpenAI tts-1 supports up to 4096. */
+const MAX_TTS_INPUT_CHARS = 4096
+/** Max characters for image generation prompts; DALL-E 3 supports up to 4000. */
+const MAX_IMAGE_PROMPT_CHARS = 4000
+/** Max characters for Replicate prompts. */
+const MAX_REPLICATE_PROMPT_CHARS = 2000
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -236,25 +245,113 @@ export async function executePipeline(
 }
 
 async function executeStage(stage: PipelineStage, input: unknown): Promise<unknown> {
-  // This is a stub that shows the structure.
-  // In production, each modality transition would call the appropriate API:
-  // - text→text: callProvider() from brain.ts
-  // - text→image: image generation API
-  // - text→video: video generation API
-  // - image→text: vision API
-  // - text→audio: TTS API
-  // etc.
   const inputStr = typeof input === 'string' ? input : JSON.stringify(input)
 
-  return {
-    _stage: stage.name,
-    _model: stage.model,
-    _provider: stage.provider,
-    _transition: `${stage.inputModality} → ${stage.outputModality}`,
-    _input_preview: inputStr.slice(0, 200),
-    _output: `[${stage.outputModality} output from ${stage.model}]`,
-    _note: 'Connect to real provider APIs for production use',
+  // text → text (or code) — use the standard LLM provider
+  if (stage.inputModality === 'text' && (stage.outputModality === 'text' || stage.outputModality === 'code')) {
+    const result = await callProvider(stage.provider, stage.model, inputStr)
+    if (!result.ok) throw new Error(result.error ?? `Provider ${stage.provider} failed`)
+    return result.output ?? ''
   }
+
+  // text → audio — OpenAI TTS
+  if (stage.inputModality === 'text' && stage.outputModality === 'audio') {
+    const apiKey = await getVaultApiKey('openai')
+    if (!apiKey) throw new Error('OpenAI API key not configured (required for TTS)')
+    const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: stage.model || 'tts-1',
+        input: inputStr.slice(0, MAX_TTS_INPUT_CHARS),
+        voice: (stage.config as Record<string, string> | undefined)?.voice ?? 'nova',
+        response_format: 'mp3',
+      }),
+    })
+    if (!ttsRes.ok) {
+      const err = await ttsRes.json().catch(() => ({}))
+      throw new Error((err as { error?: { message?: string } }).error?.message ?? `TTS HTTP ${ttsRes.status}`)
+    }
+    const buf = await ttsRes.arrayBuffer()
+    const base64 = Buffer.from(buf).toString('base64')
+    return { format: 'mp3', base64, bytes: buf.byteLength }
+  }
+
+  // text → image — OpenAI DALL-E or Replicate
+  if (stage.inputModality === 'text' && stage.outputModality === 'image') {
+    const provider = stage.provider || 'openai'
+    if (provider === 'openai') {
+      const apiKey = await getVaultApiKey('openai')
+      if (!apiKey) throw new Error('OpenAI API key not configured (required for image generation)')
+      const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: stage.model || 'dall-e-3',
+          prompt: inputStr.slice(0, MAX_IMAGE_PROMPT_CHARS),
+          n: 1,
+          size: (stage.config as Record<string, string> | undefined)?.size ?? '1024x1024',
+          response_format: 'url',
+        }),
+      })
+      if (!imgRes.ok) {
+        const err = await imgRes.json().catch(() => ({}))
+        throw new Error((err as { error?: { message?: string } }).error?.message ?? `Image gen HTTP ${imgRes.status}`)
+      }
+      const imgData = await imgRes.json() as { data?: Array<{ url?: string; revised_prompt?: string }> }
+      const url = imgData.data?.[0]?.url
+      if (!url) throw new Error('No image URL returned from OpenAI')
+      return { url, revisedPrompt: imgData.data?.[0]?.revised_prompt ?? null }
+    }
+    // Replicate for other image models
+    const apiKey = await getVaultApiKey('replicate')
+    if (!apiKey) throw new Error('Replicate API key not configured (required for this image model)')
+    const repRes = await fetch(`https://api.replicate.com/v1/models/${stage.model}/predictions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Token ${apiKey}` },
+      body: JSON.stringify({ input: { prompt: inputStr.slice(0, MAX_REPLICATE_PROMPT_CHARS) } }),
+    })
+    if (!repRes.ok) throw new Error(`Replicate HTTP ${repRes.status}`)
+    const repData = await repRes.json() as { urls?: { get?: string }; error?: string }
+    if (repData.error) throw new Error(repData.error)
+    return { replicatePredictionUrl: repData.urls?.get ?? null }
+  }
+
+  // image → text (vision) — OpenAI GPT-4V
+  if (stage.inputModality === 'image' && stage.outputModality === 'text') {
+    const apiKey = await getVaultApiKey('openai')
+    if (!apiKey) throw new Error('OpenAI API key not configured (required for vision)')
+    const imageUrl = typeof input === 'string' ? input : (input as { url?: string })?.url
+    if (!imageUrl) throw new Error('Vision stage expects an image URL as input')
+    const visionRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: stage.model || 'gpt-4o',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: imageUrl } },
+            { type: 'text', text: (stage.config as Record<string, string> | undefined)?.prompt ?? 'Describe this image in detail.' },
+          ],
+        }],
+        max_tokens: 1024,
+      }),
+    })
+    if (!visionRes.ok) {
+      const err = await visionRes.json().catch(() => ({}))
+      throw new Error((err as { error?: { message?: string } }).error?.message ?? `Vision HTTP ${visionRes.status}`)
+    }
+    const visionData = await visionRes.json() as { choices?: Array<{ message?: { content?: string } }> }
+    return visionData.choices?.[0]?.message?.content ?? ''
+  }
+
+  // Unsupported transition — return structured error rather than fake output
+  throw new Error(
+    `Unsupported modality transition: ${stage.inputModality} → ${stage.outputModality} ` +
+    `(stage: ${stage.name}, provider: ${stage.provider}, model: ${stage.model}). ` +
+    `Connect a provider that supports this transition.`
+  )
 }
 
 /** Get a pipeline run. */

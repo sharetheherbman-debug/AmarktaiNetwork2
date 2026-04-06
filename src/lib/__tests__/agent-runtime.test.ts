@@ -16,9 +16,9 @@ import {
 
 describe('Agent Runtime', () => {
   describe('getAgentDefinitions', () => {
-    it('returns definitions for all 16 agents', () => {
+    it('returns definitions for all 18 agents', () => {
       const defs = getAgentDefinitions()
-      expect(defs.size).toBe(16)
+      expect(defs.size).toBe(18)
     })
 
     it('includes all required agent types', () => {
@@ -82,7 +82,7 @@ describe('Agent Runtime', () => {
       const status = getAgentStatus()
       expect(status).toBeDefined()
       expect(typeof status.configuredAgents).toBe('number')
-      expect(status.configuredAgents).toBe(16)
+      expect(status.configuredAgents).toBe(18)
     })
   })
 
