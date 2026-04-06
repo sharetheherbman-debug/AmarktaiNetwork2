@@ -35,6 +35,10 @@ export type AgentType =
   | 'developer'
   | 'support_community'
   | 'healing'
+  /** Consumer-facing chatbot deployed to an app — handles conversation, FAQs, and escalation. */
+  | 'chatbot'
+  /** Consumer-facing marketing agent — drives personalised outreach and campaign execution. */
+  | 'marketing_agent'
 
 /** Lifecycle status of an individual agent task. */
 export type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'waiting'
@@ -317,6 +321,38 @@ const AGENT_DEFINITIONS: ReadonlyMap<AgentType, AgentDefinition> = new Map<Agent
       memoryEnabled: false,
       defaultProvider: 'openai',
       defaultModel: 'gpt-4o-mini',
+    },
+  ],
+  [
+    'chatbot',
+    {
+      type: 'chatbot',
+      name: 'Chatbot',
+      description:
+        'Consumer-facing conversational agent deployed to an app. Handles natural language chat, FAQ resolution, '
+        + 'product recommendations, and graceful escalation to human support.',
+      capabilities: ['conversation', 'faq_resolution', 'product_recommendations', 'escalation_handling', 'sentiment_analysis'],
+      requiredPermissions: ['agent:chatbot'],
+      canHandoff: ['support_community', 'campaign'],
+      memoryEnabled: true,
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-4o-mini',
+    },
+  ],
+  [
+    'marketing_agent',
+    {
+      type: 'marketing_agent',
+      name: 'Marketing Agent',
+      description:
+        'Consumer-facing marketing agent that drives personalised outreach, campaign execution, '
+        + 'and conversion optimisation for an individual app.',
+      capabilities: ['personalised_outreach', 'campaign_execution', 'conversion_optimisation', 'audience_segmentation', 'ab_testing'],
+      requiredPermissions: ['agent:marketing_agent'],
+      canHandoff: ['campaign', 'creative'],
+      memoryEnabled: true,
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-4o',
     },
   ],
 ])

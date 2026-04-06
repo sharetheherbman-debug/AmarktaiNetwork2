@@ -335,6 +335,65 @@ npm run db:studio
 
 ---
 
+## Deployment Notes — Redis, Qdrant & Memory Layer
+
+The Amarktai Network memory and emotion systems have three storage tiers:
+
+| Tier | Technology | Purpose | Required? |
+|------|-----------|---------|-----------|
+| Primary | PostgreSQL (`Memory` table) | Persistent long-term memory | ✅ Always |
+| Cache | Redis | Short-term session cache, emotion profiles, rate-limit counters | ⚠️ Recommended |
+| Vector | Qdrant | Semantic similarity search, emotion vectors | ⚠️ Recommended |
+
+### Docker / VPS (Recommended)
+
+`docker-compose.yml` includes PostgreSQL 16 + Redis 7 + Qdrant — all three tiers work automatically:
+
+```bash
+docker compose up -d
+```
+
+### Vercel / Serverless
+
+Redis and Qdrant are **not** available on Vercel's default infrastructure. Without them:
+
+- Memory retrieval degrades to **Postgres-only** full-text search (slower, lower recall)
+- Emotion profiles are stored in Postgres instead of Redis (no TTL expiry)
+- Semantic similarity search is disabled
+
+**To restore full functionality on Vercel**, add external services and set these env vars:
+
+```env
+REDIS_URL=redis://...          # e.g. Upstash Redis
+QDRANT_URL=https://...         # e.g. Qdrant Cloud
+QDRANT_API_KEY=...
+```
+
+### Provider Health Scheduling
+
+Provider health is refreshed:
+- **On demand**: Admin dashboard → AI Providers → individual health check
+- **Bulk refresh**: `POST /api/admin/providers/health-check-all` (admin session or `Bearer $CRON_SECRET`)
+- **Automated (recommended)**: Set a cron job / Vercel Cron to call this endpoint every 15 minutes:
+
+```
+# crontab (VPS)
+*/15 * * * * curl -s -X POST https://your-domain.com/api/admin/providers/health-check-all \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+```json
+// vercel.json (Vercel Cron)
+{
+  "crons": [{
+    "path": "/api/admin/providers/health-check-all",
+    "schedule": "*/15 * * * *"
+  }]
+}
+```
+
+---
+
 ## Apps in the Ecosystem
 
 | App | Status |

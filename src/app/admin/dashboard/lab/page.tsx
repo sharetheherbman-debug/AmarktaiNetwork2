@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   FlaskConical, Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
-  Zap, Info, RefreshCw, Route, AlertCircle, ShieldAlert,
+  Zap, Info, RefreshCw, Route, AlertCircle, ShieldAlert, Radio, Mic, Upload,
+  BookOpen,
 } from 'lucide-react'
 
 const CAPABILITIES = [
@@ -59,6 +60,7 @@ interface TestResult {
   imageUrl?: string | null
   audioUrl?: string | null
   videoStatus?: string | null
+  sources?: Array<{ title: string; url: string; snippet?: string }> | null
 }
 
 export default function LabPage() {
@@ -81,6 +83,13 @@ export default function LabPage() {
   const [ttsVoiceId, setTtsVoiceId] = useState<string>('')
   const [ttsAccent, setTtsAccent] = useState<string>('')
   const [ttsProvider, setTtsProvider] = useState<string>('auto')
+  // Streaming preview
+  const [streamMode, setStreamMode] = useState(false)
+  const [streamOutput, setStreamOutput] = useState<string>('')
+  const [streaming, setStreaming] = useState(false)
+  // STT file upload
+  const sttFileRef = useRef<HTMLInputElement>(null)
+  const [sttFile, setSttFile] = useState<File | null>(null)
 
   const loadProviders = useCallback(async () => {
     setLoadingProviders(true)
@@ -196,6 +205,13 @@ export default function LabPage() {
         imageUrl: data.imageUrl ?? data.image_url ?? null,
         audioUrl: data.audioUrl ?? data.audio_url ?? null,
         videoStatus: data.videoStatus ?? data.video_status ?? null,
+        sources: Array.isArray(data.sources)
+          ? data.sources.map((s: unknown) =>
+              typeof s === 'string'
+                ? { title: s, url: s }
+                : s as { title: string; url: string; snippet?: string }
+            )
+          : null,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed')
@@ -210,6 +226,106 @@ export default function LabPage() {
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  /** Stream a chat/code/reasoning request via SSE from /api/brain/stream */
+  const handleStream = async () => {
+    if (!prompt.trim()) return
+    setStreaming(true)
+    setStreamOutput('')
+    setError(null)
+    try {
+      const body: Record<string, unknown> = {
+        message: prompt.trim(),
+        taskType: capability,
+      }
+      if (forceProvider !== 'auto') body.providerKey = forceProvider
+      if (forceModel !== 'auto') body.modelId = forceModel
+      body.appSlug = appProfile
+
+      const res = await fetch('/api/brain/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `HTTP ${res.status}`)
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const payload = line.slice(6).trim()
+            if (payload === '[DONE]') break
+            try {
+              const parsed = JSON.parse(payload)
+              const delta = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? ''
+              if (delta) setStreamOutput(prev => prev + delta)
+            } catch { /* ignore non-JSON events */ }
+          }
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Stream failed')
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  /** Handle STT audio file upload */
+  const handleSttFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    setSttFile(file)
+    if (file) setPrompt(`[Audio file: ${file.name}]`)
+  }
+
+  const handleSttRun = async () => {
+    if (!sttFile) return
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('audio', sttFile)
+      if (forceProvider !== 'auto') formData.append('providerKey', forceProvider)
+      if (appProfile) formData.append('appSlug', appProfile)
+      const res = await fetch('/api/brain/stt', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setResult({
+        success: true,
+        executed: true,
+        output: data.transcript ?? data.text ?? data.output ?? null,
+        capability: ['stt'],
+        routedProvider: data.provider ?? null,
+        routedModel: data.model ?? null,
+        executionMode: null,
+        confidenceScore: null,
+        validationUsed: false,
+        consensusUsed: false,
+        fallbackUsed: false,
+        fallback_used: false,
+        warnings: [],
+        error: null,
+        latencyMs: data.latencyMs ?? 0,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'STT failed')
+    } finally {
+      setRunning(false)
+    }
+  }
+
 
   const availableCount = capabilityStatus.filter(c => c.available).length
   const unavailableCount = capabilityStatus.filter(c => !c.available).length
@@ -491,14 +607,57 @@ export default function LabPage() {
           </div>
 
           {/* Run Button */}
-          <button
-            onClick={handleRun}
-            disabled={running || !prompt.trim()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-500 hover:to-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {running ? 'Running…' : forceProvider === 'auto' ? 'Auto-Route & Run' : `Run via ${forceProvider}`}
-          </button>
+          {capability === 'stt' ? (
+            <div className="space-y-2">
+              {/* STT file upload */}
+              <input
+                ref={sttFileRef}
+                type="file"
+                accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a,.webm"
+                className="hidden"
+                onChange={handleSttFile}
+              />
+              <button
+                onClick={() => sttFileRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-white/[0.06] border border-white/[0.1] text-slate-300 hover:text-white hover:border-white/[0.2]"
+              >
+                <Upload className="w-4 h-4" />
+                {sttFile ? `File: ${sttFile.name}` : 'Upload Audio File'}
+              </button>
+              <button
+                onClick={handleSttRun}
+                disabled={running || !sttFile}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-500 hover:to-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+                {running ? 'Transcribing…' : 'Transcribe Audio'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Streaming toggle (for text capabilities) */}
+              {['chat', 'code', 'reasoning'].includes(capability) && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setStreamMode(m => !m)}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${streamMode ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-white/[0.08] text-slate-500 hover:text-slate-300'}`}
+                  >
+                    <Radio className="w-3 h-3" />
+                    {streamMode ? 'Stream: ON' : 'Stream: OFF'}
+                  </button>
+                  <span className="text-[10px] text-slate-600">Toggle to preview SSE streaming output</span>
+                </div>
+              )}
+              <button
+                onClick={streamMode ? handleStream : handleRun}
+                disabled={running || streaming || !prompt.trim()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-500 hover:to-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {(running || streaming) ? <Loader2 className="w-4 h-4 animate-spin" /> : streamMode ? <Radio className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {running || streaming ? (streamMode ? 'Streaming…' : 'Running…') : streamMode ? 'Stream via SSE' : forceProvider === 'auto' ? 'Auto-Route & Run' : `Run via ${forceProvider}`}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Output Panel */}
@@ -680,7 +839,23 @@ export default function LabPage() {
                 )}
 
                 {/* Text Output */}
-                {result?.output ? (
+                {streaming ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-3 h-3 text-blue-400 animate-pulse" />
+                      <span className="text-[10px] uppercase tracking-wider text-blue-400 font-mono">Streaming</span>
+                    </div>
+                    <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed min-h-[80px]">{streamOutput || <span className="text-slate-600">Waiting for tokens…</span>}</pre>
+                  </div>
+                ) : streamOutput && !running ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Radio className="w-3 h-3 text-emerald-400" />
+                      <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-mono">Stream Complete</span>
+                    </div>
+                    <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">{streamOutput}</pre>
+                  </div>
+                ) : result?.output ? (
                   <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">{result.output}</pre>
                 ) : !result?.imageUrl && !result?.audioUrl && !result?.videoStatus ? (
                   <div className="flex flex-col items-center justify-center h-full gap-2">
@@ -688,6 +863,33 @@ export default function LabPage() {
                     <p className="text-sm text-slate-600">Run a test to see output</p>
                   </div>
                 ) : null}
+
+                {/* Research Citations Panel */}
+                {result?.sources && result.sources.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-[10px] uppercase tracking-wider text-amber-400 font-mono">Sources ({result.sources.length})</span>
+                    </div>
+                    <div className="space-y-2">
+                      {result.sources.map((source, i) => (
+                        <div key={i} className="bg-white/[0.02] border border-white/[0.05] rounded-lg px-3 py-2 space-y-0.5">
+                          <a
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors font-medium truncate block"
+                          >
+                            {source.title || source.url}
+                          </a>
+                          {source.snippet && (
+                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{source.snippet}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {result && (
                   <details className="mt-3">
