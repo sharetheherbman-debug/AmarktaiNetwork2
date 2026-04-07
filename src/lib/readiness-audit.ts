@@ -210,11 +210,32 @@ async function checkCheapRoute(): Promise<AuditCheck> {
   }
 
   if (active.length > 0) {
+    // Verify routing actually works by attempting a test routing decision
+    let routingWorks = false
+    let routingDetail = ''
+    try {
+      const decision = routeRequest({
+        appSlug: '__readiness_audit__',
+        appCategory: 'general',
+        taskType: 'chat',
+        taskComplexity: 'simple',
+        message: 'test',
+        requiresRetrieval: false,
+        requiresMultimodal: false,
+      })
+      routingWorks = !!decision.primaryModel
+      routingDetail = routingWorks
+        ? `Routes to ${decision.primaryModel?.model_id} (${decision.primaryModel?.provider})`
+        : `Routing returned no model: ${decision.reason}`
+    } catch (e) {
+      routingDetail = `Routing error: ${e instanceof Error ? e.message : String(e)}`
+    }
+
     return check(
       'provider_cheap_route', 'provider', 'Backbone / Budget Route',
-      'At least one backbone/budget provider is configured',
-      true, 'pass',
-      `Active backbone route(s): ${active.join(', ')}`,
+      'At least one backbone/budget provider is configured and routing works',
+      true, routingWorks ? 'pass' : 'warning',
+      `Active backbone route(s): ${active.join(', ')}. ${routingDetail}`,
     )
   }
 
@@ -708,9 +729,19 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
   const [
     dbConfig,
     openai,
+    groq,
     grok,
-    nvidia,
+    deepseek,
+    gemini,
     huggingface,
+    nvidia,
+    openrouter,
+    together,
+    qwen,
+    replicate,
+    anthropic,
+    cohere,
+    mistral,
     cheapRoute,
     appRegistry,
     routingEngine,
@@ -723,10 +754,20 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
     dashboardTruth,
   ] = await Promise.all([
     checkDbConfig(),
-    checkProvider('provider_openai', 'openai', 'OpenAI'),
-    checkProvider('provider_grok', 'grok', 'Grok / xAI'),
-    checkProvider('provider_nvidia', 'nvidia', 'NVIDIA'),
-    checkProvider('provider_huggingface', 'huggingface', 'Hugging Face'),
+    checkProvider('provider_openai',     'openai',      'OpenAI'),
+    checkProvider('provider_groq',       'groq',        'Groq'),
+    checkProvider('provider_grok',       'grok',        'Grok / xAI'),
+    checkProvider('provider_deepseek',   'deepseek',    'DeepSeek'),
+    checkProvider('provider_gemini',     'gemini',      'Google Gemini'),
+    checkProvider('provider_huggingface','huggingface', 'Hugging Face'),
+    checkProvider('provider_nvidia',     'nvidia',      'NVIDIA'),
+    checkProvider('provider_openrouter', 'openrouter',  'OpenRouter'),
+    checkProvider('provider_together',   'together',    'Together AI'),
+    checkProvider('provider_qwen',       'qwen',        'Qwen'),
+    checkProvider('provider_replicate',  'replicate',   'Replicate'),
+    checkProvider('provider_anthropic',  'anthropic',   'Anthropic'),
+    checkProvider('provider_cohere',     'cohere',      'Cohere'),
+    checkProvider('provider_mistral',    'mistral',     'Mistral AI'),
     checkCheapRoute(),
     checkAppRegistry(),
     checkRoutingEngine(),
@@ -747,9 +788,19 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
   const checks: AuditCheck[] = [
     dbConfig,
     openai,
+    groq,
     grok,
-    nvidia,
+    deepseek,
+    gemini,
     huggingface,
+    nvidia,
+    openrouter,
+    together,
+    qwen,
+    replicate,
+    anthropic,
+    cohere,
+    mistral,
     cheapRoute,
     modelRegistry,
     appRegistry,

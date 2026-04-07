@@ -42,11 +42,11 @@ export async function GET() {
       },
       orderBy: { sortOrder: 'asc' },
     }),
-    // Brain gateway stats
+    // Brain gateway stats — exclude internal admin test calls (__admin_test__)
     Promise.all([
-      prisma.brainEvent.count(),
-      prisma.brainEvent.count({ where: { success: true } }),
-      prisma.brainEvent.aggregate({ _avg: { latencyMs: true }, where: { latencyMs: { not: null } } }),
+      prisma.brainEvent.count({ where: { appSlug: { not: '__admin_test__' } } }),
+      prisma.brainEvent.count({ where: { success: true, appSlug: { not: '__admin_test__' } } }),
+      prisma.brainEvent.aggregate({ _avg: { latencyMs: true }, where: { latencyMs: { not: null }, appSlug: { not: '__admin_test__' } } }),
     ]).then(([total, success, latency]) => ({
       totalRequests: total,
       successCount: success,
@@ -56,6 +56,7 @@ export async function GET() {
     prisma.brainEvent.findMany({
       orderBy: { timestamp: 'desc' },
       take: 5,
+      where: { appSlug: { not: '__admin_test__' } },
       select: {
         id: true, traceId: true, appSlug: true, taskType: true,
         routedProvider: true, success: true, latencyMs: true, timestamp: true,

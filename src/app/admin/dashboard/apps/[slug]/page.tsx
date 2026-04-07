@@ -261,7 +261,7 @@ export default function AppDetailPage() {
       >
         {tab === 'Overview' && <OverviewTab app={app} />}
         {tab === 'AI Stack' && <AIStackTab app={app} />}
-        {tab === 'Agents' && <AgentsTab appSlug={app.slug} appId={app.slug} appSecret={app.appSecret} />}
+        {tab === 'Agents' && <AgentsTab appSlug={app.slug} appId={app.slug} appSecret={app.appSecret} productId={app.id} onSecretRotated={(newSecret) => setApp(prev => prev ? { ...prev, appSecret: newSecret } : prev)} />}
         {tab === 'Metrics' && <MetricsTab appSlug={app.slug} />}
         {tab === 'Learning' && <AppLearningTab appSlug={app.slug} />}
         {tab === 'Strategy' && <StrategyTab appSlug={app.slug} appName={app.name} appCategory={app.category} />}
@@ -362,7 +362,13 @@ const READINESS_COLOR: Record<string, string> = {
   NOT_CONNECTED: 'text-slate-500',
 }
 
-function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: string; appSecret: string }) {
+function AgentsTab({ appSlug, appId, appSecret, productId, onSecretRotated }: {
+  appSlug: string
+  appId: string
+  appSecret: string
+  productId: number
+  onSecretRotated?: (newSecret: string) => void
+}) {
   const [agents, setAgents] = useState<AgentEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -370,11 +376,41 @@ function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: stri
   const [saved, setSaved] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [secretRevealed, setSecretRevealed] = useState(false)
+  const [rotatingSecret, setRotatingSecret] = useState(false)
+  const [localSecret, setLocalSecret] = useState(appSecret)
 
-  const maskedSecret = appSecret.length > 8
-    ? `${appSecret.slice(0, 4)}${'•'.repeat(Math.max(0, appSecret.length - 8))}${appSecret.slice(-4)}`
-    : '••••••••'
-  const displaySecret = secretRevealed ? appSecret : maskedSecret
+  const maskedSecret = localSecret.length > 8
+    ? `${localSecret.slice(0, 4)}${'•'.repeat(Math.max(0, localSecret.length - 8))}${localSecret.slice(-4)}`
+    : (localSecret.length > 0 ? '••••••••' : '(no secret — generate one below)')
+  const displaySecret = secretRevealed ? localSecret : maskedSecret
+
+  const rotateSecret = async () => {
+    if (!confirm('Generate a new app secret? Any app using the old secret will need to be updated.')) return
+    setRotatingSecret(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        // regenerateSecret: true causes the server to generate a cryptographically-secure
+        // 64-char hex secret server-side — never trust client-supplied entropy
+        body: JSON.stringify({ regenerateSecret: true }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+      const updated = await res.json() as { appSecret?: string }
+      const newSecret = updated.appSecret ?? ''
+      setLocalSecret(newSecret)
+      setSecretRevealed(true)
+      onSecretRotated?.(newSecret)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rotate secret')
+    } finally {
+      setRotatingSecret(false)
+    }
+  }
 
   const loadAgents = useCallback(async () => {
     setLoading(true)
@@ -432,6 +468,49 @@ function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: stri
 
   return (
     <div className="space-y-6">
+      {/* App Credentials — always visible */}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">App Credentials</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={rotateSecret}
+              disabled={rotatingSecret}
+              className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 transition-colors font-mono disabled:opacity-50"
+              title="Generate or rotate the app secret"
+            >
+              {rotatingSecret ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔑'}
+              {rotatingSecret ? 'Generating…' : (localSecret ? 'Rotate Secret' : 'Generate Secret')}
+            </button>
+            <button
+              onClick={() => setSecretRevealed(r => !r)}
+              className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors font-mono"
+            >
+              {secretRevealed ? '🙈 Hide' : '👁 Reveal'}
+            </button>
+          </div>
+        </div>
+        {!localSecret && (
+          <p className="text-xs text-amber-400">⚠ No app secret — click <strong>Generate Secret</strong> to create one before connecting apps to the Brain.</p>
+        )}
+        <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-2 font-mono">
+          <span className="text-[10px] text-slate-500 shrink-0">App ID</span>
+          <span className="text-xs text-blue-300 flex-1 truncate">{appId}</span>
+          <button onClick={() => { navigator.clipboard.writeText(appId); setCopiedKey('appId') }} className="text-slate-500 hover:text-white">
+            {copiedKey === 'appId' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-2 font-mono">
+          <span className="text-[10px] text-slate-500 shrink-0">Secret</span>
+          <span className="text-xs text-amber-200/80 flex-1 truncate">{displaySecret}</span>
+          {localSecret && (
+            <button onClick={() => { navigator.clipboard.writeText(localSecret); setCopiedKey('secret') }} className="text-slate-500 hover:text-white">
+              {copiedKey === 'secret' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -529,12 +608,23 @@ function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: stri
                 <Globe className="w-4 h-4 text-emerald-400" />
                 <h4 className="text-sm font-semibold text-white">Live Endpoint URLs</h4>
                 <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">SAVE to activate</span>
-                <button
-                  onClick={() => setSecretRevealed(r => !r)}
-                  className="ml-auto text-[10px] text-slate-500 hover:text-slate-300 transition-colors font-mono"
-                >
-                  {secretRevealed ? '🙈 Hide secret' : '👁 Reveal secret'}
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={rotateSecret}
+                    disabled={rotatingSecret}
+                    className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 transition-colors font-mono disabled:opacity-50"
+                    title="Generate a new app secret"
+                  >
+                    {rotatingSecret ? <Loader2 className="w-3 h-3 animate-spin" /> : '🔑'}
+                    {rotatingSecret ? 'Generating…' : (localSecret ? 'Rotate Secret' : 'Generate Secret')}
+                  </button>
+                  <button
+                    onClick={() => setSecretRevealed(r => !r)}
+                    className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors font-mono"
+                  >
+                    {secretRevealed ? '🙈 Hide secret' : '👁 Reveal secret'}
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-slate-400">Use these URLs in your app to send requests through the Brain Gateway. All requests are authenticated with your App ID and Secret.</p>
 
@@ -549,12 +639,12 @@ function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: stri
                 }, null, 2)
                 const realSnippet = JSON.stringify({
                   appId: appId,
-                  appSecret: appSecret,
+                  appSecret: localSecret,
                   taskType: agentTaskType,
                   message: '<user message here>',
                 }, null, 2)
                 const curlCmd = `curl -X POST ${endpointUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"appId":"${appId}","appSecret":"${displaySecret}","taskType":"${agentTaskType}","message":"Hello"}'`
-                const realCurlCmd = `curl -X POST ${endpointUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"appId":"${appId}","appSecret":"${appSecret}","taskType":"${agentTaskType}","message":"Hello"}'`
+                const realCurlCmd = `curl -X POST ${endpointUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"appId":"${appId}","appSecret":"${localSecret}","taskType":"${agentTaskType}","message":"Hello"}'`
                 return (
                   <div key={agent.type} className="space-y-2">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">{agent.name} — {agent.type}</p>
@@ -610,8 +700,117 @@ function AgentsTab({ appSlug, appId, appSecret }: { appSlug: string; appId: stri
 
 /* ── Tab: AI Stack ───────────────────────────────────────── */
 function AIStackTab({ app }: { app: AppRecord }) {
+  const [profile, setProfile] = useState<{
+    routingStrategy: string
+    basePersonality: string
+    emotionContextWindow: number
+    allowedProviders: string[]
+    preferredModels: string[]
+    costMode: string
+    budgetSensitivity: string
+    latencySensitivity: string
+  } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  // Load current AI profile
+  useEffect(() => {
+    fetch(`/api/admin/app-profiles?appSlug=${encodeURIComponent(app.slug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.profile) {
+          const p = data.profile
+          const safeParse = (val: unknown): string[] => {
+            if (Array.isArray(val)) return val
+            if (typeof val !== 'string') return []
+            try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : [] } catch { return [] }
+          }
+          setProfile({
+            routingStrategy: p.routingStrategy ?? 'balanced',
+            basePersonality: p.basePersonality ?? '',
+            emotionContextWindow: p.emotionContextWindow ?? 0,
+            allowedProviders: safeParse(p.allowedProviders),
+            preferredModels: safeParse(p.preferredModels),
+            costMode: p.costMode ?? 'balanced',
+            budgetSensitivity: p.budgetSensitivity ?? 'medium',
+            latencySensitivity: p.latencySensitivity ?? 'medium',
+          })
+        } else {
+          setProfile({
+            routingStrategy: 'balanced',
+            basePersonality: '',
+            emotionContextWindow: 0,
+            allowedProviders: [],
+            preferredModels: [],
+            costMode: 'balanced',
+            budgetSensitivity: 'medium',
+            latencySensitivity: 'medium',
+          })
+        }
+      })
+      .catch(() => setProfile(null))
+  }, [app.slug])
+
+  const ALL_PROVIDERS = [
+    'openai', 'groq', 'grok', 'deepseek', 'gemini', 'huggingface', 'nvidia',
+    'openrouter', 'together', 'qwen', 'replicate', 'anthropic', 'cohere', 'mistral',
+  ]
+  const PERSONALITIES: Array<{ value: string; label: string }> = [
+    { value: '', label: 'Auto (from category)' },
+    { value: 'professional', label: 'Professional' },
+    { value: 'analytical', label: 'Analytical' },
+    { value: 'friendly', label: 'Friendly' },
+    { value: 'empathetic', label: 'Empathetic' },
+    { value: 'assertive', label: 'Assertive' },
+    { value: 'calm', label: 'Calm' },
+    { value: 'flirty', label: 'Flirty' },
+    { value: 'upbeat', label: 'Upbeat' },
+  ]
+
+  const saveProfile = async () => {
+    if (!profile) return
+    setSaving(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/admin/app-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          appSlug: app.slug,
+          appName: app.name,
+          routingStrategy: profile.routingStrategy,
+          basePersonality: profile.basePersonality,
+          emotionContextWindow: profile.emotionContextWindow,
+          allowedProviders: JSON.stringify(profile.allowedProviders),
+          preferredModels: JSON.stringify(profile.preferredModels),
+          costMode: profile.costMode,
+          budgetSensitivity: profile.budgetSensitivity,
+          latencySensitivity: profile.latencySensitivity,
+        }),
+      })
+      setMsg(res.ok ? '✅ Saved' : `⚠ ${(await res.json()).error ?? 'Error'}`)
+    } catch {
+      setMsg('⚠ Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleProvider = (p: string) => {
+    if (!profile) return
+    setProfile(prev => {
+      if (!prev) return prev
+      const list = prev.allowedProviders.includes(p)
+        ? prev.allowedProviders.filter(x => x !== p)
+        : [...prev.allowedProviders, p]
+      return { ...prev, allowedProviders: list }
+    })
+  }
+
   return (
     <div className="space-y-6">
+      {/* Status cards */}
       <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
         <h3 className="text-sm font-semibold text-white">AI Configuration</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -651,9 +850,114 @@ function AIStackTab({ app }: { app: AppRecord }) {
         </div>
       </div>
 
-      <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-        <p className="text-xs text-slate-400">AI stack shows current routing, provider, and monitoring configuration for this app.</p>
-      </div>
+      {/* App AI Profile editor */}
+      {profile && (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">App AI Profile</h3>
+            <button onClick={saveProfile} disabled={saving}
+              className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 disabled:opacity-50 transition-colors">
+              {saving ? 'Saving…' : 'Save Profile'}
+            </button>
+          </div>
+          {msg && <p className="text-xs text-slate-400">{msg}</p>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Routing Strategy */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Routing Strategy</label>
+              <select value={profile.routingStrategy}
+                onChange={e => setProfile({ ...profile, routingStrategy: e.target.value })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="balanced">Balanced</option>
+                <option value="cheapest">Cheapest</option>
+                <option value="fastest">Fastest</option>
+                <option value="quality">Quality</option>
+              </select>
+            </div>
+
+            {/* Base Personality */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Base Personality</label>
+              <select value={profile.basePersonality}
+                onChange={e => setProfile({ ...profile, basePersonality: e.target.value })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                {PERSONALITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+
+            {/* Emotion Context Window */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Emotion Context Window</label>
+              <select value={profile.emotionContextWindow}
+                onChange={e => setProfile({ ...profile, emotionContextWindow: parseInt(e.target.value) })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                <option value={0}>Default (5)</option>
+                <option value={5}>5 (Simple Chat)</option>
+                <option value={10}>10 (Standard)</option>
+                <option value={20}>20 (Companion)</option>
+                <option value={50}>50 (Deep Context)</option>
+              </select>
+            </div>
+
+            {/* Cost Mode */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Cost Mode</label>
+              <select value={profile.costMode}
+                onChange={e => setProfile({ ...profile, costMode: e.target.value })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="cheap">Cheap</option>
+                <option value="balanced">Balanced</option>
+                <option value="premium">Premium</option>
+              </select>
+            </div>
+
+            {/* Budget Sensitivity */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Budget Sensitivity</label>
+              <select value={profile.budgetSensitivity}
+                onChange={e => setProfile({ ...profile, budgetSensitivity: e.target.value })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            {/* Latency Sensitivity */}
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Latency Sensitivity</label>
+              <select value={profile.latencySensitivity}
+                onChange={e => setProfile({ ...profile, latencySensitivity: e.target.value })}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Allowed Providers */}
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">
+              Allowed Providers {profile.allowedProviders.length === 0 ? '(all)' : `(${profile.allowedProviders.length})`}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ALL_PROVIDERS.map(p => (
+                <button key={p} onClick={() => toggleProvider(p)}
+                  className={`text-[10px] font-mono px-2 py-1 rounded-lg border transition-colors ${
+                    profile.allowedProviders.includes(p)
+                      ? 'bg-blue-500/20 border-blue-500/40 text-blue-300'
+                      : 'bg-white/[0.02] border-white/[0.06] text-slate-600 hover:text-slate-400'
+                  }`}>
+                  {p}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-600">Empty = all providers allowed. Click to toggle.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

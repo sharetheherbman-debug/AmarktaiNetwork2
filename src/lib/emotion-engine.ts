@@ -221,8 +221,28 @@ const MAX_MEMORY_PER_USER = 100
 /** Personality adaptation thresholds */
 const ADAPT_THRESHOLD = 0.3 // 30 % frequency triggers adaptation
 
-/** Conversation context window size */
-const CONTEXT_WINDOW = 5
+/** Default conversation context window size */
+const DEFAULT_CONTEXT_WINDOW = 5
+
+/** Per-app context window overrides (set via setAppContextWindow) */
+const appContextWindows = new Map<string, number>()
+
+/** Set the context window size for a specific app (e.g. 20 for companion apps). */
+export function setAppContextWindow(appSlug: string, windowSize: number): void {
+  appContextWindows.set(appSlug, Math.max(2, Math.min(100, windowSize)))
+}
+
+/** Get the effective context window for a user (uses app slug prefix if present). */
+function getEffectiveContextWindow(userId: string): number {
+  // Convention: userId may be prefixed with appSlug, e.g. "my-app:user123"
+  const colonIdx = userId.indexOf(':')
+  if (colonIdx > 0) {
+    const appSlug = userId.slice(0, colonIdx)
+    const override = appContextWindows.get(appSlug)
+    if (override) return override
+  }
+  return DEFAULT_CONTEXT_WINDOW
+}
 
 // ─── Emoji → Emotion Mapping ────────────────────────────────────────────────
 
@@ -231,11 +251,12 @@ const EMOJI_EMOTIONS: Record<string, EmotionType> = {
   '😀': 'joy', '😃': 'joy', '😄': 'joy', '😁': 'joy', '😆': 'joy',
   '😂': 'joy', '🤣': 'joy', '😊': 'joy', '🥰': 'joy', '😍': 'joy',
   '🤩': 'joy', '😘': 'joy', '😗': 'joy', '☺️': 'joy', '😚': 'joy',
-  '😙': 'joy', '🥲': 'joy', '😋': 'joy', '😛': 'joy', '😜': 'joy',
+  '😙': 'joy', '🥲': 'joy', '🥹': 'joy', '😋': 'joy', '😛': 'joy', '😜': 'joy',
   '🤪': 'joy', '😝': 'joy', '💕': 'joy', '❤️': 'joy', '💖': 'joy',
   '💗': 'joy', '💓': 'joy', '💞': 'joy', '🎉': 'joy', '🎊': 'joy',
   '✨': 'joy', '🌟': 'joy', '⭐': 'joy', '🏆': 'joy', '👏': 'joy',
   '🙌': 'joy', '💪': 'joy', '🤗': 'joy', '👍': 'joy', '🫶': 'joy',
+  '🫂': 'joy',
   // Sadness
   '😢': 'sadness', '😭': 'sadness', '😞': 'sadness', '😔': 'sadness',
   '😟': 'sadness', '🥺': 'sadness', '😿': 'sadness', '💔': 'sadness',
@@ -245,7 +266,7 @@ const EMOJI_EMOTIONS: Record<string, EmotionType> = {
   '💢': 'anger', '🔥': 'anger', '😤': 'anger', '🗯️': 'anger',
   // Fear
   '😨': 'fear', '😰': 'fear', '😱': 'fear', '🫣': 'fear',
-  '😳': 'fear', '🫠': 'fear', '😬': 'fear', '💀': 'fear',
+  '😳': 'fear', '🫠': 'fear', '😬': 'fear',
   // Surprise
   '😮': 'surprise', '😲': 'surprise', '🤯': 'surprise', '😵': 'surprise',
   '🫢': 'surprise', '😯': 'surprise', '🤭': 'surprise',
@@ -254,13 +275,18 @@ const EMOJI_EMOTIONS: Record<string, EmotionType> = {
   '🤧': 'disgust', '💩': 'disgust',
   // Confusion
   '🤔': 'confusion', '😕': 'confusion', '🫤': 'confusion', '😐': 'confusion',
-  '🤨': 'confusion', '❓': 'confusion', '❔': 'confusion',
-  // Frustration
+  '🤨': 'confusion', '❓': 'confusion', '❔': 'confusion', '🧐': 'confusion',
+  // Frustration — includes 🙃 (passive-aggressive/sarcasm), 💀 (colloquial slang: "dying"
+  // / "I'm dead" — in modern usage almost always means laughter or exasperation, not fear),
+  // 🤌 (exasperation/perfection used ironically), 😮‍💨 (exhale/relief after a stressful moment)
   '🙄': 'frustration', '😩': 'frustration', '😫': 'frustration',
   '🤦': 'frustration', '🤦‍♂️': 'frustration', '🤦‍♀️': 'frustration',
+  '🙃': 'frustration', '💀': 'frustration', '🤌': 'frustration',
+  '😮‍💨': 'frustration',
   // Excitement
   '🚀': 'excitement', '⚡': 'excitement',
   '💥': 'excitement', '🤑': 'excitement', '🥳': 'excitement',
+  '🧠': 'excitement',
   // Trust
   '🤝': 'trust', '🫡': 'trust', '💯': 'trust',
   // Anticipation
@@ -375,7 +401,13 @@ const DETECTION_RULES: PatternRule[] = [
     emotion: 'frustration',
     keywords: ['frustrated', 'annoying', 'stuck', 'struggling', 'difficult', 'impossible', 'doesn\'t work', 'broken', 'failed', 'useless', 'why won\'t', 'keep trying'],
     boost: 0.4,
-    patterns: [/\b(so frustrated|really (annoying|stuck|struggling))\b/i, /\b(doesn't|won't|can't) (work|load|run|open)\b/i],
+    patterns: [
+      /\b(so frustrated|really (annoying|stuck|struggling))\b/i,
+      /\b(doesn't|won't|can't) (work|load|run|open)\b/i,
+      // Sarcasm: positive word + sarcasm marker ("Oh great, another crash")
+      /\b(oh|wow)\b.{0,30}\b(again|seriously|right|sure|yeah|thanks)\b/i,
+      /\b(great|wonderful|fantastic|perfect|brilliant|excellent)\b.{0,30}\b(again|right|seriously|not)\b/i,
+    ],
     negationImmune: true,
   },
   {
@@ -764,9 +796,10 @@ export function updateConversationContext(userId: string, text: string, analysis
     timestamp: new Date().toISOString(),
   })
 
-  // Keep only last N messages
-  if (existing.recentMessages.length > CONTEXT_WINDOW) {
-    existing.recentMessages = existing.recentMessages.slice(-CONTEXT_WINDOW)
+  // Keep only last N messages (per-app configurable window)
+  const windowSize = getEffectiveContextWindow(userId)
+  if (existing.recentMessages.length > windowSize) {
+    existing.recentMessages = existing.recentMessages.slice(-windowSize)
   }
 
   // Calculate emotional momentum: weighted average of recent valences
@@ -812,15 +845,25 @@ const EMOTION_TO_PERSONALITY: Partial<Record<EmotionType, PersonalityType>> = {
 export function adaptPersonality(
   userId: string,
   basePersonality: PersonalityType = 'professional',
+  currentAnalysis?: EmotionAnalysis,
 ): PersonalityState {
   const profile = userProfiles.get(userId)
   const drift = userDrift.get(userId)
+  const learningState = userLearningState.get(userId)
+  const context = conversationContexts.get(userId)
 
   let adapted = basePersonality
   let reason = 'default base personality'
   let strength = 0
 
-  if (profile && profile.interactionCount >= 3) {
+  // EMOTION GAP 8: Use learned best personality when there is enough signal data.
+  // 5 signals: enough to form a statistically meaningful preference (< 5 may be noise).
+  // 0.6 positiveRate: majority positive — the adapted personality is working better than chance.
+  if (learningState && learningState.totalSignals >= 5 && learningState.positiveRate > 0.6) {
+    adapted = learningState.bestPersonality
+    reason = `learned best personality (${learningState.positiveRate * 100 | 0}% positive rate, ${learningState.totalSignals} signals) → ${adapted}`
+    strength = Math.min(1, learningState.positiveRate)
+  } else if (profile && profile.interactionCount >= 3) {
     // Find the user's most frequent emotion
     const sorted = Object.entries(profile.emotionFrequency)
       .sort(([, a], [, b]) => (b as number) - (a as number))
@@ -837,7 +880,35 @@ export function adaptPersonality(
     }
   }
 
-  // Override if drift is declining
+  // EMOTION GAP 3: Immediate adaptation for high-confidence single messages
+  // (bypasses the interactionCount >= 3 gate when the signal is strong)
+  if (adapted === basePersonality && currentAnalysis && currentAnalysis.confidence >= 0.85) {
+    const immediate = EMOTION_TO_PERSONALITY[currentAnalysis.dominant]
+    if (immediate) {
+      adapted = immediate
+      strength = currentAnalysis.confidence
+      reason = `high-confidence immediate signal (${Math.round(currentAnalysis.confidence * 100)}% confidence: ${currentAnalysis.dominant}) → ${immediate} tone`
+    }
+  }
+
+  // EMOTION GAP 4: Personality decay — if recent context shows the dominant emotion
+  // has shifted away from the adapted personality trigger for 2+ consecutive messages,
+  // blend back toward neutral/professional.
+  if (context && context.recentMessages.length >= 2 && adapted !== basePersonality) {
+    const lastTwo = context.recentMessages.slice(-2)
+    const lastTwoDominants = lastTwo.map(m => m.analysis.dominant)
+    // Check if the last 2 messages are now emotionally positive/neutral while
+    // the adapted personality was for a negative state
+    const adaptedIsNegative = ['empathetic', 'calm'].includes(adapted)
+    const allRecent = lastTwoDominants.every(d => EMOTION_VALENCE[d] >= 0)
+    if (adaptedIsNegative && allRecent) {
+      adapted = basePersonality
+      strength = 0
+      reason = `personality decay — emotion shifted to positive for ${lastTwo.length} consecutive messages → returning to ${basePersonality}`
+    }
+  }
+
+  // Override if drift is declining (stronger signal overrides learning/frequency)
   if (drift && drift.direction === 'declining' && drift.trendScore < -0.3) {
     adapted = 'empathetic'
     reason = `emotional drift declining (${drift.trendScore}) → empathetic tone`
@@ -990,8 +1061,8 @@ export function modulateResponse(
   updateEmotionalProfile(userId, analysis)
   trackEmotionalDrift(userId, analysis.dominant)
 
-  // 2. Adapt personality
-  const personality = adaptPersonality(userId, basePersonality)
+  // 2. Adapt personality — pass current analysis for high-confidence immediate signals
+  const personality = adaptPersonality(userId, basePersonality, analysis)
 
   // 3. Build tone prefix
   const notes: string[] = []
@@ -1065,17 +1136,65 @@ export const DEFAULT_MULTIMODAL_CONFIG: MultimodalEmotionConfig = {
 
 // ─── Phase 10 — Full Pipeline ───────────────────────────────────────────────
 
-import { persistEmotionState } from './emotion-persistence'
+import {
+  persistEmotionState,
+  loadProfile,
+  loadDrift,
+  loadMemory,
+  loadPersonality,
+  loadContext,
+  loadLearning,
+} from './emotion-persistence'
 import { enrichAndBlend, isHFEnrichmentAvailable } from './hf-emotion-enrichment'
+
+/** Tracks which user IDs have been warm-started from Redis in this process lifetime */
+const warmUpCache = new Set<string>()
+
+/**
+ * Warm up the in-memory emotion state for a user from Redis on first encounter.
+ *
+ * On container restart all Maps are empty, but Redis retains up to 7 days of
+ * state. This function restores that state into the in-memory Maps so personality
+ * adaptation, drift tracking, and learning all continue from where they left off.
+ *
+ * It is safe to call multiple times — subsequent calls are no-ops for the same userId.
+ * Non-blocking: errors are silently ignored so the pipeline always continues.
+ */
+export async function warmUpEmotionState(userId: string): Promise<void> {
+  if (warmUpCache.has(userId)) return
+  warmUpCache.add(userId)
+
+  try {
+    const [profile, drift, memory, personality, context, learning] = await Promise.all([
+      loadProfile(userId),
+      loadDrift(userId),
+      loadMemory(userId),
+      loadPersonality(userId),
+      loadContext(userId),
+      loadLearning(userId),
+    ])
+
+    if (profile && !userProfiles.has(userId))         userProfiles.set(userId, profile)
+    if (drift && !userDrift.has(userId))               userDrift.set(userId, drift)
+    if (memory && !emotionMemory.has(userId))          emotionMemory.set(userId, memory)
+    if (personality && !userPersonality.has(userId))   userPersonality.set(userId, personality)
+    if (context && !conversationContexts.has(userId))  conversationContexts.set(userId, context)
+    if (learning && !userLearningState.has(userId)) {
+      userLearningState.set(userId, learning)
+    }
+  } catch {
+    // Persistence unavailable — in-memory engine works without it
+  }
+}
 
 /**
  * Run the complete emotional intelligence pipeline (v2).
  *
- * input → detect → emoji + NLP + negation → context update → memory lookup
- *       → personality adapt → modulate → persist → output
+ * input → warm-up from Redis → detect → emoji + NLP + negation → context update
+ *       → memory lookup → personality adapt → modulate → persist → output
  *
- * The pipeline is synchronous for performance. Persistence (Redis/Qdrant)
- * and HF enrichment are fire-and-forget async — they don't block the response.
+ * The pipeline is synchronous for performance. Warm-up is async on first
+ * encounter. Persistence (Redis/Qdrant) and HF enrichment are fire-and-forget.
  */
 export function runEmotionPipeline(
   userId: string,
@@ -1090,6 +1209,12 @@ export function runEmotionPipeline(
   context: ConversationContext
   sentiment: SentimentResult
 } {
+  // Step 0: Fire-and-forget warm-up from Redis on first encounter.
+  // Restores profile/drift/personality after container restart.
+  if (!warmUpCache.has(userId)) {
+    warmUpEmotionState(userId).catch(() => {})
+  }
+
   // Step 1: Detect emotions (includes emoji, NLP, negation, intensity)
   const analysis = detectEmotions(text)
 
@@ -1145,6 +1270,10 @@ export async function runEmotionPipelineEnriched(
   sentiment: SentimentResult
   hfEnriched: boolean
 }> {
+  // Step 0: Await warm-up from Redis on first encounter.
+  // In the async pipeline we can properly await it so subsequent steps see the rehydrated state.
+  await warmUpEmotionState(userId)
+
   // Step 1: Internal detection
   let analysis = detectEmotions(text)
 
@@ -1268,7 +1397,8 @@ export function getTopTransitions(limit = 10): EmotionTransition[] {
 export {
   DETECTION_RULES, DRIFT_WINDOW, MAX_MEMORY_PER_USER, ADAPT_THRESHOLD,
   EMOTION_VALENCE, EMOJI_EMOTIONS, NEGATION_WORDS, INTENSITY_MODIFIERS,
-  CONTEXT_WINDOW,
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_CONTEXT_WINDOW as CONTEXT_WINDOW, // backward compat alias
 }
 
 /**

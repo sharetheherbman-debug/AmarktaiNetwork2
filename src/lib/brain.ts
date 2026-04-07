@@ -277,15 +277,61 @@ export async function callProvider(
       // ── Hugging Face Inference ──────────────────────────────────────────────
       case 'huggingface': {
         const base = vault.baseUrl || 'https://api-inference.huggingface.co'
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${vault.apiKey}`,
+        }
+
+        // Detect task type from model name patterns to send correct payload
+        const modelLower = resolvedModel.toLowerCase()
+        const isEmbedding = modelLower.includes('embed') || modelLower.includes('sentence-transformer') || modelLower.includes('bge-') || modelLower.includes('e5-')
+        const isTTS = modelLower.includes('tts') || modelLower.includes('bark') || modelLower.includes('speecht5') || modelLower.includes('speech-t5')
+        const isSTT = modelLower.includes('whisper') || modelLower.includes('wav2vec') || modelLower.includes('stt')
+
+        let body: string
+        const contentType = 'application/json'
+
+        if (isEmbedding) {
+          // Embedding models: { inputs: string | string[] } → returns float[][]
+          body = JSON.stringify({ inputs: message })
+        } else if (isTTS) {
+          // TTS models: { inputs: string } → returns audio bytes
+          body = JSON.stringify({ inputs: message })
+        } else if (isSTT) {
+          // STT models: raw audio bytes (message is expected to be a base64-encoded audio)
+          // For text-based calls, wrap in the standard format
+          body = JSON.stringify({ inputs: message })
+        } else {
+          // Default: text generation with parameters for better results
+          body = JSON.stringify({
+            inputs: message,
+            parameters: { max_new_tokens: 1024, return_full_text: false },
+          })
+        }
+        headers['Content-Type'] = contentType
+
         const res = await fetch(`${base}/models/${resolvedModel}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${vault.apiKey}` },
-          body: JSON.stringify({ inputs: message }),
+          headers,
+          body,
           signal: AbortSignal.timeout(timeout),
         })
         if (!res.ok) {
           return { ok: false, output: null, error: `Hugging Face HTTP ${res.status}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
         }
+
+        if (isTTS) {
+          // TTS returns audio buffer — convert to base64 data URL
+          const audioBuffer = await res.arrayBuffer()
+          const base64 = Buffer.from(audioBuffer).toString('base64')
+          return { ok: true, output: `data:audio/wav;base64,${base64}`, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+
+        if (isEmbedding) {
+          // Embedding returns float[][] — return as JSON string
+          const embeddings = await res.json()
+          return { ok: true, output: JSON.stringify(embeddings), error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+
         const data = await res.json() as Array<{ generated_text?: string }> | { generated_text?: string }
         const text = Array.isArray(data) ? (data[0]?.generated_text ?? null) : (data?.generated_text ?? null)
         return { ok: true, output: text, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
@@ -383,6 +429,69 @@ export async function callProvider(
         }
         const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
         return { ok: true, output: data?.choices?.[0]?.message?.content ?? null, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+      }
+
+      // ── Replicate ──────────────────────────────────────────────────────────
+      // Replicate uses an async prediction API. We create a prediction and poll
+      // until it resolves (up to the global timeout). The model is specified as
+      // an owner/name[:version] string, e.g. "meta/llama-2-70b-chat".
+      case 'replicate': {
+        const base = vault.baseUrl || 'https://api.replicate.com'
+        // Step 1: create prediction
+        const createRes = await fetch(`${base}/v1/models/${resolvedModel}/predictions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Token ${vault.apiKey}`,
+          },
+          body: JSON.stringify({ input: { prompt: message } }),
+          signal: AbortSignal.timeout(timeout),
+        })
+        if (!createRes.ok) {
+          const errBody = await createRes.json().catch(() => ({})) as { detail?: string }
+          return { ok: false, output: null, error: `Replicate HTTP ${createRes.status}: ${errBody?.detail ?? 'prediction create failed'}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+        const prediction = await createRes.json() as { id?: string; urls?: { get?: string }; status?: string; error?: string; output?: unknown }
+
+        if (!prediction.id) {
+          return { ok: false, output: null, error: 'Replicate: prediction ID missing', latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+
+        // Step 2: poll until succeeded / failed (max 28 s to stay within timeout)
+        const pollUrl = prediction.urls?.get ?? `${base}/v1/predictions/${prediction.id}`
+        // 800 ms gives ~35 polls within the 30 s window without overwhelming the API rate limits
+        const POLL_INTERVAL_MS = 800
+        // 2 s buffer ensures the final response can still be read before AbortSignal fires
+        const POLL_DEADLINE = start + timeout - 2_000
+
+        let pollResult = prediction
+        while (pollResult.status !== 'succeeded' && pollResult.status !== 'failed') {
+          if (Date.now() >= POLL_DEADLINE) {
+            return { ok: false, output: null, error: `Replicate: prediction timed out (id=${prediction.id})`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+          }
+          await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+          const pollRes = await fetch(pollUrl, {
+            headers: { Authorization: `Token ${vault.apiKey}` },
+          })
+          if (!pollRes.ok) break
+          pollResult = await pollRes.json() as typeof prediction
+        }
+
+        if (pollResult.status === 'failed' || pollResult.error) {
+          return { ok: false, output: null, error: `Replicate prediction failed: ${pollResult.error ?? 'unknown'}`, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
+        }
+
+        // Output can be a string, an array of strings, or structured data
+        const raw = pollResult.output
+        let text: string | null = null
+        if (typeof raw === 'string') {
+          text = raw
+        } else if (Array.isArray(raw)) {
+          text = (raw as string[]).join('')
+        } else if (raw != null) {
+          text = JSON.stringify(raw)
+        }
+        return { ok: true, output: text, error: null, latencyMs: Date.now() - start, model: resolvedModel, providerKey }
       }
 
       default:
