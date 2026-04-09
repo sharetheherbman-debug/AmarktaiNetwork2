@@ -12,7 +12,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getVaultApiKey } from '@/lib/brain';
 import { z } from 'zod';
 
 const ALLOWED_HF_RERANK_MODELS = [
@@ -45,16 +45,6 @@ export interface RerankResult {
   provider: string;
   model: string;
   latencyMs: number;
-}
-
-async function getProviderKey(providerKey: string): Promise<string | null> {
-  const provider = await prisma.aiProvider.findFirst({
-    where: { providerKey, enabled: true },
-    select: { apiKey: true, healthStatus: true },
-  });
-  if (!provider?.apiKey) return null;
-  if (provider.healthStatus === 'error' || provider.healthStatus === 'disabled') return null;
-  return provider.apiKey;
 }
 
 async function rerankWithHuggingFace(
@@ -170,7 +160,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // HuggingFace attempt
   if (provider === 'auto' || provider === 'huggingface') {
-    const hfKey = await getProviderKey('huggingface');
+    const hfKey = await getVaultApiKey('huggingface');
     if (hfKey) {
       const hfModel = model && ALLOWED_HF_RERANK_MODELS.includes(model as typeof ALLOWED_HF_RERANK_MODELS[number])
         ? model
@@ -187,7 +177,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // NVIDIA fallback
   if (!scores && (provider === 'auto' || provider === 'nvidia')) {
-    const nvKey = await getProviderKey('nvidia');
+    const nvKey = await getVaultApiKey('nvidia');
     if (nvKey) {
       try {
         scores = await rerankWithNvidia(query, documents, nvKey);

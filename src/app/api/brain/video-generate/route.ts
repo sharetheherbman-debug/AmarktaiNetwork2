@@ -16,6 +16,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getVaultApiKey } from '@/lib/brain';
 import { z } from 'zod';
 
 const FRAMES_PER_SECOND = 24;
@@ -40,16 +41,6 @@ const RequestSchema = z.object({
   provider: z.enum(['replicate', 'huggingface', 'auto']).optional().default('auto'),
   model: z.string().optional(),
 });
-
-async function getProviderKey(providerKey: string): Promise<string | null> {
-  const provider = await prisma.aiProvider.findFirst({
-    where: { providerKey, enabled: true },
-    select: { apiKey: true, healthStatus: true },
-  });
-  if (!provider?.apiKey) return null;
-  if (provider.healthStatus === 'error' || provider.healthStatus === 'disabled') return null;
-  return provider.apiKey;
-}
 
 async function createReplicateJob(
   prompt: string,
@@ -159,7 +150,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // Replicate attempt
   if (provider === 'auto' || provider === 'replicate') {
-    const repKey = await getProviderKey('replicate');
+    const repKey = await getVaultApiKey('replicate');
     if (repKey) {
       const modelToUse = model
         ? (REPLICATE_MODELS.find((m) => m.id === model) ?? REPLICATE_MODELS[0])
@@ -178,7 +169,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   // HuggingFace fallback
   if (!providerJobId && (provider === 'auto' || provider === 'huggingface')) {
-    const hfKey = await getProviderKey('huggingface');
+    const hfKey = await getVaultApiKey('huggingface');
     if (hfKey) {
       const hfModel = model && HF_VIDEO_MODELS.includes(model)
         ? model

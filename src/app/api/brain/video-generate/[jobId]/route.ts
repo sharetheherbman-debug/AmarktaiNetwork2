@@ -12,14 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-async function getProviderKey(providerKey: string): Promise<string | null> {
-  const provider = await prisma.aiProvider.findFirst({
-    where: { providerKey, enabled: true },
-    select: { apiKey: true },
-  });
-  return provider?.apiKey ?? null;
-}
+import { getVaultApiKey } from '@/lib/brain';
 
 async function pollReplicateJob(
   predictionId: string,
@@ -110,7 +103,7 @@ export async function GET(
 
   try {
     if (job.provider === 'replicate' && job.providerJobId) {
-      const apiKey = await getProviderKey('replicate');
+      const apiKey = await getVaultApiKey('replicate');
       if (apiKey) {
         updated = await pollReplicateJob(job.providerJobId, apiKey);
       }
