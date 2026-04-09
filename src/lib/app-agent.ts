@@ -162,7 +162,7 @@ export async function updateAppAgent(
   // Convert arrays/objects back to JSON strings for DB storage
   const data: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(updates)) {
-    if (Array.isArray(value) || (typeof value === 'object' && value !== null && !(value instanceof Date))) {
+    if (Array.isArray(value) || (typeof value === 'object' && value !== null && !((value as object) instanceof Date))) {
       data[key] = JSON.stringify(value)
     } else {
       data[key] = value
@@ -491,8 +491,8 @@ export async function processAppAgentRequest(
     appliedRules.push(`religious:${agent.religiousMode}`)
   }
 
-  // 3. Determine budget-aware model selection hints
-  const budgetHint = resolveBudgetHint(agent.budgetMode, request.taskType)
+  // 3. Determine budget-aware model selection hints (stored for future use)
+  const _budgetHint = resolveBudgetHint(agent.budgetMode, request.taskType)
 
   // 4. Build the augmented message with system context
   const augmentedMessage = `[System Instructions]\n${systemPrompt}\n\n[User Message]\n${request.message}`
@@ -503,22 +503,13 @@ export async function processAppAgentRequest(
 
   const result = await orchestrate({
     appSlug: request.appSlug,
+    appCategory: agent.appType,
     taskType: request.taskType,
     message: augmentedMessage,
-    metadata: {
-      ...request.metadata,
-      agentId: agent.id,
-      budgetMode: agent.budgetMode,
-      budgetHint,
-      preferredProviders: agent.preferredProviders,
-      preferredModels: agent.preferredModels,
-      memoryNamespace: agent.memoryNamespace,
-      retrievalNamespace: agent.retrievalNamespace,
-    },
   })
 
   return {
-    success: result.success,
+    success: result.output !== null && result.errors.length === 0,
     output: result.output,
     traceId,
     agentId: agent.id,
