@@ -170,13 +170,13 @@ const res = await fetch('${baseUrl}/api/brain/agent/dispatch', {
 const data = await res.json()
 console.log(data.output)
 
-# Python
-import requests
-res = requests.post("${baseUrl}/api/brain/agent/dispatch", json={
-    "appId": "${appSlug}",
-    "appSecret": "YOUR_APP_SECRET",
-    "agentType": "creative",
-    "message": "Write a catchy tagline for a coffee brand",
-})
-print(res.json()["output"])`
+// --- Python equivalent ---
+// import requests
+// res = requests.post("${baseUrl}/api/brain/agent/dispatch", json={
+//     "appId": "${appSlug}",
+//     "appSecret": "YOUR_APP_SECRET",
+//     "agentType": "creative",
+//     "message": "Write a catchy tagline for a coffee brand",
+// })
+// print(res.json()["output"])`
 }
