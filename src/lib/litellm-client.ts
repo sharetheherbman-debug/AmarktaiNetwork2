@@ -229,5 +229,6 @@ export async function callLiteLLM(request: LiteLLMRequest): Promise<LiteLLMRespo
  * Extract provider name from a model string like "openai/gpt-4o".
  */
 function extractProvider(model: string): string {
-  return model.includes('/') ? model.split('/')[0] : 'unknown'
+  if (!model.includes('/')) return 'unknown'
+  return model.split('/')[0] ?? 'unknown'
 }
