@@ -212,7 +212,7 @@ export function filterByModality(models: ModelEntry[], modality?: 'text' | 'imag
     case 'embeddings':
       return models.filter((m) => m.supports_embeddings === true)
     case 'moderation':
-      return models.filter((m) => (m as ModelEntry & { supports_moderation?: boolean }).supports_moderation === true)
+      return models.filter((m) => m.supports_moderation === true)
     default:
       return models
   }

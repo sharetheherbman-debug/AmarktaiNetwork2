@@ -528,28 +528,6 @@ export async function processAppAgentRequest(
 
 // ── Budget Resolution ───────────────────────────────────────────────────────
 
-/**
- * Resolve budget-aware routing hints based on the app agent's budget mode.
- */
-function _resolveBudgetHint(
-  budgetMode: string,
-  taskType: string,
-): { costTier: string; allowPremium: boolean } {
-  switch (budgetMode) {
-    case 'low_cost':
-      return { costTier: 'low', allowPremium: false }
-    case 'best_quality':
-      return { costTier: 'premium', allowPremium: true }
-    case 'balanced':
-    default: {
-      // For complex tasks, allow medium tier; otherwise stay low
-      const complexTasks = new Set(['analysis', 'research', 'reasoning', 'code', 'creative'])
-      const isComplex = complexTasks.has(taskType)
-      return { costTier: isComplex ? 'medium' : 'low', allowPremium: isComplex }
-    }
-  }
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeJsonParse<T>(json: string, fallback: T): T {

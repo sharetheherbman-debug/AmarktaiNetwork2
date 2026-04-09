@@ -98,7 +98,7 @@ function collectCapabilities(providerKey: string): string[] {
     if (m.supports_stt) caps.add('voice_stt');
     if (m.supports_tts) caps.add('voice_tts');
     if (m.supports_voice_interaction) caps.add('realtime_voice');
-    if ((m as typeof m & { supports_moderation?: boolean }).supports_moderation) caps.add('moderation');
+    if (m.supports_moderation) caps.add('moderation');
     if (m.supports_embeddings) caps.add('embeddings');
     if (m.supports_reranking) caps.add('reranking');
     if (m.supports_video_planning) caps.add('video_planning');
