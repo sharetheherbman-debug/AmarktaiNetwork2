@@ -27,7 +27,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSafetyConfig, validateSuggestivePrompt } from '@/lib/content-filter';
-import { prisma } from '@/lib/prisma';
+import { getVaultApiKey } from '@/lib/brain';
 
 const ALLOWED_HF_VIDEO_MODELS: ReadonlyArray<string> = [
   'cerspense/zeroscope_v2_576w',
@@ -124,16 +124,9 @@ export async function POST(request: NextRequest) {
     const finalPrompt = enforceSafeVideoPrefix(sanitizedPrompt);
 
     // ── Get HuggingFace API key ──────────────────────────────────────────
-    const hfProvider = await prisma.aiProvider.findFirst({
-      where: { providerKey: 'huggingface', enabled: true },
-      select: { apiKey: true, healthStatus: true },
-    });
+    const apiKey = await getVaultApiKey('huggingface');
 
-    if (
-      !hfProvider?.apiKey ||
-      hfProvider.healthStatus === 'error' ||
-      hfProvider.healthStatus === 'disabled'
-    ) {
+    if (!apiKey) {
       return NextResponse.json(
         {
           capability: 'suggestive_video_generation',
@@ -144,8 +137,6 @@ export async function POST(request: NextRequest) {
         { status: 503 },
       );
     }
-
-    const apiKey = hfProvider.apiKey;
 
     // ── Provider attempt chain ───────────────────────────────────────────
     let videoBase64: string | null = null;
