@@ -678,3 +678,113 @@ model WebhookDeliveryRecord {
   @@index([webhookId])
   @@map("webhook_delivery_log")
 }
+
+// ── App Agent (per-app dedicated specialist) ────────────────────────────────
+
+/// A dedicated AI agent created for each connected app.
+/// Routes through the AmarktAI super-brain — never calls providers directly.
+model AppAgent {
+  id        String   @id @default(cuid())
+  appSlug   String   @unique @map("app_slug")
+  appName   String   @map("app_name")
+  appUrl    String   @default("") @map("app_url")
+  appType   String   @default("general") @map("app_type")
+  purpose   String   @default("") // admin plain-English description of what the app does
+  active    Boolean  @default(true)
+
+  // AI behavior
+  tone           String @default("professional") // formal|friendly|warm|professional|playful
+  responseLength String @default("balanced") @map("response_length") // short|balanced|detailed
+  creativity     String @default("balanced") // creative|balanced|strictly_factual
+
+  // Source and quote behavior
+  mustShowSourceForQuotes Boolean @default(false) @map("must_show_source_for_quotes")
+  mustUseTrustedSources   Boolean @default(false) @map("must_use_trusted_sources")
+  canAnswerWithoutSource  String  @default("sometimes") @map("can_answer_without_source") // never|sometimes|allowed
+  separateQuoteFromExplanation Boolean @default(false) @map("separate_quote_from_explanation")
+
+  // Safety and restrictions
+  adultMode         Boolean @default(false) @map("adult_mode")
+  sensitiveTopicMode String @default("standard") @map("sensitive_topic_mode") // standard|strict|very_strict
+  mustHandoffSeriousTopics Boolean @default(false) @map("must_handoff_serious_topics")
+  topicsNeedingCare  String @default("[]") @map("topics_needing_care") // JSON array
+
+  // Human handoff
+  humanExpertAvailable Boolean @default(false) @map("human_expert_available")
+  handoffTriggers      String @default("[]") @map("handoff_triggers") // JSON array
+  humanContactMethod   String @default("") @map("human_contact_method")
+
+  // Knowledge
+  knowledgeCategories String @default("[]") @map("knowledge_categories") // JSON array
+  knowledgeNotes      String @default("") @map("knowledge_notes") // admin notes about what AI must know
+
+  // Must always do / never do
+  mustAlwaysDo  String @default("[]") @map("must_always_do") // JSON array
+  mustNeverDo   String @default("[]") @map("must_never_do") // JSON array
+
+  // Extra rules (admin plain-English notes → structured rules)
+  adminNotes       String @default("") @map("admin_notes") // raw admin notes
+  structuredRules  String @default("[]") @map("structured_rules") // JSON array of parsed rules
+
+  // Budget
+  budgetMode         String  @default("balanced") @map("budget_mode") // low_cost|balanced|best_quality
+  allowPremiumOnlyWhenNeeded Boolean @default(true) @map("allow_premium_only_when_needed")
+
+  // Learning
+  learningEnabled        Boolean @default(false) @map("learning_enabled")
+  autoImprovementEnabled Boolean @default(false) @map("auto_improvement_enabled")
+  adminReviewRequired    Boolean @default(true) @map("admin_review_required")
+  lastLearningCycleAt    DateTime? @map("last_learning_cycle_at")
+  specialtyProfile       String  @default("{}") @map("specialty_profile") // JSON object
+  weakAreas              String  @default("[]") @map("weak_areas") // JSON array
+
+  // Religious specialist fields
+  religiousMode        String  @default("none") @map("religious_mode") // none|christian|muslim|multi_faith
+  religiousBranch      String  @default("") @map("religious_branch") // e.g. sunni, catholic, etc.
+  approvedSourcePacks  String  @default("[]") @map("approved_source_packs") // JSON array
+  doctrineAwareRouting Boolean @default(false) @map("doctrine_aware_routing")
+
+  // Firecrawl integration
+  crawlStatus     String    @default("none") @map("crawl_status") // none|pending|crawling|completed|failed
+  lastCrawlAt     DateTime? @map("last_crawl_at")
+  crawlSummary    String    @default("") @map("crawl_summary")
+  detectedNiche   String    @default("") @map("detected_niche")
+  detectedCapabilities String @default("[]") @map("detected_capabilities") // JSON array
+
+  // Routing preferences
+  preferredProviders String @default("[]") @map("preferred_providers") // JSON array
+  preferredModels    String @default("[]") @map("preferred_models") // JSON array
+  fallbackChain      String @default("[]") @map("fallback_chain") // JSON array
+
+  // Memory boundaries
+  memoryNamespace    String @default("") @map("memory_namespace")
+  retrievalNamespace String @default("") @map("retrieval_namespace")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  learningLogs AppAgentLearningLog[]
+
+  @@index([appType])
+  @@index([active])
+  @@map("app_agents")
+}
+
+/// Learning log entry for an app agent's daily improvement cycle.
+model AppAgentLearningLog {
+  id          Int      @id @default(autoincrement())
+  agentId     String   @map("agent_id")
+  agent       AppAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  cycleDate   DateTime @map("cycle_date")
+  cycleType   String   @default("daily") @map("cycle_type") // daily|manual|triggered
+  summary     String   @default("")
+  improvements String  @default("[]") // JSON array of improvement descriptions
+  metrics     String   @default("{}") // JSON: { successRate, avgLatency, costPerRequest, etc. }
+  status      String   @default("completed") // completed|pending_review|rejected
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@index([cycleDate])
+  @@map("app_agent_learning_logs")
+}

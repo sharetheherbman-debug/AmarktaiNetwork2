@@ -3,6 +3,11 @@
  *
  * Qdrant-backed vector database for semantic search, RAG, and memory.
  *
+ * Supports per-app isolation:
+ *   - Each app's data is stored in its own namespace (via payload filter)
+ *   - No cross-app leakage in search results
+ *   - Source tracking for grounded responses
+ *
  * When QDRANT_URL is not configured, operations degrade gracefully to
  * no-ops so the rest of the platform keeps working without Qdrant.
  *
@@ -32,6 +37,7 @@ export function getQdrantClient(): QdrantClient | null {
 // ── Collection management ───────────────────────────────────────────────────
 
 const DEFAULT_COLLECTION = 'amarktai_memory'
+const APP_KNOWLEDGE_COLLECTION = 'amarktai_app_knowledge'
 const VECTOR_SIZE = 1536 // OpenAI text-embedding-3-large default
 
 /**
@@ -49,6 +55,31 @@ export async function ensureCollection(
     if (!exists) {
       await client.createCollection(name, {
         vectors: { size: vectorSize, distance: 'Cosine' },
+      })
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Ensure the per-app knowledge collection exists with payload indexing for app isolation.
+ */
+export async function ensureAppKnowledgeCollection(): Promise<boolean> {
+  const client = getQdrantClient()
+  if (!client) return false
+  try {
+    const collections = await client.getCollections()
+    const exists = collections.collections.some((c) => c.name === APP_KNOWLEDGE_COLLECTION)
+    if (!exists) {
+      await client.createCollection(APP_KNOWLEDGE_COLLECTION, {
+        vectors: { size: VECTOR_SIZE, distance: 'Cosine' },
+      })
+      // Create payload index for app isolation
+      await client.createPayloadIndex(APP_KNOWLEDGE_COLLECTION, {
+        field_name: 'app_slug',
+        field_schema: 'keyword',
       })
     }
     return true
@@ -120,6 +151,58 @@ export async function searchVectors(
     }))
   } catch {
     return []
+  }
+}
+
+// ── Per-App Isolated Operations ─────────────────────────────────────────────
+
+/**
+ * Upsert knowledge vectors for a specific app. Each point is tagged with app_slug
+ * for strict app isolation.
+ */
+export async function upsertAppKnowledge(
+  appSlug: string,
+  points: VectorPoint[],
+): Promise<boolean> {
+  const taggedPoints = points.map(p => ({
+    ...p,
+    payload: {
+      ...p.payload,
+      app_slug: appSlug,
+    },
+  }))
+  return upsertVectors(taggedPoints, APP_KNOWLEDGE_COLLECTION)
+}
+
+/**
+ * Search knowledge for a specific app only. Enforces app isolation via filter.
+ * No cross-app leakage.
+ */
+export async function searchAppKnowledge(
+  appSlug: string,
+  vector: number[],
+  limit = 10,
+): Promise<SearchResult[]> {
+  return searchVectors(vector, limit, APP_KNOWLEDGE_COLLECTION, {
+    must: [{ key: 'app_slug', match: { value: appSlug } }],
+  })
+}
+
+/**
+ * Delete all knowledge vectors for a specific app.
+ */
+export async function deleteAppKnowledge(appSlug: string): Promise<boolean> {
+  const client = getQdrantClient()
+  if (!client) return false
+  try {
+    await client.delete(APP_KNOWLEDGE_COLLECTION, {
+      filter: {
+        must: [{ key: 'app_slug', match: { value: appSlug } }],
+      },
+    })
+    return true
+  } catch {
+    return false
   }
 }
 
