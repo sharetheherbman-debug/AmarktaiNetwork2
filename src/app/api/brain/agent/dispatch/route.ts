@@ -41,7 +41,7 @@ const RequestSchema = z.object({
     message: `agentType must be one of: ${AGENT_TYPES.join(', ')}`,
   }),
   message: z.string().min(1).max(16_000),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
   async: z.boolean().optional().default(false),
 })
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         agentType,
         readiness: audit.readiness,
         error: audit.reasons[0] ?? `Agent ${agentType} requires a provider that is not configured`,
-        requiredProvider: audit.provider,
+        requiredProvider: audit.defaultProvider,
       },
       { status: 503 },
     )
