@@ -531,7 +531,7 @@ export async function processAppAgentRequest(
 /**
  * Resolve budget-aware routing hints based on the app agent's budget mode.
  */
-function resolveBudgetHint(
+function _resolveBudgetHint(
   budgetMode: string,
   taskType: string,
 ): { costTier: string; allowPremium: boolean } {

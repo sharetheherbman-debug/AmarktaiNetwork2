@@ -561,7 +561,7 @@ async function checkRoutingWired(): Promise<AuditCheck> {
  * Verify that all execution modes (agent_chain, retrieval_chain, multimodal_chain)
  * are reachable through the routing engine.
  */
-function checkExecutionModes(): AuditCheck {
+async function checkExecutionModes(): Promise<AuditCheck> {
   try {
     // Test retrieval_chain
     const retrievalDecision = await routeRequest({
@@ -783,7 +783,7 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
   // Synchronous checks (no DB needed)
   const modelRegistry = checkModelRegistry()
   const agentsRuntime = checkAgentsRuntime()
-  const executionModes = checkExecutionModes()
+  const executionModes = await checkExecutionModes()
 
   const checks: AuditCheck[] = [
     dbConfig,

@@ -55,7 +55,8 @@ export type ModelRole =
   | 'image_generation'
   | 'video_generation'
   | 'tts'
-  | 'voice_interaction';
+  | 'voice_interaction'
+  | 'moderation';
 
 // ── ModelEntry interface ────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ export interface ModelEntry {
    * - `code`       – Code-specialist models
    * - `multimodal` – Vision + generation across modalities
    */
-  category: 'text' | 'image' | 'video' | 'voice' | 'code' | 'multimodal';
+  category: 'text' | 'image' | 'video' | 'voice' | 'code' | 'multimodal' | 'moderation' | 'embeddings';
 }
 
 // ── Registry data ───────────────────────────────────────────────────────────
@@ -925,7 +926,7 @@ export const MODEL_REGISTRY: readonly ModelEntry[] = [
     model_id: 'omni-moderation-latest',
     model_name: 'Omni Moderation (Latest)',
     family: 'Moderation',
-    primary_role: 'moderation' as ModelRole,
+    primary_role: 'moderation',
     secondary_roles: [],
     supports_chat: false,
     supports_reasoning: false,
@@ -941,8 +942,8 @@ export const MODEL_REGISTRY: readonly ModelEntry[] = [
     supports_moderation: true,
     supports_agent_planning: false,
     context_window: 32_768,
-    latency_tier: 'low' as LatencyTier,
-    cost_tier: 'very_low' as CostTier,
+    latency_tier: 'low',
+    cost_tier: 'very_low',
     enabled: true,
     health_status: 'configured',
     fallback_priority: 1,
