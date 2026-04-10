@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { getIronSession } from 'iron-session'
 import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
 import { createAppAgent, listAppAgents, syncAdminNotesToRules } from '@/lib/app-agent'
 
 interface SessionData { admin?: boolean }
@@ -46,6 +47,19 @@ export async function POST(req: Request) {
       appType?: string
       purpose?: string
       adminNotes?: string
+      tone?: string
+      responseLength?: string
+      creativity?: string
+      budgetMode?: string
+      allowedCapabilities?: string[]
+      adultMode?: boolean
+      sensitiveTopicMode?: string
+      mustHandoffSeriousTopics?: boolean
+      mustShowSourceForQuotes?: boolean
+      mustUseTrustedSources?: boolean
+      religiousMode?: string
+      religiousBranch?: string
+      learningEnabled?: boolean
       [key: string]: unknown
     }
 
@@ -60,6 +74,26 @@ export async function POST(req: Request) {
       appType: body.appType,
       purpose: body.purpose,
     })
+
+    // Apply additional configuration fields via update
+    const updateData: Record<string, unknown> = {}
+    if (body.tone) updateData.tone = body.tone
+    if (body.responseLength) updateData.responseLength = body.responseLength
+    if (body.creativity) updateData.creativity = body.creativity
+    if (body.budgetMode) updateData.budgetMode = body.budgetMode
+    if (body.allowedCapabilities) updateData.allowedCapabilities = JSON.stringify(body.allowedCapabilities)
+    if (body.adultMode !== undefined) updateData.adultMode = body.adultMode
+    if (body.sensitiveTopicMode) updateData.sensitiveTopicMode = body.sensitiveTopicMode
+    if (body.mustHandoffSeriousTopics !== undefined) updateData.mustHandoffSeriousTopics = body.mustHandoffSeriousTopics
+    if (body.mustShowSourceForQuotes !== undefined) updateData.mustShowSourceForQuotes = body.mustShowSourceForQuotes
+    if (body.mustUseTrustedSources !== undefined) updateData.mustUseTrustedSources = body.mustUseTrustedSources
+    if (body.religiousMode) updateData.religiousMode = body.religiousMode
+    if (body.religiousBranch) updateData.religiousBranch = body.religiousBranch
+    if (body.learningEnabled !== undefined) updateData.learningEnabled = body.learningEnabled
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.appAgent.update({ where: { appSlug: body.appSlug }, data: updateData })
+    }
 
     // If admin notes provided, parse them into structured rules
     if (body.adminNotes) {

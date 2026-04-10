@@ -64,6 +64,9 @@ export interface AppAgentConfig {
   budgetMode: 'low_cost' | 'balanced' | 'best_quality'
   allowPremiumOnlyWhenNeeded: boolean
 
+  // Capability permissions
+  allowedCapabilities: string[]
+
   // Learning
   learningEnabled: boolean
   autoImprovementEnabled: boolean
@@ -491,7 +494,31 @@ export async function processAppAgentRequest(
     appliedRules.push(`religious:${agent.religiousMode}`)
   }
 
-  // 3. Budget mode is now passed directly to orchestrator for real enforcement
+  // 3. Enforce capability permissions
+  const taskCapability = mapTaskTypeToCapability(request.taskType)
+  if (agent.allowedCapabilities.length > 0 && taskCapability && !agent.allowedCapabilities.includes(taskCapability)) {
+    return {
+      success: false,
+      output: null,
+      traceId,
+      agentId: agent.id,
+      appliedRules,
+      warnings: [],
+      errors: [
+        `Capability "${taskCapability}" is not allowed for this app agent. ` +
+        `Allowed: ${agent.allowedCapabilities.join(', ')}. ` +
+        `Update the agent's allowed capabilities in Admin → App Agents.`,
+      ],
+      routedProvider: null,
+      routedModel: null,
+      latencyMs: Date.now() - start,
+      budgetMode: agent.budgetMode,
+      memoryUsed: false,
+      retrievalUsed: false,
+    }
+  }
+
+  // 4. Budget mode is now passed directly to orchestrator for real enforcement
   const budgetMode = agent.budgetMode as 'low_cost' | 'balanced' | 'best_quality'
 
   // 4. Build the augmented message with system context
@@ -527,6 +554,28 @@ export async function processAppAgentRequest(
 }
 
 // ── Budget Resolution ───────────────────────────────────────────────────────
+
+// ── Capability Permission Helpers ───────────────────────────────────────────
+
+/**
+ * Map a task type keyword to a canonical capability for permission checking.
+ * Returns null if the task type doesn't map to a restricted capability.
+ */
+function mapTaskTypeToCapability(taskType: string): string | null {
+  const t = taskType.toLowerCase()
+  if (t.includes('image') || t.includes('dall')) return 'image_generation'
+  if (t.includes('stt') || t.includes('transcrib') || t.includes('speech_to_text')) return 'speech_to_text'
+  if (t.includes('tts') || t.includes('text_to_speech') || t.includes('synthesize')) return 'text_to_speech'
+  if (t.includes('realtime') || t.includes('voice_interaction')) return 'realtime_voice'
+  if (t.includes('embed')) return 'embeddings'
+  if (t.includes('moderat')) return 'moderation'
+  if (t.includes('search') || t.includes('web')) return 'search'
+  if (t.includes('video')) return 'video'
+  if (t.includes('code') || t.includes('coding')) return 'code'
+  if (t.includes('reason') || t.includes('analysis') || t.includes('research')) return 'reasoning'
+  if (t.includes('chat') || t.includes('convers')) return 'chat'
+  return null // unknown task types are not restricted
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -570,6 +619,7 @@ function dbRowToConfig(row: any): AppAgentConfig {
     structuredRules: safeJsonParse(row.structuredRules, []),
     budgetMode: row.budgetMode ?? 'balanced',
     allowPremiumOnlyWhenNeeded: row.allowPremiumOnlyWhenNeeded ?? true,
+    allowedCapabilities: safeJsonParse(row.allowedCapabilities, ['chat', 'reasoning', 'code']),
     learningEnabled: row.learningEnabled ?? false,
     autoImprovementEnabled: row.autoImprovementEnabled ?? false,
     adminReviewRequired: row.adminReviewRequired ?? true,

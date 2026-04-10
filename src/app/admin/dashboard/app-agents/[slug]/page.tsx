@@ -40,6 +40,7 @@ interface AppAgentConfig {
   adminNotes: string
   budgetMode: string
   allowPremiumOnlyWhenNeeded: boolean
+  allowedCapabilities: string[]
   learningEnabled: boolean
   autoImprovementEnabled: boolean
   adminReviewRequired: boolean
@@ -110,6 +111,20 @@ const RELIGIOUS_OPTIONS = [
   { value: 'multi_faith', label: 'Multi-faith' },
 ]
 
+const CAPABILITY_OPTIONS = [
+  { key: 'chat', label: 'Can have conversations', icon: '💬' },
+  { key: 'image_generation', label: 'Can create images', icon: '🎨' },
+  { key: 'speech_to_text', label: 'Can understand speech', icon: '🎤' },
+  { key: 'text_to_speech', label: 'Can speak back', icon: '🔊' },
+  { key: 'realtime_voice', label: 'Can work in real time', icon: '🎙️' },
+  { key: 'embeddings', label: 'Can create embeddings', icon: '🧮' },
+  { key: 'moderation', label: 'Can moderate sensitive content', icon: '🛡️' },
+  { key: 'search', label: 'Can search the web', icon: '🔍' },
+  { key: 'reasoning', label: 'Can do deep reasoning', icon: '🧠' },
+  { key: 'code', label: 'Can write code', icon: '💻' },
+  { key: 'video', label: 'Can plan/generate video', icon: '🎬' },
+]
+
 const APP_TYPE_OPTIONS = [
   'general', 'ecommerce', 'finance', 'health', 'education', 'religious',
   'travel', 'social', 'support', 'creative', 'developer', 'companion',
@@ -160,7 +175,8 @@ export default function AppAgentDetailPage() {
     mustHandoffSeriousTopics: false, topicsNeedingCare: [], humanExpertAvailable: false,
     handoffTriggers: [], humanContactMethod: '', knowledgeCategories: [], knowledgeNotes: '',
     mustAlwaysDo: [], mustNeverDo: [], adminNotes: '', budgetMode: 'balanced',
-    allowPremiumOnlyWhenNeeded: true, learningEnabled: false, autoImprovementEnabled: false,
+    allowPremiumOnlyWhenNeeded: true, allowedCapabilities: ['chat', 'reasoning', 'code'],
+    learningEnabled: false, autoImprovementEnabled: false,
     adminReviewRequired: true, religiousMode: 'none', religiousBranch: '',
     approvedSourcePacks: [], doctrineAwareRouting: false,
   })
@@ -455,6 +471,27 @@ export default function AppAgentDetailPage() {
               </select>
             </Field>
             <Toggle on={agent.allowPremiumOnlyWhenNeeded ?? true} onChange={v => update('allowPremiumOnlyWhenNeeded', v)} label="Allow premium model only when needed" />
+          </Section>
+
+          {/* ─── Capabilities ──────────────────────────────────── */}
+          <Section icon={Brain} title="Allowed capabilities" description="Control what this agent is allowed to do">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {CAPABILITY_OPTIONS.map(c => {
+                const isOn = (agent.allowedCapabilities ?? []).includes(c.key)
+                return (
+                  <button key={c.key} onClick={() => {
+                    const current = agent.allowedCapabilities ?? []
+                    update('allowedCapabilities', isOn ? current.filter((k: string) => k !== c.key) : [...current, c.key])
+                  }} className={`flex items-center gap-3 p-3 rounded-xl border text-left text-sm transition-all ${
+                    isOn ? 'border-cyan-500/40 bg-cyan-500/10 text-white' : 'border-white/[0.06] bg-white/[0.02] text-slate-500 hover:border-white/10'
+                  }`}>
+                    <span className="text-lg">{c.icon}</span>
+                    <span>{c.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Requests for capabilities not enabled here will be rejected with a clear error.</p>
           </Section>
 
           {/* ─── Religious ─────────────────────────────────────── */}

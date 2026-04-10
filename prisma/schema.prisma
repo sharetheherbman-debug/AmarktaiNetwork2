@@ -751,6 +751,9 @@ model AppAgent {
   detectedNiche   String    @default("") @map("detected_niche")
   detectedCapabilities String @default("[]") @map("detected_capabilities") // JSON array
 
+  // Capability permissions (which capabilities this agent is allowed to use)
+  allowedCapabilities String @default("[\"chat\",\"reasoning\",\"code\"]") @map("allowed_capabilities") // JSON array
+
   // Routing preferences
   preferredProviders String @default("[]") @map("preferred_providers") // JSON array
   preferredModels    String @default("[]") @map("preferred_models") // JSON array
