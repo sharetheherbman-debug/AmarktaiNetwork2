@@ -72,8 +72,11 @@ export async function GET() {
     if (row?.apiKey) {
       try {
         const decrypted = decryptVaultKey(row.apiKey)
-        effectiveKey = decrypted ?? row.apiKey
-      } catch { effectiveKey = row.apiKey }
+        effectiveKey = decrypted ?? ''
+      } catch {
+        // Decryption failed — treat as unconfigured rather than expose encrypted bytes
+        effectiveKey = ''
+      }
       if (effectiveKey) source = 'database'
     }
     if (!effectiveKey && env.apiKey) {
@@ -140,7 +143,9 @@ export async function POST(req: NextRequest) {
       success: true,
       key: row.key,
       displayName: row.displayName,
-      maskedKey: maskKey(data.apiKey),
+      // Only mask the freshly submitted key — if no new key was provided we can't
+      // reconstruct it (it's encrypted in the DB), so return empty string.
+      maskedKey: data.apiKey ? maskKey(data.apiKey) : '',
       configured: !!(data.apiKey || row.apiKey),
     })
   } catch (err) {

@@ -276,7 +276,7 @@ export default function IntegrationsPage() {
                           type="text"
                           value={formUrl}
                           onChange={e => setFormUrl(e.target.value)}
-                          placeholder={`e.g. ${KNOWN_URL_PLACEHOLDERS[intg.key] ?? 'https://...'}`}
+                          placeholder={intg.apiUrl ? intg.apiUrl : 'https://...'}
                           className="w-full px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/50"
                         />
                       </div>
@@ -349,10 +349,4 @@ function StatusBadge({ source, configured }: { source: Integration['source']; co
   )
 }
 
-/* ── Static URL placeholders for display ─────────────────── */
-const KNOWN_URL_PLACEHOLDERS: Record<string, string> = {
-  firecrawl: 'https://api.firecrawl.dev/v1',
-  mem0: 'https://api.mem0.ai/v1',
-  posthog: 'https://us.i.posthog.com',
-  qdrant: 'http://localhost:6333',
-}
+/* end */
