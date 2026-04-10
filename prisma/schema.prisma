@@ -759,6 +759,14 @@ model AppAgent {
   preferredModels    String @default("[]") @map("preferred_models") // JSON array
   fallbackChain      String @default("[]") @map("fallback_chain") // JSON array
 
+  // Voice persona (per-app voice style for TTS/realtime)
+  voiceStyle       String @default("neutral") @map("voice_style") // neutral|warm|authoritative|gentle|energetic
+  voiceTone        String @default("professional") @map("voice_tone") // professional|casual|empathetic|cheerful
+  voicePersonality String @default("helpful") @map("voice_personality") // helpful|playful|serious|caring
+  voiceSpeed       String @default("normal") @map("voice_speed") // slow|normal|fast
+  voiceGender      String @default("neutral") @map("voice_gender") // male|female|neutral
+  voiceAccent      String @default("") @map("voice_accent") // optional: british|american|australian|etc.
+
   // Memory boundaries
   memoryNamespace    String @default("") @map("memory_namespace")
   retrievalNamespace String @default("") @map("retrieval_namespace")
@@ -772,6 +780,26 @@ model AppAgent {
   @@index([appType])
   @@index([active])
   @@map("app_agents")
+}
+
+/// System alerts for operator visibility (provider failures, cost spikes, etc.)
+model SystemAlert {
+  id          Int      @id @default(autoincrement())
+  alertType   String   @map("alert_type") // provider_failure|routing_failure|no_eligible_model|queue_backlog|job_failure|cost_spike|repeated_fallback|agent_failure
+  severity    String   @default("warning") // info|warning|critical
+  title       String
+  message     String
+  appSlug     String?  @map("app_slug")
+  metadata    String   @default("{}") // JSON: extra context
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime? @map("resolved_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([alertType])
+  @@index([severity])
+  @@index([resolved])
+  @@index([createdAt])
+  @@map("system_alerts")
 }
 
 /// Learning log entry for an app agent's daily improvement cycle.

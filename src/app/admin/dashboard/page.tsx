@@ -8,6 +8,7 @@ import {
   ArrowRight, Cpu, Gauge, DollarSign, Bell,
   ShieldAlert, Puzzle, Layers, Shield, Workflow, Bot,
   Code2, Webhook, FileSearch, Sparkles, Cable, FlaskConical,
+  Film, Mic,
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
@@ -645,7 +646,7 @@ export default function DashboardOverview() {
               <Sparkles className="w-4 h-4 text-amber-400" /> Quick Actions
             </h2>
           </div>
-          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { label: 'Build an App',      href: '/admin/dashboard/labs',         icon: Code2,       gradient: 'from-blue-500/20 to-violet-500/20' },
               { label: 'Test Capabilities',  href: '/admin/dashboard/lab',          icon: FlaskConical,gradient: 'from-emerald-500/20 to-cyan-500/20' },
@@ -653,6 +654,10 @@ export default function DashboardOverview() {
               { label: 'Configure Apps',     href: '/admin/dashboard/apps',         icon: Server,      gradient: 'from-cyan-500/20 to-blue-500/20' },
               { label: 'View Intelligence',  href: '/admin/dashboard/intelligence', icon: Gauge,       gradient: 'from-amber-500/20 to-orange-500/20' },
               { label: 'Operations',         href: '/admin/dashboard/operations',   icon: Activity,    gradient: 'from-rose-500/20 to-pink-500/20' },
+              { label: 'Jobs & Queue',       href: '/admin/dashboard/jobs',         icon: Layers,      gradient: 'from-amber-500/20 to-yellow-500/20' },
+              { label: 'Alerts',             href: '/admin/dashboard/alerts',       icon: Bell,        gradient: 'from-red-500/20 to-orange-500/20' },
+              { label: 'Voice & Persona',    href: '/admin/dashboard/voice',        icon: Mic,         gradient: 'from-emerald-500/20 to-teal-500/20' },
+              { label: 'Video Generation',   href: '/admin/dashboard/video',        icon: Film,        gradient: 'from-pink-500/20 to-rose-500/20' },
             ].map(action => (
               <Link
                 key={action.label}
