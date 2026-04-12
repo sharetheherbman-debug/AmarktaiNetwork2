@@ -80,10 +80,22 @@ const HF_FALLBACK_MODELS: Partial<Record<CapabilityClass, HfFallbackSpec[]>> = {
   classification: [
     { model: 'facebook/bart-large-mnli', label: 'BART MNLI', notes: 'Zero-shot classification' },
   ],
-  // adult_18plus_image: intentionally excluded — no HuggingFace model can reliably
-  // serve lawful adult 18+ content without safety-bypass infrastructure that does
-  // not exist on this platform. Do not add entries here unless a real, policy-compliant
-  // provider route is implemented and gated through the adult mode enforcement pipeline.
+  // image_editing uses inpainting diffusion models to modify existing images.
+  // These models require an image input + optional mask. The /api/brain/image-edit
+  // route handles base64 image/mask encoding automatically.
+  image_editing: [
+    { model: 'runwayml/stable-diffusion-inpainting', label: 'SD Inpainting', notes: 'Mask-based image inpainting (primary)' },
+    { model: 'stabilityai/stable-diffusion-2-inpainting', label: 'SD 2 Inpainting', notes: 'SD 2.x mask-based inpainting (fallback)' },
+  ],
+  // adult_18plus_image: requires adultMode=true per-app and ALWAYS_BLOCKED content
+  // filter validation. The /api/brain/adult-image route enforces these checks before
+  // sending to any provider. Operators need a HuggingFace API key with model access.
+  // For unrestricted adult content, a private HuggingFace Inference Endpoint is recommended.
+  adult_18plus_image: [
+    { model: 'SG161222/RealVisXL_V4.0', label: 'RealVisXL v4', notes: 'Photorealistic SDXL — adult mode, requires HF key with model access' },
+    { model: 'Lykon/dreamshaper-8', label: 'DreamShaper 8', notes: 'Versatile high-quality generation — adult mode fallback' },
+    { model: 'stabilityai/stable-diffusion-xl-base-1.0', label: 'SDXL Base', notes: 'General SDXL fallback — adult mode' },
+  ],
 };
 
 // ---------------------------------------------------------------------------

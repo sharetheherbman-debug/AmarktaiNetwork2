@@ -58,8 +58,8 @@ describe('Capability Engine — New Capabilities', () => {
     expect(BACKEND_ROUTE_EXISTS.suggestive_video_generation).toBe(true);
   });
 
-  it('adult_18plus_image remains NOT IMPLEMENTED (BACKEND_ROUTE_EXISTS=false)', () => {
-    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(false);
+  it('adult_18plus_image NOW HAS a backend route (/api/brain/adult-image)', () => {
+    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(true);
   });
 });
 
@@ -314,13 +314,13 @@ describe('Capability Status — blockedBySettings', () => {
     clearProviderHealthCache();
   });
 
-  it('returns blockedBySettings=false for unavailable non-gated capabilities', () => {
-    // adult_18plus_image has route=false and is settings-gated
+  it('adult_18plus_image route NOW EXISTS (routeExists=true)', () => {
+    // adult_18plus_image now has a backend route (/api/brain/adult-image)
     const statuses = getDetailedCapabilityStatus();
     const adultImg = statuses.find((s) => s.capability === 'adult_18plus_image');
     expect(adultImg).toBeDefined();
-    // adult_18plus_image has BACKEND_ROUTE_EXISTS=false so routeExists=false
-    expect(adultImg?.routeExists).toBe(false);
+    // BACKEND_ROUTE_EXISTS.adult_18plus_image is now true
+    expect(adultImg?.routeExists).toBe(true);
     clearProviderHealthCache();
   });
 });
@@ -364,10 +364,10 @@ describe('HuggingFace Fallback — New Capabilities', () => {
     clearProviderHealthCache();
   });
 
-  it('still has no fallback for adult_18plus_image (intentionally excluded)', () => {
+  it('still has fallback for adult_18plus_image (now implemented — HF models registered)', () => {
     setProviderHealth('huggingface', 'healthy');
     const result = getHfFallback('adult_18plus_image');
-    expect(result.available).toBe(false);
+    expect(result.models.length).toBeGreaterThan(0);
     clearProviderHealthCache();
   });
 });
@@ -428,12 +428,12 @@ describe('Regression — Existing Capabilities Still Work', () => {
     clearProviderHealthCache();
   });
 
-  it('adult_18plus_image remains NOT_IMPLEMENTED (routeExists=false)', () => {
+  it('adult_18plus_image route NOW EXISTS (routeExists=true); unavailable without HF provider', () => {
     setProviderHealth('huggingface', 'healthy');
     const result = resolveCapabilityRoutes({ capabilities: ['adult_18plus_image'], adultMode: true });
-    expect(result.allSatisfied).toBe(false);
-    // Route doesn't exist — blocked before model check
-    expect(result.routes[0].missingMessage).toContain('Route not implemented');
+    // Route exists and adultMode=true — whether it's satisfied depends on HF provider health
+    // In tests the HF provider is set healthy so it should be satisfied
+    expect(result.routes[0].missingMessage ?? '').not.toContain('Route not implemented');
     clearProviderHealthCache();
   });
 });

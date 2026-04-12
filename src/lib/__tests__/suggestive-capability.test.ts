@@ -350,8 +350,8 @@ describe('No Fake Generation Claims', () => {
     expect(map.suggestive_video_planning.label).not.toContain('generation')
   })
 
-  it('adult_18plus_image still has no backend route (NOT IMPLEMENTED)', () => {
-    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(false)
+  it('adult_18plus_image NOW HAS a backend route (/api/brain/adult-image)', () => {
+    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(true)
   })
 
   it('video_generation now has a backend route (async job pipeline implemented)', () => {

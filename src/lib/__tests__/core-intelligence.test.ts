@@ -195,8 +195,8 @@ describe('Capability Engine', () => {
         adultMode: false,
       })
       expect(result.routes[0].available).toBe(false)
-      // Backend route guard fires first since no reliable provider exists
-      expect(result.routes[0].missingMessage).toContain('Route not implemented')
+      // Adult mode guard fires (adultMode=false)
+      expect(result.routes[0].missingMessage).toContain('adult mode')
     })
 
     it('respects execution preference', () => {
@@ -262,8 +262,8 @@ describe('Capability Engine', () => {
       expect(BACKEND_ROUTE_EXISTS.reranking).toBe(true)
     })
 
-    it('marks adult_18plus_image as having no backend route', () => {
-      expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(false)
+    it('marks adult_18plus_image as having a backend route (/api/brain/adult-image)', () => {
+      expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(true)
     })
 
     it('marks general_chat as having a backend route', () => {
@@ -292,7 +292,8 @@ describe('Capability Engine', () => {
   })
 
   describe('isCapabilityAvailable', () => {
-    it('returns false for adult_18plus_image (no backend route)', () => {
+    it('returns false for adult_18plus_image without adultMode (adult mode guard fires)', () => {
+      // Route exists; blocked because adultMode is not set (default false)
       expect(isCapabilityAvailable('adult_18plus_image')).toBe(false)
     })
     it('returns false for realtime_voice when REALTIME_SERVICE_URL not set', () => {
@@ -339,13 +340,13 @@ describe('Capability Engine', () => {
       expect(result.routes[0].missingMessage).toContain('No provider configured')
     })
 
-    it('blocks adult_18plus_image with Route not implemented message', () => {
+    it('blocks adult_18plus_image without adultMode (adult mode guard fires)', () => {
       const result = resolveCapabilityRoutes({
         capabilities: ['adult_18plus_image'],
-        adultMode: true,
+        adultMode: false,
       })
       expect(result.routes[0].available).toBe(false)
-      expect(result.routes[0].missingMessage).toContain('Route not implemented')
+      expect(result.routes[0].missingMessage).toContain('adult mode')
     })
   })
 
@@ -371,13 +372,11 @@ describe('Capability Engine', () => {
       }
     })
 
-    it('unavailable capabilities without routes have "Route not implemented" reason', () => {
+    it('all capabilities now have backend routes (image_editing + adult_18plus_image implemented)', () => {
       const entries = getDetailedCapabilityStatus()
       const noRouteEntries = entries.filter(e => !e.routeExists)
-      for (const entry of noRouteEntries) {
-        expect(entry.available).toBe(false)
-        expect(entry.reason).toContain('Route not implemented')
-      }
+      // All capabilities have routes — none should be Route not implemented
+      expect(noRouteEntries.length).toBe(0)
     })
 
     it('marks realtime_voice, video_generation, reranking as unavailable without provider/service config', () => {

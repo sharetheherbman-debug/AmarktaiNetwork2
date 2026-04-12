@@ -1,0 +1,285 @@
+/**
+ * POST /api/brain/adult-image — Adult 18+ image generation
+ *
+ * Generates adult content images using HuggingFace diffusion models.
+ *
+ * POLICY REQUIREMENTS:
+ *   1. The requesting app must have `adultMode = true` (safeMode must be false).
+ *   2. All prompts are scanned for ALWAYS_BLOCKED categories before any provider call.
+ *      ALWAYS_BLOCKED categories are never permitted regardless of adultMode:
+ *        - CSAM (child sexual abuse material) — immediate rejection
+ *        - Non-consensual content
+ *        - Real-person identification in sexual context
+ *        - Violence / gore
+ *        - Self-harm facilitation
+ *        - Hate speech / extremism
+ *        - Terrorism / radicalization
+ *   3. Prompts that pass the content filter are sent to HuggingFace image models.
+ *   4. A HuggingFace API key with access to the chosen models is required.
+ *
+ * PROVIDERS (in order):
+ *   1. HuggingFace `SG161222/RealVisXL_V4.0`    — photorealistic, SDXL quality
+ *   2. HuggingFace `Lykon/dreamshaper-8`          — versatile, high quality
+ *   3. HuggingFace `stabilityai/stable-diffusion-xl-base-1.0` — SDXL base fallback
+ *
+ * NOTE: HuggingFace standard Inference API may apply its own content moderation.
+ * For unrestricted adult content, configure a private HuggingFace Inference Endpoint
+ * (see https://huggingface.co/docs/inference-endpoints) and set HUGGINGFACE_API_KEY
+ * to a key with endpoint access.
+ *
+ * Accepts JSON body:
+ *   - prompt          (string, required) — description of the image to generate
+ *   - appSlug         (string, required) — app identifier for per-app adult mode check
+ *   - size            (string, optional) — '512x512' | '768x768' | '1024x1024' (default: '768x768')
+ *   - negative_prompt (string, optional) — terms to exclude from generation
+ *
+ * Returns:
+ *   { capability, executed, imageBase64?, provider, model, promptUsed, size }
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getAppSafetyConfig, scanContent } from '@/lib/content-filter';
+import { getVaultApiKey } from '@/lib/brain';
+
+const ALLOWED_SIZES = ['512x512', '768x768', '1024x1024'] as const;
+type AdultImageSize = (typeof ALLOWED_SIZES)[number];
+
+/**
+ * HuggingFace models for adult content in preference order.
+ * The operator must ensure their HuggingFace API key has appropriate model access.
+ * For fully unrestricted adult content, a private Inference Endpoint is recommended.
+ */
+const HF_ADULT_MODELS: ReadonlyArray<{
+  id: string;
+  steps: number;
+  cfgScale: number;
+  label: string;
+}> = [
+  {
+    id: 'SG161222/RealVisXL_V4.0',
+    steps: 30,
+    cfgScale: 7.0,
+    label: 'RealVisXL v4',
+  },
+  {
+    id: 'Lykon/dreamshaper-8',
+    steps: 25,
+    cfgScale: 7.0,
+    label: 'DreamShaper 8',
+  },
+  {
+    id: 'stabilityai/stable-diffusion-xl-base-1.0',
+    steps: 30,
+    cfgScale: 7.5,
+    label: 'SDXL Base',
+  },
+] as const;
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      prompt,
+      appSlug,
+      size = '768x768',
+      negative_prompt,
+    } = body as {
+      prompt?: string;
+      appSlug?: string;
+      size?: string;
+      negative_prompt?: string;
+    };
+
+    // ── Validate prompt ──────────────────────────────────────────────────
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'prompt is required and must be a non-empty string' },
+        { status: 400 },
+      );
+    }
+
+    if (!appSlug || typeof appSlug !== 'string') {
+      return NextResponse.json(
+        {
+          capability: 'adult_18plus_image',
+          executed: false,
+          error:
+            'appSlug is required. Adult 18+ image generation is only available on apps ' +
+            'with adult mode explicitly enabled.',
+          code: 'app_slug_required',
+        },
+        { status: 400 },
+      );
+    }
+
+    // ── Per-app adult mode enforcement ───────────────────────────────────
+    // Adult mode requires the operator to explicitly configure the app with
+    // safeMode=false AND adultMode=true. This cannot be bypassed.
+    const safetyConfig = getAppSafetyConfig(appSlug);
+    if (safetyConfig.safeMode || !safetyConfig.adultMode) {
+      return NextResponse.json(
+        {
+          capability: 'adult_18plus_image',
+          executed: false,
+          error:
+            'Adult 18+ image generation requires adultMode=true (and safeMode=false) ' +
+            'to be enabled for this app. Configure the app in Admin → App Agents → Settings.',
+          code: 'adult_mode_required',
+          gating_required: true,
+          current_config: {
+            safeMode: safetyConfig.safeMode,
+            adultMode: safetyConfig.adultMode,
+          },
+        },
+        { status: 403 },
+      );
+    }
+
+    // ── Content safety scan — ALWAYS_BLOCKED categories cannot be bypassed ──
+    // Even with adultMode enabled, certain categories are NEVER permitted:
+    // CSAM, non-consensual, violence, self-harm, hate-speech, terrorism.
+    const scanResult = scanContent(prompt.trim());
+    if (scanResult.flagged) {
+      return NextResponse.json(
+        {
+          capability: 'adult_18plus_image',
+          executed: false,
+          error:
+            'Prompt blocked by content safety filter. ' +
+            `Detected: ${scanResult.categories.join(', ')}. ` +
+            'CSAM, non-consensual content, violence, self-harm, hate speech, and ' +
+            'terrorism content are never permitted regardless of adult mode settings.',
+          code: 'prompt_blocked',
+          categories: scanResult.categories,
+          prompt_blocked: true,
+        },
+        { status: 422 },
+      );
+    }
+
+    const resolvedSize: AdultImageSize = ALLOWED_SIZES.includes(size as AdultImageSize)
+      ? (size as AdultImageSize)
+      : '768x768';
+
+    // Parse width/height from size string
+    const [widthStr, heightStr] = resolvedSize.split('x');
+    const width = parseInt(widthStr, 10);
+    const height = parseInt(heightStr, 10);
+
+    // ── Provider: HuggingFace ────────────────────────────────────────────
+    const hfKey = await getVaultApiKey('huggingface');
+    if (hfKey) {
+      for (const model of HF_ADULT_MODELS) {
+        try {
+          const hfPayload: Record<string, unknown> = {
+            inputs: prompt.trim(),
+            parameters: {
+              num_inference_steps: model.steps,
+              guidance_scale: model.cfgScale,
+              width,
+              height,
+            },
+          };
+
+          if (negative_prompt && typeof negative_prompt === 'string' && negative_prompt.trim()) {
+            (hfPayload.parameters as Record<string, unknown>).negative_prompt =
+              negative_prompt.trim();
+          }
+
+          const response = await fetch(
+            `https://api-inference.huggingface.co/models/${model.id}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${hfKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(hfPayload),
+              signal: AbortSignal.timeout(120_000),
+            },
+          );
+
+          if (response.ok) {
+            const contentType = response.headers.get('content-type') ?? 'image/png';
+            if (contentType.startsWith('image/') || contentType === 'application/octet-stream') {
+              const buffer = await response.arrayBuffer();
+              if (buffer.byteLength > 0) {
+                const base64 = Buffer.from(buffer).toString('base64');
+                const mimeType = contentType.startsWith('image/') ? contentType : 'image/png';
+                return NextResponse.json({
+                  capability: 'adult_18plus_image',
+                  executed: true,
+                  imageBase64: `data:${mimeType};base64,${base64}`,
+                  provider: 'huggingface',
+                  model: model.id,
+                  modelLabel: model.label,
+                  size: resolvedSize,
+                  promptUsed: prompt.trim(),
+                });
+              }
+            }
+            // HF can return JSON even on 200 for loading/error states
+            const json = await response.json().catch(() => null) as { error?: string } | null;
+            if (json?.error) {
+              console.warn(`[brain/adult-image] HF ${model.id} returned JSON error: ${json.error}`);
+              if (json.error.toLowerCase().includes('loading')) continue;
+              break;
+            }
+          } else if (response.status === 503) {
+            // Model loading — try next
+            console.warn(`[brain/adult-image] HF ${model.id} loading (503), trying next`);
+            continue;
+          } else {
+            const errText = await response.text().catch(() => '');
+            console.warn(
+              `[brain/adult-image] HF ${model.id} failed (${response.status}): ${errText.slice(0, 200)}`,
+            );
+            // 401/403 means key issue — no point trying other models
+            if (response.status === 401 || response.status === 403) break;
+          }
+        } catch (err) {
+          console.warn(
+            `[brain/adult-image] HF ${model.id} error:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+    }
+
+    // ── No provider available ────────────────────────────────────────────
+    const rejectionReasons: string[] = [];
+    if (!hfKey) {
+      rejectionReasons.push(
+        'huggingface: no API key configured. ' +
+        'Set HUGGINGFACE_API_KEY (Admin → AI Providers → Hugging Face). ' +
+        'For unrestricted adult content, use a private HuggingFace Inference Endpoint.',
+      );
+    } else {
+      rejectionReasons.push(
+        'huggingface: all model attempts failed. The models may be loading, or your ' +
+        'API key may not have access to these models. For best results, configure a ' +
+        'private HuggingFace Inference Endpoint.',
+      );
+    }
+
+    return NextResponse.json(
+      {
+        capability: 'adult_18plus_image',
+        executed: false,
+        code: 'no_eligible_adult_image_model',
+        error:
+          'No adult image generation provider is available. ' +
+          'A HuggingFace API key is required (Admin → AI Providers → Hugging Face). ' +
+          'Models tried: ' + HF_ADULT_MODELS.map((m) => m.id).join(', '),
+        providers_checked: ['huggingface'],
+        rejection_reasons: rejectionReasons,
+      },
+      { status: 503 },
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'Internal server error', detail: String(err), executed: false },
+      { status: 500 },
+    );
+  }
+}

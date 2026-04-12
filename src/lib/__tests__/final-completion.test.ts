@@ -207,8 +207,8 @@ describe('Video Stack Truth', () => {
  * ================================================================ */
 
 describe('Adult 18+ Lawful Mode Truth', () => {
-  it('adult_18plus_image has NO backend route', () => {
-    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(false)
+  it('adult_18plus_image NOW HAS a backend route (/api/brain/adult-image)', () => {
+    expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(true)
   })
 
   it('adult capability is UNAVAILABLE regardless of adultMode flag', () => {
@@ -353,12 +353,10 @@ describe('Capability Map — No Fake Badges', () => {
     expect(available.length).toBeGreaterThanOrEqual(25)
   })
 
-  it('exactly 2 capabilities have no backend route (adult_18plus_image and image_editing — NOT IMPLEMENTED)', () => {
+  it('all capabilities now have backend routes (image_editing and adult_18plus_image implemented)', () => {
     const unavailable = Object.entries(BACKEND_ROUTE_EXISTS)
       .filter(([, v]) => v === false)
-    expect(unavailable.length).toBe(2)
-    const names = unavailable.map(([k]) => k).sort()
-    expect(names).toEqual(['adult_18plus_image', 'image_editing'])
+    expect(unavailable.length).toBe(0)
   })
 
   it('getDetailedCapabilityStatus returns status for all capabilities', () => {
@@ -372,13 +370,10 @@ describe('Capability Map — No Fake Badges', () => {
     }
   })
 
-  it('capabilities without routes show as unavailable', () => {
+  it('all capabilities now have routes (image_editing and adult_18plus_image implemented)', () => {
     const status = getDetailedCapabilityStatus()
     const noRoute = status.filter((s) => !s.routeExists)
-    expect(noRoute.length).toBe(2) // adult_18plus_image and image_editing
-    for (const entry of noRoute) {
-      expect(entry.available).toBe(false)
-    }
+    expect(noRoute.length).toBe(0)
   })
 })
 

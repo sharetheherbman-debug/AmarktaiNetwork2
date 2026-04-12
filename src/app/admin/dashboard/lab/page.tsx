@@ -11,7 +11,7 @@ import {
 const CAPABILITIES = [
   'chat', 'code', 'reasoning', 'image', 'image_editing', 'video', 'video_planning',
   'tts', 'stt', 'vision', 'embeddings', 'reranking', 'research', 'suggestive',
-  'app_builder',
+  'adult_image', 'app_builder',
 ]
 
 const fadeUp = {

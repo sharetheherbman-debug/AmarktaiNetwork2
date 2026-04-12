@@ -202,7 +202,7 @@ const CAPABILITY_META: Record<
   deep_reasoning: { displayName: 'Deep Reasoning', category: 'text', routeExists: true },
   coding: { displayName: 'Coding Assistant', category: 'code', routeExists: true },
   image_generation: { displayName: 'Image Generation', category: 'image', routeExists: true },
-  image_editing: { displayName: 'Image Editing', category: 'image', routeExists: false },
+  image_editing: { displayName: 'Image Editing', category: 'image', routeExists: true },
   voice_stt: { displayName: 'Speech-to-Text', category: 'voice', routeExists: true },
   voice_tts: { displayName: 'Text-to-Speech', category: 'voice', routeExists: true },
   realtime_voice: { displayName: 'Realtime Voice', category: 'voice', routeExists: true },
@@ -225,7 +225,7 @@ const CAPABILITY_META: Record<
   summarization: { displayName: 'Summarization', category: 'text', routeExists: true },
   code_review: { displayName: 'Code Review', category: 'code', routeExists: true },
   moderation: { displayName: 'Content Moderation', category: 'safety', routeExists: true },
-  adult_18plus_image: { displayName: 'Adult 18+ Image Gen', category: 'adult', routeExists: false },
+  adult_18plus_image: { displayName: 'Adult 18+ Image Gen', category: 'adult', routeExists: true },
 };
 
 /** Capabilities gated behind safety settings (suggestive_*). */
@@ -274,8 +274,8 @@ const CAP_TO_MODEL_FLAG: Record<string, string> = {
   suggestive_video_planning: 'supports_video_planning',
   suggestive_video_generation: 'supports_video_generation',
   moderation: 'supports_moderation',
-  // adult_18plus_image is NOT_IMPLEMENTED (routeExists: false) so this flag
-  // is only used for hasCapableModel counting; it never reaches actual routing.
+  // adult_18plus_image uses HuggingFace image models; checking supports_image_generation
+  // is a reasonable proxy since the HF inference API handles the actual generation.
   adult_18plus_image: 'supports_image_generation',
 };
 

@@ -1,0 +1,56 @@
+# ─── AmarktAI Realtime Voice Service — systemd unit ────────────────────────
+#
+# Install:
+#   cp /var/www/amarktai/repo/deploy/amarktai-realtime.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable amarktai-realtime
+#   systemctl start amarktai-realtime
+#
+# Set REALTIME_SERVICE_URL in the main app .env:
+#   REALTIME_SERVICE_URL=http://localhost:8765
+#
+# View logs:
+#   journalctl -u amarktai-realtime -f
+
+[Unit]
+Description=AmarktAI Network — Realtime Voice WebSocket Service
+Documentation=https://github.com/sharetheherbman-debug/Amarktai-Network
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+
+WorkingDirectory=/var/www/amarktai/repo/services/realtime
+
+ExecStart=/usr/bin/node /var/www/amarktai/repo/services/realtime/server.js
+
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Environment variables — loaded from main repo .env plus any realtime-specific vars
+EnvironmentFile=-/var/www/amarktai/repo/.env
+
+Environment=NODE_ENV=production
+Environment=PORT=8765
+
+# Filesystem hardening
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

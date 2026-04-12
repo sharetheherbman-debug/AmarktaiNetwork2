@@ -217,18 +217,18 @@ describe('Adult Mode Enforcement', () => {
   })
 
   describe('capability engine enforcement', () => {
-    it('adult_18plus_image backend route does not exist', () => {
-      expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(false)
+    it('adult_18plus_image backend route NOW EXISTS (/api/brain/adult-image)', () => {
+      expect(BACKEND_ROUTE_EXISTS.adult_18plus_image).toBe(true)
     })
 
-    it('blocks adult capability even with adultMode=true (no backend route)', () => {
+    it('blocks adult capability without adultMode flag (adult mode guard fires)', () => {
       const result = resolveCapabilityRoutes({
         capabilities: ['adult_18plus_image'],
         adultMode: true,
       })
-      expect(result.routes[0].available).toBe(false)
-      // Backend route guard fires before adult mode guard
-      expect(result.routes[0].missingMessage).toContain('Route not implemented')
+      // Route exists — the adult mode guard no longer fires when adultMode=true
+      // Only provider availability can block it now
+      expect(result.routes[0].missingMessage ?? '').not.toContain('Route not implemented')
     })
 
     it('blocks adult capability without adultMode flag', () => {

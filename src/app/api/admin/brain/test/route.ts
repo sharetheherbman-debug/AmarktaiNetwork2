@@ -26,6 +26,7 @@ const SPECIALIST_CAPABILITIES = new Set([
   'tts', 'voice', 'stt', 'voice_input', 'voice_output',
   'image', 'image_generation', 'image_gen', 'generate_image', 'create_image', 'image_editing',
   'suggestive', 'suggestive_image',
+  'adult_image', 'adult_18plus_image',
   'research', 'research_search', 'deep_research',
   'video', 'video_generation', 'video_planning',
 ])
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (['image', 'image_generation', 'image_gen', 'generate_image', 'create_image', 'image_editing'].includes(body.taskType)) {
+    if (['image', 'image_generation', 'image_gen', 'generate_image', 'create_image'].includes(body.taskType)) {
       const imageRes = await fetch(`${origin}/api/brain/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,6 +147,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (body.taskType === 'image_editing') {
+      // Image editing requires an actual image to be provided. From the lab (text-only),
+      // return a structured response explaining the required inputs rather than failing silently.
+      const editRes = await fetch(`${origin}/api/brain/image-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: body.message }),
+      })
+      const latencyMs = Date.now() - start
+      const editData = await editRes.json().catch(() => ({})) as {
+        executed?: boolean; imageUrl?: string; imageBase64?: string;
+        error?: string; provider?: string; model?: string; code?: string;
+      }
+      const editSuccess = editRes.ok && (!!editData.imageUrl || !!editData.imageBase64)
+      return NextResponse.json(
+        {
+          success: editSuccess,
+          executed: editSuccess, traceId,
+          output: editSuccess
+            ? '[Image edited]'
+            : null,
+          imageUrl: editData.imageUrl ?? editData.imageBase64 ?? null,
+          capability: capabilities, routedProvider: editData.provider ?? null,
+          routedModel: editData.model ?? null, executionMode: 'specialist', fallback_used: false,
+          error: editData.error ?? (editSuccess ? null : 'Image editing requires an image. Provide a base64 PNG in the "image" field of POST /api/brain/image-edit.'),
+          code: editData.code ?? null,
+          hint: 'Image editing requires: prompt (what to change) + image (base64 PNG of the original). ' +
+                'Optional: mask (base64 PNG, white=edit area). ' +
+                'API: POST /api/brain/image-edit',
+          latencyMs, timestamp: new Date().toISOString(),
+        },
+        { status: editSuccess ? 200 : 400 },
+      )
+    }
+
     if (['suggestive', 'suggestive_image'].includes(body.taskType)) {
       const imageRes = await fetch(`${origin}/api/brain/suggestive-image`, {
         method: 'POST',
@@ -167,6 +203,46 @@ export async function POST(request: NextRequest) {
           error: imageData.error ?? null, latencyMs, timestamp: new Date().toISOString(),
         },
         { status: imageRes.ok ? 200 : imageRes.status },
+      )
+    }
+
+    if (['adult_image', 'adult_18plus_image'].includes(body.taskType)) {
+      if (!body.appSlug) {
+        return NextResponse.json(
+          {
+            success: false, executed: false, traceId, output: null,
+            capability: capabilities, routedProvider: null, routedModel: null,
+            executionMode: 'specialist', fallback_used: false,
+            error: 'Adult 18+ image generation requires appSlug. Set an app slug with adultMode=true enabled.',
+            latencyMs: Date.now() - start, timestamp: new Date().toISOString(),
+          },
+          { status: 400 },
+        )
+      }
+      const imageRes = await fetch(`${origin}/api/brain/adult-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: body.message, appSlug: body.appSlug }),
+      })
+      const latencyMs = Date.now() - start
+      const imageData = await imageRes.json().catch(() => ({})) as {
+        imageBase64?: string; error?: string; provider?: string; model?: string;
+        code?: string; gating_required?: boolean
+      }
+      const imageSuccess = imageRes.ok && !!imageData.imageBase64
+      return NextResponse.json(
+        {
+          success: imageSuccess, executed: imageSuccess, traceId,
+          output: imageSuccess ? '[Adult image generated]' : null,
+          imageUrl: imageData.imageBase64 ?? null,
+          capability: capabilities, routedProvider: imageData.provider ?? null,
+          routedModel: imageData.model ?? null, executionMode: 'specialist', fallback_used: false,
+          error: imageData.error ?? null,
+          code: imageData.code ?? null,
+          gating_required: imageData.gating_required ?? false,
+          latencyMs, timestamp: new Date().toISOString(),
+        },
+        { status: imageSuccess ? 200 : (imageRes.ok ? 503 : imageRes.status) },
       )
     }
 
