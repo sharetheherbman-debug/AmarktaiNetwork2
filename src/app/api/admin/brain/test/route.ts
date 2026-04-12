@@ -24,7 +24,7 @@ const testSchema = z.object({
 
 const SPECIALIST_CAPABILITIES = new Set([
   'tts', 'voice', 'stt', 'voice_input', 'voice_output',
-  'image', 'image_generation', 'image_gen', 'generate_image', 'create_image',
+  'image', 'image_generation', 'image_gen', 'generate_image', 'create_image', 'image_editing',
   'suggestive', 'suggestive_image',
   'research', 'research_search', 'deep_research',
   'video', 'video_generation', 'video_planning',
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (['image', 'image_generation', 'image_gen', 'generate_image', 'create_image'].includes(body.taskType)) {
+    if (['image', 'image_generation', 'image_gen', 'generate_image', 'create_image', 'image_editing'].includes(body.taskType)) {
       const imageRes = await fetch(`${origin}/api/brain/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

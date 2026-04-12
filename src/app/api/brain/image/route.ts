@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVaultApiKey, OPENAI_IMAGE_MODELS } from '@/lib/brain';
-import { getUsableModels } from '@/lib/model-registry';
 
 /**
  * POST /api/brain/image — Standard image generation
@@ -81,16 +80,13 @@ export async function POST(request: NextRequest) {
         ? [requestedModel]
         : [...GPT_IMAGE_MODELS_ORDERED, 'dall-e-3', 'dall-e-2'];
 
-      // Validate: only allow models the usable registry knows as image-capable.
-      const enabledImageModelIds = new Set(
-        getUsableModels()
-          .filter((m) => m.provider === 'openai' && m.supports_image_generation)
-          .map((m) => m.model_id),
-      );
-      // Also keep DALL-E entries which may not appear in the usable pool when provider health is not yet synced.
-      const candidates = modelCandidates.filter(
-        (m) => enabledImageModelIds.has(m) || m === 'dall-e-3' || m === 'dall-e-2',
-      );
+      // Validate: only allow image-generation models.
+      // When OpenAI key is present, always try the full ordered candidate list —
+      // the health cache may not be synced yet (it is populated lazily by the
+      // orchestrator's syncProviderHealthCache).  We call the OpenAI images API
+      // directly here so health-cache state is irrelevant; all model-not-found
+      // responses are handled per-model below.
+      const candidates = modelCandidates;
 
       for (const model of candidates) {
         try {

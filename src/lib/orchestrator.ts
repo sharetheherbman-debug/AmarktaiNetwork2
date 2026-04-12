@@ -77,7 +77,7 @@ const CONSENSUS_LENGTH_RATIO_THRESHOLD = 1.2
 const CONSENSUS_LENGTH_DIFF_THRESHOLD = 200
 
 /** Task types that require image-generation routing (evaluated once at module load). */
-const IMAGE_TASK_TYPES_SET = new Set(['image_generation', 'image', 'image_gen', 'generate_image', 'create_image'])
+const IMAGE_TASK_TYPES_SET = new Set(['image_generation', 'image', 'image_gen', 'generate_image', 'create_image', 'image_editing'])
 
 /** Task types that require voice/audio routing. */
 const VOICE_TASK_TYPES_SET = new Set(['tts', 'text_to_speech', 'stt', 'speech_to_text', 'voice', 'voice_input', 'voice_output', 'realtime_voice'])
@@ -355,6 +355,7 @@ export async function decideExecution(
   classification: ClassificationResult,
   available: AvailableProvider[],
   appSlug?: string,
+  requiredModality?: 'text' | 'image' | 'video' | 'voice' | 'embeddings' | 'moderation',
 ): Promise<DecisionResult> {
   const warnings: string[] = []
 
@@ -426,6 +427,22 @@ export async function decideExecution(
   }
 
   warnings.push('Routing engine returned no eligible models — falling back to DB provider list')
+
+  // HARD GUARD: For non-text modalities (image, video, voice, embeddings, moderation),
+  // the DB provider list only holds text chat models. Falling back would silently route
+  // an image/voice/video task to a text model. Return null primary provider instead so
+  // the caller's modality guard (step 5b in orchestrate) fires correctly.
+  if (requiredModality && requiredModality !== 'text') {
+    return {
+      executionMode: 'direct',
+      primaryProvider: null,
+      secondaryProvider: null,
+      fallbackEligible: false,
+      fallbackUsed: false,
+      reason: `No eligible model found for modality "${requiredModality}" — DB provider fallback suppressed to prevent text model from servicing a non-text task`,
+      warnings: [...warnings, `DB fallback suppressed for modality="${requiredModality}"`],
+    }
+  }
 
   const primaryProvider = available[0]
   let secondaryProvider: AvailableProvider | null = null
@@ -607,7 +624,7 @@ export async function orchestrate(opts: {
   const routingDecision = await routeRequest(routingCtx)
 
   // 5. Build decision from routing-engine result (also uses health-aware cache internally)
-  const decision = await decideExecution(classification, filteredAvailable, appSlug)
+  const decision = await decideExecution(classification, filteredAvailable, appSlug, detectedModality !== 'text' ? detectedModality : undefined)
 
   // 5a. CRITICAL: When the modality-aware routing produced a valid primary model
   //     (e.g. dall-e-3 for image tasks), use IT instead of decideExecution's internally-
