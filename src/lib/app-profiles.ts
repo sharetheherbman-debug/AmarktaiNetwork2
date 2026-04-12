@@ -154,14 +154,15 @@ export const DEFAULT_PROFILE: AppProfile = {
 
   default_routing_mode: 'direct',
 
-  allowed_providers: BACKBONE_PROVIDERS,
-  allowed_models: [
-    'llama-3.3-70b-versatile',
-    'deepseek-chat',
-    'mistralai/Mixtral-8x7B-Instruct-v0.1',
-    'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-  ],
-  preferred_models: ['llama-3.3-70b-versatile', 'deepseek-chat'],
+  // Allow every known provider so the routing engine can reach any configured key.
+  // When only OpenAI is configured, BACKBONE_PROVIDERS would silently exclude it and
+  // cause the "no eligible models" fallback even with a valid key.
+  allowed_providers: ALL_PROVIDERS,
+  // Empty array = wildcard (intentional): allow ALL models from the above providers.
+  // A non-empty list would restrict routing to only the listed model IDs, which
+  // would filter out OpenAI chat/image models for unknown-slug requests.
+  allowed_models: [],
+  preferred_models: ['gpt-4o-mini', 'llama-3.3-70b-versatile', 'deepseek-chat'],
 
   escalation_rules: [],
   validator_rules: [],
@@ -172,7 +173,13 @@ export const DEFAULT_PROFILE: AppProfile = {
   memory_namespace: 'default',
   retrieval_namespace: 'default',
 
-  budget_sensitivity: 'high',
+  // budget_sensitivity maps to a cost ceiling in routing-engine.ts:
+  //   'high'   → highly budget-conscious → cost ceiling = 'low'   (only free/very_low/low models)
+  //   'medium' → balanced               → cost ceiling = 'medium' (up to medium cost, e.g. gpt-4o-mini, gpt-image-1-mini)
+  //   'low'    → cost-insensitive       → cost ceiling = 'premium' (all tiers allowed)
+  // 'medium' is the right default so that common OpenAI models (gpt-4o-mini at 'low', gpt-image-1-mini at 'medium')
+  // are not filtered out when routing unknown-app requests.
+  budget_sensitivity: 'medium',
   latency_sensitivity: 'medium',
   logging_privacy_rules: BASIC_PRIVACY_RULES,
 };

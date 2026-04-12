@@ -9,6 +9,7 @@ import {
   resolveCapabilityRoutes,
 } from '@/lib/capability-engine'
 import { getAppSafetyConfig } from '@/lib/content-filter'
+import { syncProviderHealthFromDB } from '@/lib/sync-provider-health'
 
 const testSchema = z.object({
   message: z.string().min(1).max(16_000),
@@ -37,6 +38,12 @@ export async function POST(request: NextRequest) {
 
   const start = Date.now()
   const traceId = randomUUID()
+
+  // Sync the in-process provider health cache from DB before any capability
+  // resolution. Without this, resolveCapabilityRoutes() calls getUsableModels()
+  // against an empty cache on cold-start and returns all capabilities as
+  // unavailable — causing a false 503 before the request reaches orchestrate().
+  await syncProviderHealthFromDB()
 
   let body: z.infer<typeof testSchema>
   try {
