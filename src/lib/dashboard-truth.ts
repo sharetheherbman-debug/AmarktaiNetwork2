@@ -274,6 +274,8 @@ const CAP_TO_MODEL_FLAG: Record<string, string> = {
   suggestive_video_planning: 'supports_video_planning',
   suggestive_video_generation: 'supports_video_generation',
   moderation: 'supports_moderation',
+  // adult_18plus_image is NOT_IMPLEMENTED (routeExists: false) so this flag
+  // is only used for hasCapableModel counting; it never reaches actual routing.
   adult_18plus_image: 'supports_image_generation',
 };
 
@@ -322,8 +324,10 @@ export async function getCapabilityTruth(
       // Realtime voice requires a separately-deployed WebSocket service in
       // addition to an OpenAI provider. Without REALTIME_SERVICE_URL the
       // session endpoint exists but streaming cannot work.
+      // implementationState: 'IMPLEMENTED_IN_PLATFORM' — route + model exist,
+      // the platform has the feature, but the external service is not configured.
       state = 'UNAVAILABLE_WITH_CURRENT_CONFIG';
-      implementationState = hasCapableModel ? 'AVAILABLE_IN_CATALOG' : 'IMPLEMENTED_IN_PLATFORM';
+      implementationState = 'IMPLEMENTED_IN_PLATFORM';
       reason =
         'Realtime voice service not configured: set REALTIME_SERVICE_URL to the running ' +
         'WebSocket service (see services/realtime/). The session endpoint ' +
