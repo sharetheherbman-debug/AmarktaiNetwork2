@@ -193,7 +193,7 @@ export default function IntegrationsPage() {
                     {/* HuggingFace note: clarify this is for emotion enrichment only, not AI routing */}
                     {intg.key === 'huggingface' && (
                       <p className="text-[10px] text-amber-400/70 mt-1 leading-relaxed">
-                        This key is used for emotion enrichment features only. To enable HuggingFace AI routing (chat, image generation), configure a HuggingFace API key under <strong>Operations → AI Providers</strong>.
+                        This key is used for emotion enrichment features only. To enable HuggingFace AI routing (chat, image generation), configure a HuggingFace API key under <strong>Operations &gt; AI Providers</strong>.
                       </p>
                     )}
 

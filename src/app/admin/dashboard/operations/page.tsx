@@ -439,7 +439,7 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
                   {/* HuggingFace note: distinguish provider key from integration key */}
                   {p.providerKey === 'huggingface' && (
                     <p className="text-[10px] text-amber-400/70 leading-relaxed">
-                      This key enables AI routing via the HuggingFace Inference API (chat, embeddings, image models). A separate HuggingFace key in <strong>Integrations</strong> controls emotion enrichment only — these are independent.
+                      This key enables AI routing via the HuggingFace Inference API (chat, embeddings, image models). A separate HuggingFace key in <strong>Integrations</strong> controls emotion enrichment only - these are independent.
                     </p>
                   )}
                   {/* Show masked preview when no edit in progress */}
