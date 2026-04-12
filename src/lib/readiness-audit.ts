@@ -25,6 +25,7 @@ import { getMultimodalStatus } from '@/lib/multimodal-router'
 import { routeRequest } from '@/lib/routing-engine'
 import { classifyTask, decideExecution } from '@/lib/orchestrator'
 import { validateConfig, validateConfigWithDb } from '@/lib/config-validator'
+import { syncProviderHealthFromDB } from '@/lib/sync-provider-health'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -152,6 +153,7 @@ async function checkProvider(
   id: string,
   providerKey: string,
   displayName: string,
+  required = false,
 ): Promise<AuditCheck> {
   const result = await queryProvider(providerKey)
 
@@ -159,7 +161,7 @@ async function checkProvider(
     return check(
       id, 'provider', `${displayName} Provider`,
       `${displayName} provider is configured with a valid API key`,
-      true, 'fail',
+      required, required ? 'fail' : 'warning',
       `${displayName} (${providerKey}) not found in AiProvider table`,
     )
   }
@@ -168,7 +170,7 @@ async function checkProvider(
     return check(
       id, 'provider', `${displayName} Provider`,
       `${displayName} provider is configured with a valid API key`,
-      true, 'fail',
+      required, required ? 'fail' : 'warning',
       `${displayName} (${providerKey}) exists but has no API key`,
     )
   }
@@ -177,7 +179,7 @@ async function checkProvider(
     return check(
       id, 'provider', `${displayName} Provider`,
       `${displayName} provider is configured with a valid API key`,
-      true, 'warning',
+      required, 'warning',
       `${displayName} (${providerKey}) has an API key but is disabled`,
     )
   }
@@ -185,7 +187,7 @@ async function checkProvider(
   return check(
     id, 'provider', `${displayName} Provider`,
     `${displayName} provider is configured with a valid API key`,
-    true, 'pass',
+    required, 'pass',
     `${displayName} (${providerKey}) is enabled with a valid key`,
   )
 }
@@ -725,7 +727,28 @@ export function generateReadinessSummary(report: ReadinessReport): string {
  * something is broken the report says so.
  */
 export async function runReadinessAudit(): Promise<ReadinessReport> {
-  // Run independent checks in parallel for speed
+  // Sync the in-process provider health cache from DB so that routeRequest()
+  // and decideExecution() used in routing checks below can find eligible models.
+  // Without this, all routing-based checks fail on cold-start regardless of
+  // how many providers are configured in the database.
+  try {
+    await syncProviderHealthFromDB()
+  } catch {
+    // DB unavailable — routing checks will correctly report routing failures
+  }
+
+  // Run independent checks in parallel for speed.
+  //
+  // Required for launch (critical=true):
+  //   - DB config (nothing works without the database)
+  //   - OpenAI (primary text + image provider for go-live)
+  //   - At least one backbone/budget route (checkCheapRoute)
+  //   - Model registry, app registry, routing engine, routing wired
+  //
+  // Optional for launch (critical=false, status=warning when missing):
+  //   - All other providers (Groq, Grok, DeepSeek, Gemini, HuggingFace,
+  //     NVIDIA, OpenRouter, Together AI, Qwen, Replicate, Anthropic, Cohere, Mistral)
+  //   - These enrich the platform but must not block go-live on their own.
   const [
     dbConfig,
     openai,
@@ -754,20 +777,21 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
     dashboardTruth,
   ] = await Promise.all([
     checkDbConfig(),
-    checkProvider('provider_openai',     'openai',      'OpenAI'),
-    checkProvider('provider_groq',       'groq',        'Groq'),
-    checkProvider('provider_grok',       'grok',        'Grok / xAI'),
-    checkProvider('provider_deepseek',   'deepseek',    'DeepSeek'),
-    checkProvider('provider_gemini',     'gemini',      'Google Gemini'),
-    checkProvider('provider_huggingface','huggingface', 'Hugging Face'),
-    checkProvider('provider_nvidia',     'nvidia',      'NVIDIA'),
-    checkProvider('provider_openrouter', 'openrouter',  'OpenRouter'),
-    checkProvider('provider_together',   'together',    'Together AI'),
-    checkProvider('provider_qwen',       'qwen',        'Qwen'),
-    checkProvider('provider_replicate',  'replicate',   'Replicate'),
-    checkProvider('provider_anthropic',  'anthropic',   'Anthropic'),
-    checkProvider('provider_cohere',     'cohere',      'Cohere'),
-    checkProvider('provider_mistral',    'mistral',     'Mistral AI'),
+    // OpenAI is the only individually-required provider; others are optional.
+    checkProvider('provider_openai',     'openai',      'OpenAI',          true),
+    checkProvider('provider_groq',       'groq',        'Groq',            false),
+    checkProvider('provider_grok',       'grok',        'Grok / xAI',      false),
+    checkProvider('provider_deepseek',   'deepseek',    'DeepSeek',        false),
+    checkProvider('provider_gemini',     'gemini',      'Google Gemini',   false),
+    checkProvider('provider_huggingface','huggingface', 'Hugging Face',    false),
+    checkProvider('provider_nvidia',     'nvidia',      'NVIDIA',          false),
+    checkProvider('provider_openrouter', 'openrouter',  'OpenRouter',      false),
+    checkProvider('provider_together',   'together',    'Together AI',     false),
+    checkProvider('provider_qwen',       'qwen',        'Qwen',            false),
+    checkProvider('provider_replicate',  'replicate',   'Replicate',       false),
+    checkProvider('provider_anthropic',  'anthropic',   'Anthropic',       false),
+    checkProvider('provider_cohere',     'cohere',      'Cohere',          false),
+    checkProvider('provider_mistral',    'mistral',     'Mistral AI',      false),
     checkCheapRoute(),
     checkAppRegistry(),
     checkRoutingEngine(),
@@ -821,7 +845,9 @@ export async function runReadinessAudit(): Promise<ReadinessReport> {
   const warnings         = checks.filter((c) => c.status === 'warning').length
   const criticalFailures = checks.filter((c) => c.critical && c.status === 'fail').length
   const score            = getReadinessScore(checks)
-  const overallReady     = criticalFailures === 0 && failed === 0
+  // Go-live is blocked only by CRITICAL failures. Optional provider failures
+  // become warnings that are visible in the report but do not block launch.
+  const overallReady     = criticalFailures === 0
 
   const report: ReadinessReport = {
     timestamp: new Date().toISOString(),
