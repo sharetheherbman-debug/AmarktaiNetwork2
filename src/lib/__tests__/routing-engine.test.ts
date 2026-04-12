@@ -125,7 +125,7 @@ describe('Routing Engine', () => {
   })
 
   describe('image modality routing', () => {
-    it('routes image tasks to image-capable models only', async () => {
+    it('routes image tasks to image-capable models only — never a chat model', async () => {
       const decision = await routeRequest(makeContext({
         taskType: 'image_generation',
         requiredModality: 'image',
@@ -135,6 +135,7 @@ describe('Routing Engine', () => {
       if (decision.primaryModel) {
         expect(decision.primaryModel.supports_image_generation).toBe(true)
         expect(decision.primaryModel.supports_chat).toBe(false)
+        expect(decision.primaryModel.category).toBe('image')
       }
     })
 
@@ -146,18 +147,6 @@ describe('Routing Engine', () => {
         message: 'create image of a sunset',
       }))
       expect(decision.primaryModel).toBeNull()
-    })
-
-    it('never selects a chat model for image tasks', async () => {
-      const decision = await routeRequest(makeContext({
-        taskType: 'image_generation',
-        requiredModality: 'image',
-        message: 'create image of a sunset',
-      }))
-      if (decision.primaryModel) {
-        expect(decision.primaryModel.supports_image_generation).toBe(true)
-        expect(decision.primaryModel.category).toBe('image')
-      }
     })
   })
 
