@@ -383,7 +383,7 @@ export function resolveCapabilityRoutes(
     }
 
     // Realtime voice requires separate WebSocket service to be running
-    if (cap === 'realtime_voice' && !process.env.REALTIME_SERVICE_URL) {
+    if (cap === 'realtime_voice' && !process.env.REALTIME_SERVICE_URL?.trim()) {
       const msg =
         'Realtime voice service not configured: set REALTIME_SERVICE_URL to the running WebSocket service (see services/realtime/). ' +
         'The session endpoint (/api/realtime/session) exists but the streaming service must be running separately.';

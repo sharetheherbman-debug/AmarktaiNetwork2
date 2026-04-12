@@ -161,10 +161,18 @@ export async function POST(request: NextRequest) {
       ? (size as AdultImageSize)
       : '768x768';
 
-    // Parse width/height from size string
+    // Parse width/height from size string.
+    // resolvedSize is always a member of ALLOWED_SIZES so parseInt will never produce NaN,
+    // but guard defensively in case of future extension.
     const [widthStr, heightStr] = resolvedSize.split('x');
     const width = parseInt(widthStr, 10);
     const height = parseInt(heightStr, 10);
+    if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+      return NextResponse.json(
+        { error: `Invalid size: "${resolvedSize}". Use one of: ${ALLOWED_SIZES.join(', ')}.` },
+        { status: 400 },
+      );
+    }
 
     // ── Provider: HuggingFace ────────────────────────────────────────────
     const hfKey = await getVaultApiKey('huggingface');

@@ -121,28 +121,30 @@ REALTIME_SRC="$APP_DIR/deploy/amarktai-realtime.service"
 REALTIME_DST="/etc/systemd/system/amarktai-realtime.service"
 REALTIME_APP_DIR="$APP_DIR/services/realtime"
 if [[ -f "$REALTIME_SRC" && -d "$REALTIME_APP_DIR" ]]; then
-  # Install node_modules for the realtime service
+  # Install node_modules for the realtime service (show output to aid debugging)
   log "Installing realtime service dependencies..."
-  (cd "$REALTIME_APP_DIR" && "$NPM_BIN" install --omit=dev 2>/dev/null) || \
-    log "WARNING: realtime npm install failed — skipping realtime service setup."
+  if (cd "$REALTIME_APP_DIR" && "$NPM_BIN" install --omit=dev 2>&1); then
+    if ! diff -q "$REALTIME_SRC" "$REALTIME_DST" &>/dev/null 2>&1; then
+      log "Installing realtime systemd unit..."
+      cp "$REALTIME_SRC" "$REALTIME_DST"
+      systemctl daemon-reload
+    fi
 
-  if ! diff -q "$REALTIME_SRC" "$REALTIME_DST" &>/dev/null 2>&1; then
-    log "Installing realtime systemd unit..."
-    cp "$REALTIME_SRC" "$REALTIME_DST"
-    systemctl daemon-reload
-  fi
+    log "Starting amarktai-realtime service..."
+    systemctl enable amarktai-realtime --quiet 2>/dev/null || true
+    systemctl restart amarktai-realtime 2>/dev/null || log "WARNING: realtime service failed to start."
 
-  log "Starting amarktai-realtime service..."
-  systemctl enable amarktai-realtime --quiet 2>/dev/null || true
-  systemctl restart amarktai-realtime 2>/dev/null || log "WARNING: realtime service failed to start."
-
-  sleep 2
-  if systemctl is-active --quiet amarktai-realtime 2>/dev/null; then
-    log "Realtime service running on port 8765."
-    log "  → Set REALTIME_SERVICE_URL=http://localhost:8765 in .env to enable realtime_voice capability."
+    sleep 2
+    if systemctl is-active --quiet amarktai-realtime 2>/dev/null; then
+      log "Realtime service running on port 8765."
+      log "  → Set REALTIME_SERVICE_URL=http://localhost:8765 in .env to enable realtime_voice capability."
+    else
+      log "WARNING: Realtime service not running. Check: journalctl -u amarktai-realtime -n 20"
+      log "  → realtime_voice capability will show UNAVAILABLE until REALTIME_SERVICE_URL is set."
+    fi
   else
-    log "WARNING: Realtime service not running. Check: journalctl -u amarktai-realtime -n 20"
-    log "  → realtime_voice capability will show UNAVAILABLE until REALTIME_SERVICE_URL is set."
+    log "WARNING: realtime npm install failed — skipping realtime service setup."
+    log "  → realtime_voice capability will show UNAVAILABLE."
   fi
 fi
 

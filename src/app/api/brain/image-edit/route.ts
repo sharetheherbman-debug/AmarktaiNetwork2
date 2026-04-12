@@ -34,6 +34,9 @@ import { getVaultApiKey } from '@/lib/brain';
 const ALLOWED_SIZES = ['256x256', '512x512', '1024x1024'] as const;
 type EditSize = (typeof ALLOWED_SIZES)[number];
 
+/** Maximum image size accepted by the OpenAI DALL-E 2 images/edits endpoint (4 MB). */
+const DALLE2_MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
 /** Strip the data-URI prefix, if present, and return a raw base64 string. */
 function stripDataUri(b64: string): string {
   const idx = b64.indexOf(',');
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
     if (openaiKey) {
       try {
         // DALL-E 2 edits endpoint requires a PNG file ≤ 4 MB
-        if (imageBuffer.length <= 4 * 1024 * 1024) {
+        if (imageBuffer.length <= DALLE2_MAX_IMAGE_BYTES) {
           const form = new FormData();
           form.append('model', 'dall-e-2');
           form.append('prompt', prompt.trim());

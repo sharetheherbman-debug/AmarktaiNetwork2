@@ -320,7 +320,7 @@ export async function getCapabilityTruth(
       state = 'BLOCKED_BY_SETTINGS';
       implementationState = 'BLOCKED_BY_SETTINGS';
       reason = 'Capability is gated by safety settings (suggestive_mode).';
-    } else if (cap === 'realtime_voice' && !process.env.REALTIME_SERVICE_URL) {
+    } else if (cap === 'realtime_voice' && !process.env.REALTIME_SERVICE_URL?.trim()) {
       // Realtime voice requires a separately-deployed WebSocket service in
       // addition to an OpenAI provider. Without REALTIME_SERVICE_URL the
       // session endpoint exists but streaming cannot work.
