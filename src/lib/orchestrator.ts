@@ -36,6 +36,7 @@
 import { callProvider, type ProviderCallResult } from '@/lib/brain'
 import { prisma } from '@/lib/prisma'
 import {
+
   getDefaultModelForProvider,
   getModelRegistry,
   isProviderUsable,
@@ -51,6 +52,7 @@ import { generateContent, type MultimodalResult } from '@/lib/multimodal-router'
 import { getAppProfileFromDb, runtimeProfileOverrides } from '@/lib/app-profiles'
 import { recordPerformance, loadSmartRouterState } from '@/lib/smart-router'
 import { lookupCache, storeInCache } from '@/lib/semantic-cache'
+import { alertNoEligibleModel } from '@/lib/alert-engine'
 import type { ModelEntry } from '@/lib/model-registry'
 
 /**
@@ -375,6 +377,11 @@ export async function decideExecution(
     message: '',
     requiresRetrieval: false,
     requiresMultimodal: false,
+    // Pass requiredModality so the engine enforces correct modality filtering here too.
+    // Without this, image/voice/video tasks in decideExecution would select text models,
+    // generating a spurious "no eligible models" warning even when the outer routeRequest
+    // (in orchestrate()) found a valid capability-matched model.
+    ...(requiredModality && requiredModality !== 'text' ? { requiredModality } : {}),
   }
   const routingDecision = await routeRequest(routingCtx)
 
@@ -434,6 +441,9 @@ export async function decideExecution(
   }
 
   warnings.push('Routing engine returned no eligible models — falling back to DB provider list')
+  // Fire a deduped system alert so the Control Center reflects this routing failure.
+  // This prevents the dashboard from showing "No errors — all clear" while routing is broken.
+  alertNoEligibleModel(classification.taskType, appSlug).catch(() => {})
 
   // HARD GUARD: For non-text modalities (image, video, voice, embeddings, moderation),
   // the DB provider list only holds text chat models. Falling back would silently route

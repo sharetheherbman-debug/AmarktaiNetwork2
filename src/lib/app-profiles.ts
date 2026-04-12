@@ -154,14 +154,14 @@ export const DEFAULT_PROFILE: AppProfile = {
 
   default_routing_mode: 'direct',
 
-  allowed_providers: BACKBONE_PROVIDERS,
-  allowed_models: [
-    'llama-3.3-70b-versatile',
-    'deepseek-chat',
-    'mistralai/Mixtral-8x7B-Instruct-v0.1',
-    'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-  ],
-  preferred_models: ['llama-3.3-70b-versatile', 'deepseek-chat'],
+  // Allow every known provider so the routing engine can reach any configured key.
+  // When only OpenAI is configured, BACKBONE_PROVIDERS would silently exclude it and
+  // cause the "no eligible models" fallback even with a valid key.
+  allowed_providers: ALL_PROVIDERS,
+  // Empty = wildcard: allow all models from the above providers.
+  // A restrictive list here would filter out OpenAI chat/image models for unknown apps.
+  allowed_models: [],
+  preferred_models: ['gpt-4o-mini', 'llama-3.3-70b-versatile', 'deepseek-chat'],
 
   escalation_rules: [],
   validator_rules: [],
@@ -172,7 +172,9 @@ export const DEFAULT_PROFILE: AppProfile = {
   memory_namespace: 'default',
   retrieval_namespace: 'default',
 
-  budget_sensitivity: 'high',
+  // 'medium' allows cost tiers up to 'medium' (gpt-4o-mini, gpt-image-1-mini, etc.).
+  // 'high' would cap at 'low' and filter out most OpenAI models except gpt-4o-mini.
+  budget_sensitivity: 'medium',
   latency_sensitivity: 'medium',
   logging_privacy_rules: BASIC_PRIVACY_RULES,
 };

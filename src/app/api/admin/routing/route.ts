@@ -112,6 +112,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Sync health cache so routeRequest() sees real DB-configured provider state
+    await syncProviderHealthFromDB()
+
     const body = await request.json() as Partial<RoutingContext>
 
     if (!body.appSlug || !body.taskType || !body.message) {
