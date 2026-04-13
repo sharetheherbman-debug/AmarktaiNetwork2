@@ -263,6 +263,29 @@ export default function LabPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  /** Download a generated image by its URL (data: or https:). */
+  const handleImageDownload = async (url: string) => {
+    if (url.startsWith('data:')) {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'generated-image.png'
+      a.click()
+    } else {
+      try {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = 'generated-image.png'
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+      } catch {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
+    }
+  }
+
   /** Stream a chat/code/reasoning request via SSE from /api/brain/stream */
   const handleStream = async () => {
     if (!prompt.trim()) return
@@ -738,6 +761,12 @@ export default function LabPage() {
                 alt="Generated image"
                 className="w-full rounded-lg border border-white/[0.08]"
               />
+              <button
+                onClick={() => handleImageDownload(result.imageUrl!)}
+                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+              >
+                ↓ Download image
+              </button>
             </div>
           )}
 
@@ -851,6 +880,12 @@ export default function LabPage() {
                       alt="Generated"
                       className="max-w-full rounded-lg border border-white/[0.06]"
                     />
+                    <button
+                      onClick={() => handleImageDownload(result.imageUrl!)}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+                    >
+                      ↓ Download image
+                    </button>
                   </div>
                 )}
 
