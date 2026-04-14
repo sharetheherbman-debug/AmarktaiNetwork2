@@ -136,6 +136,9 @@ export interface ModelEntry {
   /** Suitable for multi-step agent / tool-orchestration planning. */
   supports_agent_planning: boolean;
 
+  /** Can generate music / audio compositions from text prompts (e.g. Suno, MusicGen). */
+  supports_music_generation?: boolean;
+
   // ── Operational metadata ──────────────────────────────────────────────
 
   /** Maximum context window in tokens. */
@@ -171,8 +174,9 @@ export interface ModelEntry {
    * - `voice`      – TTS, STT, real-time voice
    * - `code`       – Code-specialist models
    * - `multimodal` – Vision + generation across modalities
+   * - `music`      – Music / audio generation (Suno, MusicGen, etc.)
    */
-  category: 'text' | 'image' | 'video' | 'voice' | 'code' | 'multimodal' | 'moderation' | 'embeddings';
+  category: 'text' | 'image' | 'video' | 'voice' | 'code' | 'multimodal' | 'moderation' | 'embeddings' | 'music';
 }
 
 // ── Registry data ───────────────────────────────────────────────────────────
@@ -5978,6 +5982,106 @@ export const MODEL_REGISTRY: readonly ModelEntry[] = [
     validator_eligible: false,
     specialist_domains: ['image_generation', 'artistic', 'stylized', 'midjourney_style'],
     category: 'image',
+  },
+
+  // ── Music Generation ──────────────────────────────────────────────────────
+
+  {
+    model_id: 'suno-v3.5',
+    model_name: 'Suno v3.5',
+    provider: 'suno',
+    provider_tier: 'multimodal',
+    family: 'Suno',
+    primary_role: 'creative',
+    secondary_roles: [],
+    supports_chat: false,
+    supports_image_generation: false,
+    supports_video_planning: false,
+    supports_code: false,
+    supports_reasoning: false,
+    supports_tool_use: false,
+    supports_multilingual: true,
+    supports_structured_output: false,
+    supports_embeddings: false,
+    supports_reranking: false,
+    supports_vision: false,
+    supports_music_generation: true,
+    supports_agent_planning: false,
+    context_window: 3000,
+    latency_tier: 'high',
+    cost_tier: 'low',
+    // Disabled until SUNO_API_KEY is configured; enabled via health-check sync
+    enabled: false,
+    health_status: 'unconfigured',
+    fallback_priority: 1,
+    validator_eligible: false,
+    specialist_domains: ['music_generation', 'lyrics', 'audio', 'song_production'],
+    category: 'music',
+  },
+
+  {
+    model_id: 'musicgen-melody',
+    model_name: 'MusicGen Melody (Replicate)',
+    provider: 'replicate',
+    provider_tier: 'multimodal',
+    family: 'MusicGen',
+    primary_role: 'creative',
+    secondary_roles: [],
+    supports_chat: false,
+    supports_image_generation: false,
+    supports_video_planning: false,
+    supports_code: false,
+    supports_reasoning: false,
+    supports_tool_use: false,
+    supports_multilingual: false,
+    supports_structured_output: false,
+    supports_embeddings: false,
+    supports_reranking: false,
+    supports_vision: false,
+    supports_music_generation: true,
+    supports_agent_planning: false,
+    context_window: 512,
+    latency_tier: 'high',
+    cost_tier: 'very_low',
+    enabled: true,
+    health_status: 'unconfigured',
+    fallback_priority: 2,
+    validator_eligible: false,
+    specialist_domains: ['music_generation', 'instrumental', 'melody', 'audio'],
+    category: 'music',
+  },
+
+  {
+    model_id: 'udio-v1',
+    model_name: 'Udio v1',
+    provider: 'udio',
+    provider_tier: 'multimodal',
+    family: 'Udio',
+    primary_role: 'creative',
+    secondary_roles: [],
+    supports_chat: false,
+    supports_image_generation: false,
+    supports_video_planning: false,
+    supports_code: false,
+    supports_reasoning: false,
+    supports_tool_use: false,
+    supports_multilingual: true,
+    supports_structured_output: false,
+    supports_embeddings: false,
+    supports_reranking: false,
+    supports_vision: false,
+    supports_music_generation: true,
+    supports_agent_planning: false,
+    context_window: 3000,
+    latency_tier: 'high',
+    cost_tier: 'low',
+    // Disabled until UDIO_API_KEY is configured; enabled via health-check sync
+    enabled: false,
+    health_status: 'unconfigured',
+    fallback_priority: 3,
+    validator_eligible: false,
+    specialist_domains: ['music_generation', 'vocals', 'high_fidelity', 'audio'],
+    category: 'music',
   },
 
 ] as const satisfies readonly ModelEntry[];

@@ -258,8 +258,9 @@ function modelHasFlag(
   return (m as any)[flag] === true;
 }
 
-/** Map capability name → model boolean flag key for quick lookup. */
-const CAP_TO_MODEL_FLAG: Record<string, string> = {
+/** Map capability name → model boolean flag key for quick lookup.
+ *  Exported for testing and introspection only. */
+export const CAP_TO_MODEL_FLAG: Record<string, string> = {
   general_chat: 'supports_chat',
   deep_reasoning: 'supports_reasoning',
   coding: 'supports_code',
@@ -307,6 +308,13 @@ const CAP_TO_MODEL_FLAG: Record<string, string> = {
   // (the framework runs in simulation mode with no external hub required)
   smart_home_control: 'supports_chat',
   device_automation: 'supports_chat',
+  // Music Studio — requires music provider key (Suno or Replicate) for audio; lyrics always available
+  music_generation: 'supports_music_generation',
+  lyrics_generation: 'supports_chat',
+  music_cover_art: 'supports_image_generation',
+  // Monetization — platform-level (always available)
+  monetization: 'supports_chat',
+  usage_analytics: 'supports_chat',
 };
 
 /** Capabilities that are platform-level features (route + framework always available,
@@ -316,6 +324,9 @@ const PLATFORM_LEVEL_CAPABILITIES = new Set([
   'smart_home_control',
   'workflow_automation',
   'skill_templates',
+  'monetization',
+  'usage_analytics',
+  'lyrics_generation', // lyrics are generated via chat models — always available
 ]);
 
 /**
@@ -380,6 +391,10 @@ export async function getCapabilityTruth(
         reason = 'Integration Hub route (/api/admin/integration-hub) is operational. Individual connectors require their own credentials.';
       } else if (cap === 'smart_home_control') {
         reason = 'Smart Home framework (/api/admin/smart-home) is operational in simulation mode. Configure HOME_ASSISTANT_URL or HOMEY_API_URL for real device control.';
+      } else if (cap === 'monetization' || cap === 'usage_analytics') {
+        reason = 'Monetization engine (/api/admin/monetization) is operational. Usage tracking, revenue hooks, and subscription management are active.';
+      } else if (cap === 'lyrics_generation') {
+        reason = 'Lyrics generation is available via music studio (/api/admin/music-studio). Uses chat models — available with any active AI provider.';
       } else {
         reason = 'Platform-level feature — route exists and is operational.';
       }
