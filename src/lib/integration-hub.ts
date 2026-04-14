@@ -575,6 +575,31 @@ export async function executeConnectorAction(
 
 // ── Implemented connector handlers ────────────────────────────────────────────
 
+/** Sanitize a GitHub owner/repo name component (no path separators). */
+function sanitizeGitHubOwnerRepo(value: unknown): string {
+  // GitHub owner/repo names: alphanumeric, hyphens, underscores, periods only
+  return String(value ?? '').replace(/[^A-Za-z0-9_.\-]/g, '').slice(0, 100)
+}
+
+/** Sanitize a GitHub file path component (allows forward slash segments). */
+function sanitizeGitHubFilePath(value: unknown): string {
+  // Split into segments, sanitize each, remove empty/dot segments, rejoin
+  const segments = String(value ?? '').split('/')
+  const safe = segments
+    .map((s) => s.replace(/[^A-Za-z0-9_.\-]/g, ''))
+    .filter((s) => s.length > 0 && s !== '..' && s !== '.')
+  return safe.join('/').slice(0, 256) || 'file'
+}
+
+/** Build a GitHub API URL using validated path components only. */
+function buildGitHubUrl(owner: string, repo: string, ...rest: string[]): URL {
+  const base = new URL('https://api.github.com')
+  // Construct path manually to avoid any injection
+  const segments = ['repos', owner, repo, ...rest].filter(Boolean)
+  base.pathname = '/' + segments.join('/')
+  return base
+}
+
 async function executeGitHubAction(
   actionId: string,
   input: Record<string, unknown>,
@@ -591,7 +616,11 @@ async function executeGitHubAction(
   try {
     if (actionId === 'create_issue') {
       const { owner, repo, title, body, labels } = input as Record<string, unknown>
-      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+      const safeOwner = sanitizeGitHubOwnerRepo(owner)
+      const safeRepo = sanitizeGitHubOwnerRepo(repo)
+      if (!safeOwner || !safeRepo) throw new Error('Invalid owner or repo name')
+      const url = buildGitHubUrl(safeOwner, safeRepo, 'issues')
+      const res = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ title, body, labels }),
@@ -603,7 +632,15 @@ async function executeGitHubAction(
 
     if (actionId === 'list_issues') {
       const { owner, repo, state = 'open', limit = 20 } = input as Record<string, unknown>
-      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=${state}&per_page=${limit}`, { headers })
+      const safeOwner = sanitizeGitHubOwnerRepo(owner)
+      const safeRepo = sanitizeGitHubOwnerRepo(repo)
+      if (!safeOwner || !safeRepo) throw new Error('Invalid owner or repo name')
+      const safeState = ['open', 'closed', 'all'].includes(String(state)) ? String(state) : 'open'
+      const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 100)
+      const url = buildGitHubUrl(safeOwner, safeRepo, 'issues')
+      url.searchParams.set('state', safeState)
+      url.searchParams.set('per_page', String(safeLimit))
+      const res = await fetch(url, { headers })
       const data = await res.json() as unknown[]
       if (!res.ok) throw new Error('GitHub API error')
       return { success: true, data: { issues: data }, connector: 'github', action: actionId, latencyMs: Date.now() - start }
@@ -611,19 +648,29 @@ async function executeGitHubAction(
 
     if (actionId === 'push_file') {
       const { owner, repo, path, content, message, branch = 'main' } = input as Record<string, unknown>
+      const safeOwner = sanitizeGitHubOwnerRepo(owner)
+      const safeRepo = sanitizeGitHubOwnerRepo(repo)
+      const safePath = sanitizeGitHubFilePath(path)
+      const safeBranch = sanitizeGitHubOwnerRepo(branch)
+      if (!safeOwner || !safeRepo) throw new Error('Invalid owner or repo name')
+      // Split path into segments for URL construction
+      const pathSegments = safePath.split('/')
       const encoded = Buffer.from(String(content)).toString('base64')
       // Check if file exists to get SHA
       let sha: string | undefined
       try {
-        const check = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`, { headers })
+        const checkUrl = buildGitHubUrl(safeOwner, safeRepo, 'contents', ...pathSegments)
+        checkUrl.searchParams.set('ref', safeBranch)
+        const check = await fetch(checkUrl, { headers })
         if (check.ok) {
           const existing = await check.json() as Record<string, unknown>
           sha = existing.sha as string
         }
       } catch { /* new file */ }
-      const body: Record<string, unknown> = { message, content: encoded, branch }
+      const body: Record<string, unknown> = { message, content: encoded, branch: safeBranch }
       if (sha) body.sha = sha
-      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, { method: 'PUT', headers, body: JSON.stringify(body) })
+      const putUrl = buildGitHubUrl(safeOwner, safeRepo, 'contents', ...pathSegments)
+      const res = await fetch(putUrl, { method: 'PUT', headers, body: JSON.stringify(body) })
       const data = await res.json() as Record<string, unknown>
       if (!res.ok) throw new Error(String(data.message ?? 'GitHub push failed'))
       const commit = data.commit as Record<string, unknown> | undefined
@@ -641,11 +688,32 @@ async function executeWebhookAction(
   start: number,
 ): Promise<ConnectorActionResult> {
   const { url, payload, method = 'POST' } = input
+
+  // SSRF protection: only allow HTTPS URLs targeting public internet addresses.
+  // Reject private/loopback addresses and non-HTTPS schemes.
+  const rawUrl = String(url ?? '')
+  let parsedUrl: URL
   try {
-    const res = await fetch(String(url), {
-      method: String(method),
+    parsedUrl = new URL(rawUrl)
+  } catch {
+    return { success: false, error: 'Invalid webhook URL', connector: 'generic_webhook', action: 'fire_webhook', latencyMs: Date.now() - start }
+  }
+  if (parsedUrl.protocol !== 'https:') {
+    return { success: false, error: 'Webhook URL must use HTTPS', connector: 'generic_webhook', action: 'fire_webhook', latencyMs: Date.now() - start }
+  }
+  const hostname = parsedUrl.hostname.toLowerCase()
+  const BLOCKED_PATTERNS = [/^localhost$/i, /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^::1$/, /^fc00:/, /^fe80:/]
+  if (BLOCKED_PATTERNS.some((p) => p.test(hostname))) {
+    return { success: false, error: 'Webhook URL targets a private or reserved address', connector: 'generic_webhook', action: 'fire_webhook', latencyMs: Date.now() - start }
+  }
+
+  const safeMethod = ['GET', 'POST', 'PUT', 'PATCH'].includes(String(method).toUpperCase()) ? String(method).toUpperCase() : 'POST'
+
+  try {
+    const res = await fetch(parsedUrl.toString(), {
+      method: safeMethod,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: safeMethod !== 'GET' ? JSON.stringify(payload) : undefined,
     })
     const body = await res.text()
     return { success: res.ok, data: { status: res.status, body }, connector: 'generic_webhook', action: 'fire_webhook', latencyMs: Date.now() - start }

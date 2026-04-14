@@ -298,12 +298,14 @@ const CAP_TO_MODEL_FLAG: Record<string, string> = {
   multi_agent_orchestration: 'supports_agent_planning',
   team_assistant: 'supports_agent_planning',
   agent_handoff: 'supports_agent_planning',
-  // Integration Hub — platform-level feature (no AI model required, route always exists)
-  integration_hub: 'supports_chat', // proxy flag — actual availability is platform-level
+  // Integration Hub — overridden to AVAILABLE_NOW by PLATFORM_LEVEL_CAPABILITIES below
+  // (the route and framework are always operational regardless of AI model state)
+  integration_hub: 'supports_chat',
   email_triage: 'supports_chat',
   calendar_management: 'supports_chat',
-  // Smart Home / Device — platform-level feature (framework is always available)
-  smart_home_control: 'supports_chat', // proxy flag — actual availability is platform-level
+  // Smart Home / Device — overridden to AVAILABLE_NOW by PLATFORM_LEVEL_CAPABILITIES below
+  // (the framework runs in simulation mode with no external hub required)
+  smart_home_control: 'supports_chat',
   device_automation: 'supports_chat',
 };
 

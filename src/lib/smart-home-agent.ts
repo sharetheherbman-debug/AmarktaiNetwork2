@@ -188,6 +188,27 @@ export function findDevices(params: { type?: DeviceType; room?: string; home?: s
   })
 }
 
+// ── Command Parsing Constants (module-level for performance) ─────────────────
+
+/** Room names for extraction from NL commands. */
+const ROOMS = [
+  'living room', 'kitchen', 'bedroom', 'bathroom', 'office', 'garage',
+  'hallway', 'basement', 'attic', 'dining room', 'entrance',
+]
+
+/** Device type detection patterns. */
+const DEVICE_PATTERNS: Array<{ patterns: RegExp[]; type: DeviceType }> = [
+  { patterns: [/\blight(s)?\b/, /\blamp\b/, /\bbulb\b/], type: 'light' },
+  { patterns: [/\bthermostat\b/, /\btemperature\b/, /\bheating\b/, /\bcooling\b/, /\bac\b/, /\bhvac\b/], type: 'thermostat' },
+  { patterns: [/\block\b/, /\bdoor lock\b/], type: 'lock' },
+  { patterns: [/\bcamera\b/, /\bsecurity camera\b/], type: 'camera' },
+  { patterns: [/\bspeaker\b/, /\bmusic\b/, /\bplay\b/, /\bvolume\b/], type: 'speaker' },
+  { patterns: [/\btv\b/, /\btelevision\b/, /\bscreen\b/], type: 'tv' },
+  { patterns: [/\bblinds\b/, /\bshades\b/, /\bcurtains\b/], type: 'blinds' },
+  { patterns: [/\boutlet\b/, /\bplug\b/], type: 'outlet' },
+  { patterns: [/\bappliance\b/, /\bwasher\b/, /\bdryer\b/, /\boven\b/, /\bdishwasher\b/], type: 'appliance' },
+]
+
 // ── Command Parsing ───────────────────────────────────────────────────────────
 
 /**
@@ -203,7 +224,6 @@ export function parseSmartHomeCommand(
   const intents: DeviceControlIntent[] = []
 
   // Room extraction
-  const ROOMS = ['living room', 'kitchen', 'bedroom', 'bathroom', 'office', 'garage', 'hallway', 'basement', 'attic', 'dining room', 'entrance']
   const detectedRoom = ROOMS.find((r) => lower.includes(r))
 
   // Action extraction
@@ -221,19 +241,6 @@ export function parseSmartHomeCommand(
   // Value extraction (numbers)
   const valueMatch = lower.match(/(\d+)\s*(degrees?|%|percent|volume)?/)
   const value = valueMatch ? Number(valueMatch[1]) : undefined
-
-  // Device type detection
-  const DEVICE_PATTERNS: Array<{ patterns: RegExp[]; type: DeviceType }> = [
-    { patterns: [/\blight(s)?\b/, /\blamp\b/, /\bbulb\b/], type: 'light' },
-    { patterns: [/\bthermostat\b/, /\btemperature\b/, /\bheating\b/, /\bcooling\b/, /\bac\b/, /\bhvac\b/], type: 'thermostat' },
-    { patterns: [/\block\b/, /\bdoor lock\b/], type: 'lock' },
-    { patterns: [/\bcamera\b/, /\bsecurity camera\b/], type: 'camera' },
-    { patterns: [/\bspeaker\b/, /\bmusic\b/, /\bplay\b/, /\bvolume\b/], type: 'speaker' },
-    { patterns: [/\btv\b/, /\btelevision\b/, /\bscreen\b/], type: 'tv' },
-    { patterns: [/\bblinds\b/, /\bshades\b/, /\bcurtains\b/], type: 'blinds' },
-    { patterns: [/\boutlet\b/, /\bplug\b/], type: 'outlet' },
-    { patterns: [/\bappliance\b/, /\bwasher\b/, /\bdryer\b/, /\boven\b/, /\bdishwasher\b/], type: 'appliance' },
-  ]
 
   let ambiguous = false
   const detectedDeviceTypes = DEVICE_PATTERNS

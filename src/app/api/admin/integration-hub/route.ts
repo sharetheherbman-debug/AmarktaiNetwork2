@@ -58,10 +58,15 @@ export async function GET(request: NextRequest) {
   // Attach live status to each connector
   const connectorsWithStatus = connectors.map((c) => ({
     ...c,
-    // Omit sensitive credential values from response
-    credentials: c.credentials.map((cred) => ({
-      ...cred,
-      // Do not expose actual env var values
+    // Only expose safe, non-sensitive credential metadata (not actual values)
+    credentials: c.credentials.map(({ key, label, type, required, description }) => ({
+      key,
+      label,
+      type,
+      required,
+      description,
+      // isSet: indicate whether the credential is configured (without revealing the value)
+      isSet: Boolean(process.env[key]?.trim()),
     })),
     status: getConnectorStatus(c.id),
   }))
