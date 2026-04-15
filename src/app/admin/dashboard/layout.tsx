@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, AppWindow, Brain, Palette, Server, FlaskConical, Settings,
-  LogOut, Menu, X, User, Code2, Heart, Cpu, Activity,
+  LogOut, Menu, X, User, Cpu, Activity, Music, Package,
 } from 'lucide-react'
 
 interface NavItem {
@@ -17,17 +17,17 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/admin/dashboard',              label: 'Overview',      icon: LayoutDashboard },
-  { href: '/admin/dashboard/apps',         label: 'Apps',          icon: AppWindow },
-  { href: '/admin/dashboard/intelligence', label: 'Intelligence',  icon: Brain },
-  { href: '/admin/dashboard/emotions',     label: 'Emotions',      icon: Heart },
-  { href: '/admin/dashboard/media',        label: 'Media',         icon: Palette },
-  { href: '/admin/dashboard/models',       label: 'Models',        icon: Cpu },
-  { href: '/admin/dashboard/events',       label: 'Events',        icon: Activity },
-  { href: '/admin/dashboard/operations',   label: 'Operations',    icon: Server },
-  { href: '/admin/dashboard/lab',          label: 'Lab',           icon: FlaskConical },
-  { href: '/admin/dashboard/labs',         label: 'Labs',          icon: Code2 },
-  { href: '/admin/dashboard/access',       label: 'Access',        icon: Settings },
+  { href: '/admin/dashboard',              label: 'Overview',       icon: LayoutDashboard },
+  { href: '/admin/dashboard/apps',         label: 'Apps',           icon: AppWindow },
+  { href: '/admin/dashboard/intelligence', label: 'Intelligence',   icon: Brain },
+  { href: '/admin/dashboard/media',        label: 'Media',          icon: Palette },
+  { href: '/admin/dashboard/music-studio', label: 'Music Studio',   icon: Music },
+  { href: '/admin/dashboard/artifacts',    label: 'Artifacts',      icon: Package },
+  { href: '/admin/dashboard/models',       label: 'Models',         icon: Cpu },
+  { href: '/admin/dashboard/events',       label: 'Events',         icon: Activity },
+  { href: '/admin/dashboard/operations',   label: 'Operations',     icon: Server },
+  { href: '/admin/dashboard/lab',          label: 'Test Lab',       icon: FlaskConical },
+  { href: '/admin/dashboard/access',       label: 'Settings',       icon: Settings },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

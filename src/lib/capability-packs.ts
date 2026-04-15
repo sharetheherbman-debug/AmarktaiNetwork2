@@ -237,6 +237,78 @@ const CAPABILITY_PACKS: Map<string, CapabilityPack> = new Map([
       tags: ['18+', 'age-verified', 'gated', 'adult'],
     },
   ],
+  [
+    'research_pack',
+    {
+      id: 'research_pack',
+      name: 'Research & Analysis Pack',
+      description:
+        'Deep research, web scraping, data analysis, and report generation for intelligence-gathering applications.',
+      capabilities: ['chat', 'retrieval', 'reasoning', 'structured_output', 'embeddings', 'code'],
+      allowedProviders: ['openai', 'deepseek', 'groq', 'together'],
+      recommendedModels: ['gpt-4o', 'deepseek-r1'],
+      safetyLevel: 'standard',
+      defaultBudget: { daily: 10_000, monthly: 250_000 },
+      recommendedAgents: ['researcher', 'retrieval', 'router'],
+      memoryStrategy: 'session',
+      realtimeRequired: false,
+      tags: ['research', 'analysis', 'intelligence', 'scraping', 'data'],
+    },
+  ],
+  [
+    'security_pack',
+    {
+      id: 'security_pack',
+      name: 'Security & Monitoring Pack',
+      description:
+        'Security monitoring, threat analysis, anomaly detection, and compliance reporting applications.',
+      capabilities: ['chat', 'reasoning', 'structured_output', 'code'],
+      allowedProviders: ['openai', 'deepseek'],
+      recommendedModels: ['gpt-4o', 'deepseek-r1'],
+      safetyLevel: 'strict',
+      defaultBudget: { daily: 5_000, monthly: 120_000 },
+      recommendedAgents: ['security', 'router', 'planner'],
+      memoryStrategy: 'full',
+      realtimeRequired: false,
+      tags: ['security', 'monitoring', 'compliance', 'threat', 'audit'],
+    },
+  ],
+  [
+    'operations_pack',
+    {
+      id: 'operations_pack',
+      name: 'Operations & Automation Pack',
+      description:
+        'Business operations automation, scheduling, notifications, and workflow orchestration.',
+      capabilities: ['chat', 'reasoning', 'structured_output', 'tool_use', 'agent_planning'],
+      allowedProviders: ['openai', 'groq', 'deepseek'],
+      recommendedModels: ['gpt-4o', 'llama-3.1-70b'],
+      safetyLevel: 'standard',
+      defaultBudget: { daily: 8_000, monthly: 200_000 },
+      recommendedAgents: ['operations', 'router', 'planner'],
+      memoryStrategy: 'session',
+      realtimeRequired: false,
+      tags: ['operations', 'automation', 'workflow', 'scheduling', 'notifications'],
+    },
+  ],
+  [
+    'pet_horse_pack',
+    {
+      id: 'pet_horse_pack',
+      name: 'Pet & Equestrian Pack',
+      description:
+        'Pet care, equestrian, and animal-focused applications with image recognition and advice generation.',
+      capabilities: ['chat', 'image_generation', 'reasoning', 'retrieval'],
+      allowedProviders: ['openai', 'groq'],
+      recommendedModels: ['gpt-4o', 'llama-3.1-70b'],
+      safetyLevel: 'strict',
+      defaultBudget: { daily: 5_000, monthly: 100_000 },
+      recommendedAgents: ['router', 'memory', 'creative'],
+      memoryStrategy: 'full',
+      realtimeRequired: false,
+      tags: ['pet', 'horse', 'equestrian', 'animal', 'veterinary'],
+    },
+  ],
 ])
 
 // ── Category → keyword mapping ───────────────────────────
@@ -252,6 +324,10 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   voice_pack: ['voice', 'assistant', 'speech', 'realtime'],
   dev_pack: ['developer', 'coding', 'engineering', 'devtools', 'programming', 'code'],
   adult_18plus_pack: ['adult', '18+', 'age-verified', 'gated', 'nsfw'],
+  research_pack: ['research', 'analysis', 'intelligence', 'scraping', 'data'],
+  security_pack: ['security', 'monitoring', 'compliance', 'threat', 'audit'],
+  operations_pack: ['operations', 'automation', 'workflow', 'scheduling'],
+  pet_horse_pack: ['pet', 'horse', 'equestrian', 'animal', 'veterinary'],
 }
 
 // ── Public API ───────────────────────────────────────────

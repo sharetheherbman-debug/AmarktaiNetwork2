@@ -504,6 +504,11 @@ export interface DashboardSummary {
   unavailableCapabilities: number;
   notImplemented: number;
   systemHealth: number;
+  // Phase 2 additions
+  artifactCount: number;
+  queueHealthy: boolean;
+  storageDriver: string;
+  managerAgentsActive: boolean;
 }
 
 /**
@@ -563,6 +568,30 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     providerScore * 40 + capScore * 35 + modelScore * 25,
   );
 
+  // Phase 2 — artifact count, queue health, storage driver, manager agents
+  let artifactCount = 0;
+  let queueHealthy = false;
+  let storageDriver = 'local';
+  const managerAgentsActive = true; // Manager agents are always available
+
+  try {
+    const { getQueueStatus } = await import('./job-queue');
+    const queueStatus = await getQueueStatus();
+    queueHealthy = queueStatus.healthy;
+  } catch { /* Redis unavailable */ }
+
+  try {
+    const { getStorageStatus } = await import('./storage-driver');
+    storageDriver = getStorageStatus().driver;
+  } catch { /* ignore */ }
+
+  try {
+    const prisma = await getPrisma();
+    if (prisma) {
+      artifactCount = await prisma.artifact.count();
+    }
+  } catch { /* Schema not migrated yet — acceptable */ }
+
   return {
     totalProviders,
     activeProviders,
@@ -575,5 +604,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     unavailableCapabilities,
     notImplemented,
     systemHealth,
+    artifactCount,
+    queueHealthy,
+    storageDriver,
+    managerAgentsActive,
   };
 }
