@@ -9,7 +9,6 @@ import {
   runAppManagerCheck,
   runLearningManagerCheck,
   runGrowthManagerCheck,
-  type ManagerType,
 } from '@/lib/manager-agents'
 
 const MANAGER_RUNNERS: Record<string, () => Promise<unknown>> = {
@@ -39,10 +38,15 @@ export async function GET(request: NextRequest) {
 
   // Run all checks
   if (searchParams.has('run')) {
-    const type = searchParams.get('type') as ManagerType | null
-    if (type && MANAGER_RUNNERS[type]) {
-      const result = await MANAGER_RUNNERS[type]()
-      return NextResponse.json({ result })
+    const type = searchParams.get('type')
+    // Validate against known manager types to prevent dynamic dispatch to unexpected methods
+    const validTypes = new Set(['routing', 'queue', 'artifact', 'app', 'learning', 'growth'])
+    if (type && validTypes.has(type)) {
+      const runner = MANAGER_RUNNERS[type]
+      if (runner) {
+        const result = await runner()
+        return NextResponse.json({ result })
+      }
     }
     const results = await runAllManagerChecks()
     return NextResponse.json({ results })

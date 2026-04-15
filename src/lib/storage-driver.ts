@@ -47,9 +47,14 @@ class LocalStorageDriver implements StorageDriver {
   name = 'local'
 
   private resolvePath(key: string): string {
-    // Sanitize key to prevent path traversal
+    // Sanitize key: strip any path traversal attempts, then validate resolved path
     const sanitized = key.replace(/\.\./g, '').replace(/^\/+/, '')
-    return path.join(LOCAL_BASE_DIR, sanitized)
+    const resolved = path.resolve(LOCAL_BASE_DIR, sanitized)
+    // Ensure the resolved path is still within the base directory
+    if (!resolved.startsWith(path.resolve(LOCAL_BASE_DIR))) {
+      throw new Error('Path traversal detected')
+    }
+    return resolved
   }
 
   async put(key: string, data: Buffer, _contentType: string): Promise<StoragePutResult> {
