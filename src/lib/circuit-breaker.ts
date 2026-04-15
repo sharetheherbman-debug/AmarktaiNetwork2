@@ -302,6 +302,8 @@ export interface DeadLetterEntry {
 
 const deadLetterQueue: DeadLetterEntry[] = []
 
+const MAX_DLQ_ENTRIES = 1000
+
 /**
  * Add a permanently failed job to the dead letter queue.
  */
@@ -311,9 +313,9 @@ export function addToDeadLetterQueue(entry: Omit<DeadLetterEntry, 'id'>): void {
     id: `dlq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
   })
 
-  // Keep last 1000 entries
-  if (deadLetterQueue.length > 1000) {
-    deadLetterQueue.splice(0, deadLetterQueue.length - 1000)
+  // Keep within size limit
+  if (deadLetterQueue.length > MAX_DLQ_ENTRIES) {
+    deadLetterQueue.splice(0, deadLetterQueue.length - MAX_DLQ_ENTRIES)
   }
 }
 

@@ -93,6 +93,8 @@ export async function runRoutingManagerCheck(): Promise<ManagerCheckResult> {
     const providers = await prisma.aiProvider.findMany({ where: { enabled: true } })
     providerCount = providers.length
 
+    const ONE_HOUR_MS = 60 * 60 * 1000
+
     for (const p of providers) {
       if (p.healthStatus === 'healthy') {
         healthyCount++
@@ -103,7 +105,7 @@ export async function runRoutingManagerCheck(): Promise<ManagerCheckResult> {
         if (p.healthStatus === 'error' && p.enabled) {
           try {
             // Check if provider has been in error state for > 1 hour
-            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+            const oneHourAgo = new Date(Date.now() - ONE_HOUR_MS)
             if (p.lastCheckedAt && p.lastCheckedAt < oneHourAgo) {
               await prisma.aiProvider.update({
                 where: { id: p.id },
