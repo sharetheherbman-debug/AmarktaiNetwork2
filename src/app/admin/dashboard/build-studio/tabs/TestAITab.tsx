@@ -329,7 +329,17 @@ export default function TestAITab() {
                   if (parent) {
                     const fallback = document.createElement('div')
                     fallback.className = 'p-6 text-center'
-                    fallback.innerHTML = `<p class="text-sm text-slate-400 mb-2">Image generated but could not display inline.</p><a href="${result.imageUrl}" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-400 hover:text-blue-300 underline">Open image in new tab →</a>`
+                    const msg = document.createElement('p')
+                    msg.className = 'text-sm text-slate-400 mb-2'
+                    msg.textContent = 'Image generated but could not display inline.'
+                    const link = document.createElement('a')
+                    link.href = result.imageUrl ?? ''
+                    link.target = '_blank'
+                    link.rel = 'noopener noreferrer'
+                    link.className = 'text-sm text-blue-400 hover:text-blue-300 underline'
+                    link.textContent = 'Open image in new tab →'
+                    fallback.appendChild(msg)
+                    fallback.appendChild(link)
                     parent.appendChild(fallback)
                   }
                 }}
