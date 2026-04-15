@@ -155,14 +155,18 @@ export async function runQueueManagerCheck(): Promise<ManagerCheckResult> {
     try {
       const queue = getQueue()
       if (queue) {
-        const stalledJobs = await queue.getJobs(['stalled'], 0, 10)
+        const stalledJobs = await queue.getJobs(['failed'], 0, 10)
+        let retriedCount = 0
         for (const job of stalledJobs) {
           try {
             await job.retry()
-            actionsPerformed.push(`Retried stalled job ${job.id}`)
+            retriedCount++
           } catch {
             // Job may have been processed already
           }
+        }
+        if (retriedCount > 0) {
+          actionsPerformed.push(`Retried ${retriedCount} failed/stalled jobs`)
         }
       }
     } catch {

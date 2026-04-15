@@ -509,6 +509,14 @@ export interface DashboardSummary {
   queueHealthy: boolean;
   storageDriver: string;
   managerAgentsActive: boolean;
+  // Phase 3 additions
+  healthScore: number;
+  circuitBreakersOpen: number;
+  deadLetterQueueSize: number;
+  unresolvedAlerts: number;
+  criticalAlerts: number;
+  sseListeners: number;
+  providerReliabilityCount: number;
 }
 
 /**
@@ -574,6 +582,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   let storageDriver = 'local';
   const managerAgentsActive = true; // Manager agents are always available
 
+  // Phase 3 — circuit breakers, DLQ, alerts, SSE, reliability
+  let circuitBreakersOpen = 0;
+  let deadLetterQueueSize = 0;
+  let unresolvedAlerts = 0;
+  let criticalAlerts = 0;
+  let sseListeners = 0;
+  let providerReliabilityCount = 0;
+
   try {
     const { getQueueStatus } = await import('./job-queue');
     const queueStatus = await getQueueStatus();
@@ -592,6 +608,36 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     }
   } catch { /* Schema not migrated yet — acceptable */ }
 
+  try {
+    const { getAllCircuitStatuses, getDeadLetterQueueSize } = await import('./circuit-breaker');
+    const statuses = getAllCircuitStatuses();
+    circuitBreakersOpen = Object.values(statuses).filter(s => s.state === 'OPEN').length;
+    deadLetterQueueSize = getDeadLetterQueueSize();
+  } catch { /* ignore */ }
+
+  try {
+    const { getAlertSummary } = await import('./alert-engine');
+    const alertSummary = await getAlertSummary();
+    unresolvedAlerts = alertSummary.unresolved;
+    criticalAlerts = alertSummary.critical;
+  } catch { /* ignore */ }
+
+  try {
+    const { getEventListenerCount } = await import('./event-bus');
+    sseListeners = getEventListenerCount();
+  } catch { /* ignore */ }
+
+  try {
+    const { getAllProviderReliability } = await import('./provider-reliability');
+    providerReliabilityCount = getAllProviderReliability().length;
+  } catch { /* ignore */ }
+
+  // Adjust health score with Phase 3 signals
+  let adjustedHealth = systemHealth;
+  if (circuitBreakersOpen > 0) adjustedHealth = Math.max(0, adjustedHealth - circuitBreakersOpen * 5);
+  if (criticalAlerts > 0) adjustedHealth = Math.max(0, adjustedHealth - criticalAlerts * 3);
+  const healthScore = Math.max(0, Math.min(100, adjustedHealth));
+
   return {
     totalProviders,
     activeProviders,
@@ -608,5 +654,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     queueHealthy,
     storageDriver,
     managerAgentsActive,
+    healthScore,
+    circuitBreakersOpen,
+    deadLetterQueueSize,
+    unresolvedAlerts,
+    criticalAlerts,
+    sseListeners,
+    providerReliabilityCount,
   };
 }

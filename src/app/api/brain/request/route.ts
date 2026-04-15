@@ -16,6 +16,10 @@ import { runEmotionPipeline, setAppContextWindow, type PersonalityType } from '@
 import { runModerationPipeline } from '@/lib/moderation-pipeline'
 import { buildMemoryContext } from '@/lib/federated-memory'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit, getRateLimitHeaders } from '@/lib/rate-limiter'
+import { checkAppBudget } from '@/lib/app-budget-enforcement'
+import { recordUsage } from '@/lib/usage-meter'
+import { recordProviderMetric } from '@/lib/provider-reliability'
 
 // ── Request schema ────────────────────────────────────────────────────────────
 
@@ -130,6 +134,29 @@ export async function POST(request: NextRequest) {
   }
 
   const { app } = auth
+
+  // ── Rate limiting (hard enforcement) ──────────────────────────────────
+  const rateLimitResult = await checkRateLimit('app', app.slug)
+  if (!rateLimitResult.allowed) {
+    const headers = getRateLimitHeaders(rateLimitResult)
+    return NextResponse.json(
+      errorResponse({ traceId, taskType: body.taskType, error: 'Rate limit exceeded for this app. Please retry later.', statusCode: 429, latencyMs: Date.now() - start }),
+      { status: 429, headers },
+    )
+  }
+
+  // ── Budget enforcement ────────────────────────────────────────────────
+  try {
+    const budgetCheck = await checkAppBudget(app.slug, body.taskType)
+    if (!budgetCheck.allowed) {
+      return NextResponse.json(
+        errorResponse({ traceId, taskType: body.taskType, error: budgetCheck.reason ?? 'Budget limit reached for this app.', statusCode: 429, latencyMs: Date.now() - start }),
+        { status: 429 },
+      )
+    }
+  } catch {
+    // Budget check failure should not block requests — degrade gracefully
+  }
 
   // ── Load app safety config (DB-backed, warm cache) ────────────────────
   // This warms the in-memory cache so all subsequent scanContent(text, app.slug)
@@ -262,6 +289,23 @@ export async function POST(request: NextRequest) {
     warningsJson: JSON.stringify(result.warnings),
     latencyMs,
   })
+
+  // ── Usage metering + provider reliability ─────────────────────────────
+  try {
+    await recordUsage({
+      appSlug: app.slug,
+      capability: body.taskType,
+      provider: result.routedProvider ?? 'unknown',
+      model: result.routedModel ?? '',
+      success,
+      latencyMs,
+      costUsdCents: 0, // Cost estimation done separately
+    })
+  } catch { /* metering is best-effort */ }
+
+  if (result.routedProvider) {
+    recordProviderMetric(result.routedProvider, latencyMs, success, hasErrors ? result.errors[0] : undefined)
+  }
 
   // ── Build normalised response ─────────────────────────────────────────
   // Return 503 when orchestration produced no output AND no provider was routed.
