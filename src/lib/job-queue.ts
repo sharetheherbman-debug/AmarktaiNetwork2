@@ -61,6 +61,9 @@ export type JobType =
   | 'agent_task'
   | 'daily_learning'
   | 'webhook_delivery'
+  | 'music_generation'
+  | 'artifact_processing'
+  | 'manager_check'
 
 export interface JobPayload {
   type: JobType

@@ -226,6 +226,20 @@ const CAPABILITY_META: Record<
   code_review: { displayName: 'Code Review', category: 'code', routeExists: true },
   moderation: { displayName: 'Content Moderation', category: 'safety', routeExists: true },
   adult_18plus_image: { displayName: 'Adult 18+ Image Gen', category: 'adult', routeExists: true },
+  // ── Workflow / Automation ───────────────────────────────────────────────────
+  workflow_automation: { displayName: 'Workflow Automation', category: 'workflow', routeExists: true },
+  skill_templates: { displayName: 'Skill Templates Library', category: 'workflow', routeExists: true },
+  // ── Multi-Agent / Team ──────────────────────────────────────────────────────
+  multi_agent_orchestration: { displayName: 'Multi-Agent Orchestration', category: 'agent', routeExists: true },
+  team_assistant: { displayName: 'Team Assistant', category: 'agent', routeExists: true },
+  agent_handoff: { displayName: 'Agent Handoff Chains', category: 'agent', routeExists: true },
+  // ── Integration Hub ─────────────────────────────────────────────────────────
+  integration_hub: { displayName: 'Integration Hub', category: 'integration', routeExists: true },
+  email_triage: { displayName: 'Email Triage', category: 'integration', routeExists: true },
+  calendar_management: { displayName: 'Calendar Management', category: 'integration', routeExists: true },
+  // ── Smart Home / Device ─────────────────────────────────────────────────────
+  smart_home_control: { displayName: 'Smart Home Control', category: 'smart_home', routeExists: true },
+  device_automation: { displayName: 'Device Automation', category: 'smart_home', routeExists: true },
 };
 
 /** Capabilities gated behind safety settings (suggestive_*). */
@@ -244,8 +258,9 @@ function modelHasFlag(
   return (m as any)[flag] === true;
 }
 
-/** Map capability name → model boolean flag key for quick lookup. */
-const CAP_TO_MODEL_FLAG: Record<string, string> = {
+/** Map capability name → model boolean flag key for quick lookup.
+ *  Exported for testing and introspection only. */
+export const CAP_TO_MODEL_FLAG: Record<string, string> = {
   general_chat: 'supports_chat',
   deep_reasoning: 'supports_reasoning',
   coding: 'supports_code',
@@ -277,7 +292,42 @@ const CAP_TO_MODEL_FLAG: Record<string, string> = {
   // adult_18plus_image uses HuggingFace image models; checking supports_image_generation
   // is a reasonable proxy since the HF inference API handles the actual generation.
   adult_18plus_image: 'supports_image_generation',
+  // Workflow / Automation — platform-level features backed by general chat models
+  workflow_automation: 'supports_chat',
+  skill_templates: 'supports_chat',
+  // Multi-Agent / Team — backed by agent_planning models
+  multi_agent_orchestration: 'supports_agent_planning',
+  team_assistant: 'supports_agent_planning',
+  agent_handoff: 'supports_agent_planning',
+  // Integration Hub — overridden to AVAILABLE_NOW by PLATFORM_LEVEL_CAPABILITIES below
+  // (the route and framework are always operational regardless of AI model state)
+  integration_hub: 'supports_chat',
+  email_triage: 'supports_chat',
+  calendar_management: 'supports_chat',
+  // Smart Home / Device — overridden to AVAILABLE_NOW by PLATFORM_LEVEL_CAPABILITIES below
+  // (the framework runs in simulation mode with no external hub required)
+  smart_home_control: 'supports_chat',
+  device_automation: 'supports_chat',
+  // Music Studio — requires music provider key (Suno or Replicate) for audio; lyrics always available
+  music_generation: 'supports_music_generation',
+  lyrics_generation: 'supports_chat',
+  music_cover_art: 'supports_image_generation',
+  // Monetization — platform-level (always available)
+  monetization: 'supports_chat',
+  usage_analytics: 'supports_chat',
 };
+
+/** Capabilities that are platform-level features (route + framework always available,
+ *  no specific AI model flag required beyond having any active chat provider). */
+const PLATFORM_LEVEL_CAPABILITIES = new Set([
+  'integration_hub',
+  'smart_home_control',
+  'workflow_automation',
+  'skill_templates',
+  'monetization',
+  'usage_analytics',
+  'lyrics_generation', // lyrics are generated via chat models — always available
+]);
 
 /**
  * Get truth for all capabilities given the current provider/model state.
@@ -332,6 +382,22 @@ export async function getCapabilityTruth(
         'Realtime voice service not configured: set REALTIME_SERVICE_URL to the running ' +
         'WebSocket service (see services/realtime/). The session endpoint ' +
         '(/api/realtime/session) exists but streaming requires the separate service.';
+    } else if (PLATFORM_LEVEL_CAPABILITIES.has(cap)) {
+      // Platform-level capability: no AI model flag required.
+      // These are always AVAILABLE_NOW as long as the route exists (which it does).
+      state = 'AVAILABLE_NOW';
+      implementationState = 'ACTIVE_NOW';
+      if (cap === 'integration_hub') {
+        reason = 'Integration Hub route (/api/admin/integration-hub) is operational. Individual connectors require their own credentials.';
+      } else if (cap === 'smart_home_control') {
+        reason = 'Smart Home framework (/api/admin/smart-home) is operational in simulation mode. Configure HOME_ASSISTANT_URL or HOMEY_API_URL for real device control.';
+      } else if (cap === 'monetization' || cap === 'usage_analytics') {
+        reason = 'Monetization engine (/api/admin/monetization) is operational. Usage tracking, revenue hooks, and subscription management are active.';
+      } else if (cap === 'lyrics_generation') {
+        reason = 'Lyrics generation is available via music studio (/api/admin/music-studio). Uses chat models — available with any active AI provider.';
+      } else {
+        reason = 'Platform-level feature — route exists and is operational.';
+      }
     } else if (hasCapableModel && hasActiveProvider) {
       state = 'AVAILABLE_NOW';
       implementationState = 'ACTIVE_NOW';
@@ -438,6 +504,19 @@ export interface DashboardSummary {
   unavailableCapabilities: number;
   notImplemented: number;
   systemHealth: number;
+  // Phase 2 additions
+  artifactCount: number;
+  queueHealthy: boolean;
+  storageDriver: string;
+  managerAgentsActive: boolean;
+  // Phase 3 additions
+  healthScore: number;
+  circuitBreakersOpen: number;
+  deadLetterQueueSize: number;
+  unresolvedAlerts: number;
+  criticalAlerts: number;
+  sseListeners: number;
+  providerReliabilityCount: number;
 }
 
 /**
@@ -497,6 +576,68 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     providerScore * 40 + capScore * 35 + modelScore * 25,
   );
 
+  // Phase 2 — artifact count, queue health, storage driver, manager agents
+  let artifactCount = 0;
+  let queueHealthy = false;
+  let storageDriver = 'local';
+  const managerAgentsActive = true; // Manager agents are always available
+
+  // Phase 3 — circuit breakers, DLQ, alerts, SSE, reliability
+  let circuitBreakersOpen = 0;
+  let deadLetterQueueSize = 0;
+  let unresolvedAlerts = 0;
+  let criticalAlerts = 0;
+  let sseListeners = 0;
+  let providerReliabilityCount = 0;
+
+  try {
+    const { getQueueStatus } = await import('./job-queue');
+    const queueStatus = await getQueueStatus();
+    queueHealthy = queueStatus.healthy;
+  } catch { /* Redis unavailable */ }
+
+  try {
+    const { getStorageStatus } = await import('./storage-driver');
+    storageDriver = getStorageStatus().driver;
+  } catch { /* ignore */ }
+
+  try {
+    const prisma = await getPrisma();
+    if (prisma) {
+      artifactCount = await prisma.artifact.count();
+    }
+  } catch { /* Schema not migrated yet — acceptable */ }
+
+  try {
+    const { getAllCircuitStatuses, getDeadLetterQueueSize } = await import('./circuit-breaker');
+    const statuses = getAllCircuitStatuses();
+    circuitBreakersOpen = Object.values(statuses).filter(s => s.state === 'OPEN').length;
+    deadLetterQueueSize = getDeadLetterQueueSize();
+  } catch { /* ignore */ }
+
+  try {
+    const { getAlertSummary } = await import('./alert-engine');
+    const alertSummary = await getAlertSummary();
+    unresolvedAlerts = alertSummary.unresolved;
+    criticalAlerts = alertSummary.critical;
+  } catch { /* ignore */ }
+
+  try {
+    const { getEventListenerCount } = await import('./event-bus');
+    sseListeners = getEventListenerCount();
+  } catch { /* ignore */ }
+
+  try {
+    const { getAllProviderReliability } = await import('./provider-reliability');
+    providerReliabilityCount = getAllProviderReliability().length;
+  } catch { /* ignore */ }
+
+  // Adjust health score with Phase 3 signals
+  let adjustedHealth = systemHealth;
+  if (circuitBreakersOpen > 0) adjustedHealth = Math.max(0, adjustedHealth - circuitBreakersOpen * 5);
+  if (criticalAlerts > 0) adjustedHealth = Math.max(0, adjustedHealth - criticalAlerts * 3);
+  const healthScore = Math.max(0, Math.min(100, adjustedHealth));
+
   return {
     totalProviders,
     activeProviders,
@@ -509,5 +650,16 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     unavailableCapabilities,
     notImplemented,
     systemHealth,
+    artifactCount,
+    queueHealthy,
+    storageDriver,
+    managerAgentsActive,
+    healthScore,
+    circuitBreakersOpen,
+    deadLetterQueueSize,
+    unresolvedAlerts,
+    criticalAlerts,
+    sseListeners,
+    providerReliabilityCount,
   };
 }

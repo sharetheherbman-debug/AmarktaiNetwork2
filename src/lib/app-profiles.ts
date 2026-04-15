@@ -108,6 +108,18 @@ export interface AppProfile {
   /** Ordered list of fallback providers when primary fails. */
   fallback_chain?: string[];
 
+  /**
+   * Named routing profile to use for this app.
+   *
+   * - `low_cost`        — cheapest viable models, aggressive cost savings
+   * - `balanced`        — default; balances cost and quality
+   * - `premium`         — highest quality regardless of cost
+   * - `ultra_resilient` — maximum uptime; distributes load across all providers
+   *
+   * When not set, the engine infers a profile from `budget_sensitivity`.
+   */
+  routing_profile?: 'low_cost' | 'balanced' | 'premium' | 'ultra_resilient';
+
   // ── Budget ──────────────────────────────────────────────────────────────
 
   /** Per-app monthly budget cap in USD (optional). */

@@ -835,3 +835,128 @@ model IntegrationConfig {
 
   @@map("integration_configs")
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PHASE 2 — Artifact System, Usage Metering, App Budgets, Manager Agents
+// ════════════════════════════════════════════════════════════════════════════════
+
+/// Unified artifact record for every generated output (image, audio, video, code, doc).
+model Artifact {
+  id            String   @id @default(uuid())
+  appSlug       String   @map("app_slug")
+  type          String   // image | audio | music | video | code | document | report | transcript
+  subType       String   @default("") @map("sub_type") // e.g. tts, stt, cover_art, image_edit, suggestive
+  title         String   @default("")
+  description   String   @default("")
+
+  /// Provider and model that created this artifact
+  provider      String   @default("")
+  model         String   @default("")
+  traceId       String   @default("") @map("trace_id")
+
+  /// Storage location
+  storageDriver String   @default("local") @map("storage_driver") // local | s3 | r2
+  storagePath   String   @default("") @map("storage_path")
+  storageUrl    String   @default("") @map("storage_url")
+  mimeType      String   @default("") @map("mime_type")
+  fileSizeBytes Int      @default(0) @map("file_size_bytes")
+
+  /// Rendering flags
+  previewable   Boolean  @default(true)
+  downloadable  Boolean  @default(true)
+
+  /// Status
+  status        String   @default("completed") // pending | processing | completed | failed | expired
+  errorMessage  String   @default("") @map("error_message")
+
+  /// Cost tracking
+  costUsdCents  Int      @default(0) @map("cost_usd_cents")
+
+  /// Metadata (JSON blob for type-specific extras like genre, duration, dimensions)
+  metadata      String   @default("{}") // JSON
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([appSlug])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("artifacts")
+}
+
+/// Per-app budget and limit configuration (DB-backed, replaces in-memory caps).
+model AppBudgetConfig {
+  id                  Int      @id @default(autoincrement())
+  appSlug             String   @unique @map("app_slug")
+
+  /// Monthly spend ceiling (USD cents). 0 = unlimited.
+  monthlyBudgetCents  Int      @default(0) @map("monthly_budget_cents")
+  /// Daily spend ceiling (USD cents). 0 = unlimited.
+  dailyBudgetCents    Int      @default(0) @map("daily_budget_cents")
+
+  /// Request rate caps
+  requestsPerMinute   Int      @default(100) @map("requests_per_minute")
+  requestsPerDay      Int      @default(10000) @map("requests_per_day")
+
+  /// Capability-level quotas (JSON: { "image_generation": 500, "video": 50 })
+  capabilityQuotas    String   @default("{}") @map("capability_quotas")
+
+  /// Premium capability toggles (JSON: { "adult_image": false, "video": true })
+  premiumToggles      String   @default("{}") @map("premium_toggles")
+
+  /// Emergency controls
+  paused              Boolean  @default(false)
+  pauseReason         String   @default("") @map("pause_reason")
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("app_budget_configs")
+}
+
+/// Usage metering record — one row per app per day per capability per provider.
+model UsageMeter {
+  id              Int      @id @default(autoincrement())
+  appSlug         String   @map("app_slug")
+  date            DateTime @db.Date
+  capability      String   // chat | image_generation | tts | stt | video | code | research | music | etc.
+  provider        String
+  model           String   @default("")
+
+  requestCount    Int      @default(0) @map("request_count")
+  successCount    Int      @default(0) @map("success_count")
+  errorCount      Int      @default(0) @map("error_count")
+  inputTokens     Int      @default(0) @map("input_tokens")
+  outputTokens    Int      @default(0) @map("output_tokens")
+  costUsdCents    Int      @default(0) @map("cost_usd_cents")
+  artifactCount   Int      @default(0) @map("artifact_count")
+  latencyMsSum    Int      @default(0) @map("latency_ms_sum")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([appSlug, date, capability, provider, model], name: "usage_meter_unique")
+  @@index([appSlug])
+  @@index([date])
+  @@index([capability])
+  @@map("usage_meters")
+}
+
+/// Manager agent log — records subsystem manager decisions, checks, and escalations.
+model ManagerAgentLog {
+  id            Int      @id @default(autoincrement())
+  managerType   String   @map("manager_type") // routing | queue | artifact | app | learning | growth
+  action        String   // health_check | escalation | recovery | coordination | signal
+  summary       String   @default("")
+  details       String   @default("{}") // JSON
+  severity      String   @default("info") // info | warning | critical
+  resolved      Boolean  @default(false)
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([managerType])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("manager_agent_logs")
+}

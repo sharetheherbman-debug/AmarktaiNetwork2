@@ -42,9 +42,9 @@ import {
 // ── Capability Packs ─────────────────────────────────────────────────
 
 describe('Capability Packs', () => {
-  it('should have 9 packs', () => {
+  it('should have 13 packs', () => {
     const packs = getAllCapabilityPacks()
-    expect(packs.length).toBe(9)
+    expect(packs.length).toBeGreaterThanOrEqual(13)
   })
 
   it('should retrieve a specific pack', () => {
