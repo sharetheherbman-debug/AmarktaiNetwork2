@@ -17,7 +17,7 @@ const MODES: { key: CreatorMode; label: string; icon: typeof ImageIcon }[] = [
   { key: 'music',    label: 'Music',    icon: Music },
   { key: 'voice',    label: 'Voice',    icon: Mic },
   { key: 'video',    label: 'Video',    icon: Film },
-  { key: 'campaign', label: 'Campaign (AI)',  icon: Megaphone },
+  { key: 'campaign', label: 'Campaign', icon: Megaphone },
 ]
 
 interface CreationResult {

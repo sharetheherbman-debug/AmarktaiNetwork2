@@ -72,7 +72,12 @@ export default function VideoDashboardPage() {
 
   /* Clear polling on unmount */
   useEffect(() => {
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+    }
   }, [])
 
   const generateVideo = useCallback(async () => {
