@@ -122,6 +122,10 @@ select:focus {
   outline: none;
   border-color: var(--accent-blue);
 }
+/* Ensure all selects have dark scheme so native dropdowns render dark */
+select {
+  color-scheme: dark;
+}
 input,
 textarea {
   color: var(--text-primary);
@@ -148,8 +152,16 @@ input[type="number"],
 input[type="time"] {
   color-scheme: dark;
 }
+/* File inputs */
+input[type="file"] {
+  color-scheme: dark;
+}
 /* Checkbox styling */
 input[type="checkbox"] {
+  accent-color: var(--accent-blue);
+}
+/* Radio styling */
+input[type="radio"] {
   accent-color: var(--accent-blue);
 }
 /* Scrollbar styling for dark theme */
