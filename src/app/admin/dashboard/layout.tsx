@@ -8,8 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, AppWindow, Brain, Palette, Server, FlaskConical, Settings,
   LogOut, Menu, X, User, Cpu, Activity, Music, Package, Sparkles,
-  Wrench, Shield, MapPin, BookOpen, Database, ChevronDown,
-  Film, Mic, Image as ImageIcon, Workflow, GitBranch, Layers,
+  Shield, ChevronDown,
+  Film, Mic, Workflow, GitBranch, Layers,
 } from 'lucide-react'
 
 /* ── Grouped navigation structure ───────────────────────────────── */

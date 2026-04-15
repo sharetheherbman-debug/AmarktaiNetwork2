@@ -84,7 +84,7 @@ export default function CreatorStudioTab() {
       }
       const data = await res.json()
       setResult({
-        success: data.success ?? !!data.output ?? !!data.audioUrl,
+        success: data.success ?? (!!data.output || !!data.audioUrl),
         output: data.output ?? data.text ?? null,
         imageUrl: data.imageUrl ?? null,
         audioUrl: data.audioUrl ?? null,

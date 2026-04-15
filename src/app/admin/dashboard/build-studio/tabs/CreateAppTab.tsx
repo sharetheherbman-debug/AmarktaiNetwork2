@@ -7,8 +7,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Code2, Play, Loader2, Copy, Check, FolderTree, FileCode, Rocket,
-  Download, GitBranch, RefreshCw, Sparkles, Layers, ChevronRight,
+  Loader2, Copy, Check, FolderTree, FileCode, Rocket,
+  Download, Sparkles, ChevronRight,
   Send, X,
 } from 'lucide-react'
 

@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  GitBranch, Loader2, CheckCircle, AlertCircle, ExternalLink,
+  Loader2, CheckCircle, AlertCircle, ExternalLink,
   FolderGit2, RefreshCw, Rocket,
 } from 'lucide-react'
 

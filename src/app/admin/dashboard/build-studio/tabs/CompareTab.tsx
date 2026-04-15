@@ -7,8 +7,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Layers, Play, Loader2, CheckCircle, XCircle, Gauge, Clock,
-  AlertCircle, DollarSign,
+  Layers, Loader2, CheckCircle, XCircle, Gauge, Clock,
+  AlertCircle,
 } from 'lucide-react'
 
 interface ModelOption { id: string; name: string; provider: string; category: string }

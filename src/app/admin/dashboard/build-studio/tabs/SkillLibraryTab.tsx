@@ -7,8 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  BookOpen, Search, Loader2, CheckCircle, AlertCircle, Tag, Zap,
-  RefreshCw, Play, Download,
+  Search, Loader2, AlertCircle, Download,
 } from 'lucide-react'
 
 interface SkillTemplate {

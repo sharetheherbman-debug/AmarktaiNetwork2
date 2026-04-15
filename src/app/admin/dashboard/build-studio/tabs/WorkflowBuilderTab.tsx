@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Workflow, Play, Loader2, CheckCircle, AlertCircle, Clock, Plus,
+  Play, Loader2, CheckCircle, AlertCircle, Clock,
   ArrowRight, RefreshCw,
 } from 'lucide-react'
 

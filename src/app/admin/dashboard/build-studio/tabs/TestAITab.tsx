@@ -9,8 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
-  Zap, Info, RefreshCw, Route, AlertCircle, ShieldAlert, Radio, Mic, Upload,
-  BookOpen,
+  Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen,
 } from 'lucide-react'
 
 const CAPABILITIES = [
@@ -52,20 +51,20 @@ export default function TestAITab() {
   const [capability, setCapability] = useState('chat')
   const [forceProvider, setForceProvider] = useState<string>('auto')
   const [forceModel, setForceModel] = useState<string>('auto')
-  const [appProfile, setAppProfile] = useState<string>('__admin_test__')
+  const [appProfile] = useState<string>('__admin_test__')
   const [providers, setProviders] = useState<ProviderOption[]>([])
   const [models, setModels] = useState<ModelOption[]>([])
-  const [loadingProviders, setLoadingProviders] = useState(true)
+  const [_loadingProviders, setLoadingProviders] = useState(true)
   const [capabilityStatus, setCapabilityStatus] = useState<CapabilityEntry[]>([])
-  const [loadingCaps, setLoadingCaps] = useState(true)
+  const [_loadingCaps, setLoadingCaps] = useState(true)
   const [result, setResult] = useState<TestResult | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [ttsGender, setTtsGender] = useState<'male' | 'female' | ''>('')
-  const [ttsVoiceId, setTtsVoiceId] = useState<string>('')
-  const [ttsAccent, setTtsAccent] = useState<string>('')
-  const [ttsProvider, setTtsProvider] = useState<string>('auto')
+  const [ttsVoiceId] = useState<string>('')
+  const [ttsAccent] = useState<string>('')
+  const [ttsProvider] = useState<string>('auto')
   const [streamMode, setStreamMode] = useState(false)
   const [streamOutput, setStreamOutput] = useState<string>('')
   const [streaming, setStreaming] = useState(false)
