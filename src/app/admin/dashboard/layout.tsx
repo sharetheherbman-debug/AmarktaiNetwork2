@@ -27,22 +27,37 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Command Center',
+    label: 'Overview',
     items: [
-      { href: '/admin/dashboard',         label: 'Overview',    icon: LayoutDashboard },
+      { href: '/admin/dashboard',         label: 'Dashboard',   icon: LayoutDashboard },
       { href: '/admin/dashboard/alerts',   label: 'Alerts',      icon: Shield },
-      { href: '/admin/dashboard/events',   label: 'Events',      icon: Activity },
     ],
   },
   {
-    label: 'Apps OS',
+    label: 'Apps',
     items: [
       { href: '/admin/dashboard/apps',        label: 'All Apps',     icon: AppWindow },
       { href: '/admin/dashboard/app-agents',   label: 'App Agents',   icon: Cpu },
     ],
   },
   {
-    label: 'Brain OS',
+    label: 'Create',
+    items: [
+      { href: '/admin/dashboard/build-studio', label: 'Creator Studio', icon: FlaskConical },
+      { href: '/admin/dashboard/artifacts',    label: 'Artifacts',      icon: Package },
+    ],
+  },
+  {
+    label: 'Media',
+    items: [
+      { href: '/admin/dashboard/media',        label: 'Overview',     icon: Palette },
+      { href: '/admin/dashboard/music-studio', label: 'Music',        icon: Music },
+      { href: '/admin/dashboard/voice',        label: 'Voice',        icon: Mic },
+      { href: '/admin/dashboard/video',        label: 'Video',        icon: Film },
+    ],
+  },
+  {
+    label: 'Brain',
     items: [
       { href: '/admin/dashboard/intelligence', label: 'Intelligence', icon: Brain },
       { href: '/admin/dashboard/models',       label: 'Models',       icon: Layers },
@@ -50,31 +65,11 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Creator OS',
-    items: [
-      { href: '/admin/dashboard/media',        label: 'Media',        icon: Palette },
-      { href: '/admin/dashboard/music-studio', label: 'Music Studio', icon: Music },
-      { href: '/admin/dashboard/voice',        label: 'Voice',        icon: Mic },
-      { href: '/admin/dashboard/video',        label: 'Video',        icon: Film },
-    ],
-  },
-  {
-    label: 'Build Studio',
-    items: [
-      { href: '/admin/dashboard/build-studio', label: 'Build Studio', icon: FlaskConical },
-    ],
-  },
-  {
-    label: 'Artifact OS',
-    items: [
-      { href: '/admin/dashboard/artifacts', label: 'Artifacts', icon: Package },
-    ],
-  },
-  {
     label: 'System',
     items: [
       { href: '/admin/dashboard/operations',   label: 'Operations',   icon: Server },
       { href: '/admin/dashboard/jobs',         label: 'Jobs',         icon: Workflow },
+      { href: '/admin/dashboard/events',       label: 'Events',       icon: Activity },
       { href: '/admin/dashboard/integrations', label: 'Integrations', icon: GitBranch },
       { href: '/admin/dashboard/access',       label: 'Settings',     icon: Settings },
     ],

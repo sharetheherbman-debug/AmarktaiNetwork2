@@ -19,14 +19,11 @@ import {
   Video,
   Search,
   Lock,
-  Zap,
   Network,
   Bot,
   GitBranch,
   RefreshCw,
-  Inbox,
   Settings2,
-  BadgeCheck,
 } from 'lucide-react'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
@@ -89,14 +86,10 @@ const HOW_IT_WORKS_STEPS = [
 ]
 
 const APP_TYPES = [
-  { label: 'Religious & Faith',        desc: 'Spiritual guidance apps powered by context-aware AI with moderation and safe-mode defaults.' },
-  { label: 'Equestrian & Horses',       desc: 'Specialist knowledge for training, health, and equestrian community platforms.' },
-  { label: 'Pets & Animals',           desc: 'Veterinary Q&A, breed intelligence, and community apps with trusted, fact-grounded answers.' },
-  { label: 'AI Companions',            desc: 'Long-term conversational companions with persistent memory and persona-driven voice.' },
-  { label: 'Security & Monitoring',    desc: 'Anomaly detection, alert triage, and intelligent reporting with moderation and safety guardrails.' },
+  { label: 'AI Companions',            desc: 'Conversational companions with persistent memory and persona-driven voice.' },
   { label: 'Business & Productivity',  desc: 'Research, drafting, analysis, and workflow automation for serious business tools.' },
-  { label: 'Education & Community',    desc: 'Learning platforms with retrieval-augmented answers, moderation, and adaptive responses.' },
-  { label: 'Creative & Media',         desc: 'Image, voice, and video generation for content studios, creative tools, and media platforms.' },
+  { label: 'Creative & Media',         desc: 'Image, voice, video, and music generation for content studios and creative tools.' },
+  { label: 'Education & Community',    desc: 'Learning platforms with retrieval-augmented answers and adaptive responses.' },
 ]
 
 const DIFFERENTIATORS = [
@@ -106,13 +99,6 @@ const DIFFERENTIATORS = [
   { icon: Lock,       title: 'Per-App Safety & Policy',    desc: 'Content filters, capability restrictions, moderation mode, and adult-content policy — configured per app, enforced at every request.' },
   { icon: Database,   title: 'Memory + Retrieval',         desc: 'Persistent memory via Mem0, knowledge graphs via Graphiti, vector search via Qdrant — apps that actually remember and learn.' },
   { icon: Settings2,  title: 'Central Operator Control',   desc: 'Jobs queue, alerts engine, diagnostics, provider health, budget tracking — full operator visibility in one dashboard.' },
-]
-
-const OPERATOR_CONTROLS = [
-  { icon: Inbox,      label: 'Job Queue',      desc: 'Video, learning, embedding, and agent jobs — queued, monitored, retried via BullMQ.' },
-  { icon: BadgeCheck, label: 'System Alerts',  desc: 'Real-time alerts for provider failures, routing failures, and budget overruns.' },
-  { icon: TrendingUp, label: 'Diagnostics',    desc: 'Per-request routing trace — provider chosen, model chosen, cost tier, why candidates were rejected.' },
-  { icon: Zap,        label: 'Health Status',  desc: 'Provider health, integration status, readiness checks — all surfaced to the operator.' },
 ]
 
 export default function HomePage() {
@@ -155,16 +141,16 @@ export default function HomePage() {
             className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
           >
             <Link
-              href="/admin/login"
+              href="/contact"
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5"
             >
-              Enter Platform <ArrowRight className="h-4 w-4" />
+              Request Access <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/contact"
+              href="/about"
               className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-8 py-3.5 text-sm font-semibold text-slate-300 transition-all hover:border-white/20 hover:text-white hover:-translate-y-0.5"
             >
-              Get in Touch
+              Learn More
             </Link>
           </motion.div>
         </div>
@@ -274,6 +260,9 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+          <p className="mt-6 text-center text-xs text-slate-600">
+            Plus: religious &amp; faith, equestrian, pets &amp; animals, security, smart home, and more — any app that needs context-aware AI.
+          </p>
         </div>
       </Section>
 
@@ -322,32 +311,6 @@ export default function HomePage() {
         </div>
       </Section>
 
-      {/* ── Operator Controls ──────────────────────────────────────── */}
-      <Section id="operator" className="py-28">
-        <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Full Operator Visibility
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-slate-400">
-            Complete transparency into what the system is doing — right now, and historically.
-          </p>
-          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {OPERATOR_CONTROLS.map((item) => {
-              const Icon = item.icon
-              return (
-                <div key={item.label} className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-center">
-                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900">
-                    <Icon className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-white">{item.label}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-500">{item.desc}</p>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </Section>
-
       {/* ── Final CTA ──────────────────────────────────────────────── */}
       <Section id="access" className="relative py-32">
         <div className="pointer-events-none absolute inset-0">
@@ -355,25 +318,28 @@ export default function HomePage() {
           <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/[0.06] blur-[120px]" />
         </div>
         <div className="relative mx-auto max-w-3xl px-6 text-center">
+          <p className="mb-4 inline-block rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-blue-400">
+            Request Access
+          </p>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Ready to Connect?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-400">
-            One intelligence layer. Every application you build from here forward.
-            Access the platform or get in touch to discuss deployment.
+            AmarktAI Network is currently available by request.
+            Get in touch to discuss deployment and access for your applications.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link
-              href="/admin/login"
+              href="/contact"
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5"
             >
-              Enter Platform <ArrowRight className="h-4 w-4" />
+              Request Access <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/contact"
+              href="/about"
               className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-8 py-3.5 text-sm font-semibold text-slate-300 transition-all hover:border-white/20 hover:text-white hover:-translate-y-0.5"
             >
-              Get in Touch
+              Learn More
             </Link>
           </div>
         </div>

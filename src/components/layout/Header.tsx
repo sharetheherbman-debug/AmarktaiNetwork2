@@ -7,10 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ArrowRight } from 'lucide-react'
 
 const navLinks = [
-  { href: '/', label: 'Product' },
+  { href: '/', label: 'Home' },
   { href: '/apps', label: 'Ecosystem' },
-  { href: '/about', label: 'Intelligence' },
-  { href: '/contact', label: 'Access' },
+  { href: '/about', label: 'About' },
+  { href: '/docs', label: 'Docs' },
+  { href: '/contact', label: 'Contact' },
 ]
 
 export default function Header() {

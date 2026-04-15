@@ -22,12 +22,12 @@ const CompareTab = dynamic(() => import('./tabs/CompareTab'), { ssr: false })
 
 const TABS = [
   { key: 'test-ai',        label: 'Test AI',        icon: FlaskConical },
-  { key: 'compare',        label: 'Compare',        icon: Layers },
+  { key: 'compare',        label: 'Compare Models', icon: Layers },
   { key: 'create-app',     label: 'Create App',     icon: Code2 },
-  { key: 'creator-studio', label: 'Creator Studio', icon: Palette },
+  { key: 'creator-studio', label: 'Images / Media', icon: Palette },
   { key: 'workflows',      label: 'Workflows',      icon: Workflow },
   { key: 'skills',         label: 'Skill Library',  icon: BookOpen },
-  { key: 'github',         label: 'GitHub',         icon: GitBranch },
+  { key: 'github',         label: 'GitHub Export',  icon: GitBranch },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -44,9 +44,9 @@ export default function BuildStudioPage() {
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }} className="space-y-6">
       {/* Header */}
       <motion.div variants={fadeUp}>
-        <h1 className="text-2xl font-bold text-white">Build Studio</h1>
+        <h1 className="text-2xl font-bold text-white">Creator Studio</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Test AI capabilities, create apps, build workflows, and deploy — all in one place.
+          Test AI, create apps, generate media, compare models, and export to GitHub.
         </p>
       </motion.div>
 

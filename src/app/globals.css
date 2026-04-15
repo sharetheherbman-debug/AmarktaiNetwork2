@@ -102,6 +102,24 @@ code, pre, .font-mono {
 /* ─── Focus ──────────────────────────────────────── */
 input:focus, textarea:focus, select:focus { outline: none; }
 
+/* ─── Form Controls (Dark Theme) ─────────────────── */
+select,
+select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+select option:checked {
+  background-color: var(--bg-surface);
+}
+input,
+textarea {
+  color: var(--text-primary);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
 /* ─── Glass Surfaces ─────────────────────────────── */
 .glass {
   background: rgba(10, 15, 26, 0.7);
