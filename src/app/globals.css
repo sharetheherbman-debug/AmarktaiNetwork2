@@ -111,13 +111,30 @@ select option {
 select option:checked {
   background-color: var(--bg-surface);
 }
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 input,
 textarea {
   color: var(--text-primary);
+  background-color: transparent;
 }
 input::placeholder,
 textarea::placeholder {
   color: var(--text-muted);
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Ensure number and date inputs are readable in dark theme */
+input[type="date"],
+input[type="datetime-local"],
+input[type="number"] {
+  color-scheme: dark;
 }
 
 /* ─── Glass Surfaces ─────────────────────────────── */

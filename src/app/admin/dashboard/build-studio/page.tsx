@@ -44,7 +44,7 @@ export default function BuildStudioPage() {
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }} className="space-y-6">
       {/* Header */}
       <motion.div variants={fadeUp}>
-        <h1 className="text-2xl font-bold text-white">Creator Studio</h1>
+        <h1 className="text-2xl font-bold text-white">Studio</h1>
         <p className="text-sm text-slate-400 mt-1">
           Test AI, create apps, generate media, compare models, and export to GitHub.
         </p>

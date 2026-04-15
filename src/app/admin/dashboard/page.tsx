@@ -613,7 +613,7 @@ export default function DashboardOverview() {
           </div>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
-              { label: 'Creator Studio',     href: '/admin/dashboard/build-studio',  icon: FlaskConical,gradient: 'from-blue-500/20 to-violet-500/20' },
+              { label: 'Studio',              href: '/admin/dashboard/build-studio',  icon: FlaskConical,gradient: 'from-blue-500/20 to-violet-500/20' },
               { label: 'Manage Apps',        href: '/admin/dashboard/apps',          icon: Server,      gradient: 'from-cyan-500/20 to-blue-500/20' },
               { label: 'Models',             href: '/admin/dashboard/models',        icon: Brain,       gradient: 'from-violet-500/20 to-purple-500/20' },
               { label: 'Operations',         href: '/admin/dashboard/operations',    icon: Activity,    gradient: 'from-rose-500/20 to-pink-500/20' },

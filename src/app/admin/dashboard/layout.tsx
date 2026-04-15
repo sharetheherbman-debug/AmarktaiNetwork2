@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, AppWindow, Brain, Palette, Server, FlaskConical, Settings,
+  LayoutDashboard, AppWindow, Brain, Server, FlaskConical, Settings,
   LogOut, Menu, X, User, Cpu, Activity, Music, Package, Sparkles,
   Shield, ChevronDown,
   Film, Mic, Workflow, GitBranch, Layers,
@@ -41,19 +41,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Create',
+    label: 'Studio',
     items: [
-      { href: '/admin/dashboard/build-studio', label: 'Creator Studio', icon: FlaskConical },
+      { href: '/admin/dashboard/build-studio', label: 'Studio', icon: FlaskConical },
       { href: '/admin/dashboard/artifacts',    label: 'Artifacts',      icon: Package },
-    ],
-  },
-  {
-    label: 'Media',
-    items: [
-      { href: '/admin/dashboard/media',        label: 'Overview',     icon: Palette },
-      { href: '/admin/dashboard/music-studio', label: 'Music',        icon: Music },
-      { href: '/admin/dashboard/voice',        label: 'Voice',        icon: Mic },
-      { href: '/admin/dashboard/video',        label: 'Video',        icon: Film },
+      { href: '/admin/dashboard/music-studio', label: 'Music Studio',   icon: Music },
+      { href: '/admin/dashboard/voice',        label: 'Voice',          icon: Mic },
+      { href: '/admin/dashboard/video',        label: 'Video',          icon: Film },
     ],
   },
   {
