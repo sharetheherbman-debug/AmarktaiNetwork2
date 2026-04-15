@@ -17,7 +17,7 @@ const MODES: { key: CreatorMode; label: string; icon: typeof ImageIcon }[] = [
   { key: 'music',    label: 'Music',    icon: Music },
   { key: 'voice',    label: 'Voice',    icon: Mic },
   { key: 'video',    label: 'Video',    icon: Film },
-  { key: 'campaign', label: 'Campaign', icon: Megaphone },
+  { key: 'campaign', label: 'Campaign (AI)',  icon: Megaphone },
 ]
 
 interface CreationResult {
@@ -144,8 +144,11 @@ export default function CreatorStudioTab() {
         )}
 
         {mode === 'campaign' && (
-          <input value={campaignNiche} onChange={e => setCampaignNiche(e.target.value)} placeholder="Niche (e.g. fitness, saas, church)…"
-            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/40" />
+          <div>
+            <input value={campaignNiche} onChange={e => setCampaignNiche(e.target.value)} placeholder="Niche (e.g. fitness, saas, church)…"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/40" />
+            <p className="text-[10px] text-slate-600 mt-1">Uses AI chat to generate social copy, email, blog outline, and landing page concepts.</p>
+          </div>
         )}
 
         <button onClick={create} disabled={running || !prompt.trim()}
