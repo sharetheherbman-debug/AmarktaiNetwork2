@@ -226,7 +226,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center mb-14">
             <p className="mb-3 inline-block rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-400">
-              <Sparkles className="w-3 h-3 inline mr-1" />
+              <Sparkles className="w-3 h-3 inline-block align-text-bottom mr-1" />
               Built-In Studio
             </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Test, Create, and Build</h2>
