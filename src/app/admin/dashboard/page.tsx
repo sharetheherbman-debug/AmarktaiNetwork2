@@ -6,7 +6,7 @@ import {
   CheckCircle, AlertCircle, AlertTriangle, WifiOff, Clock,
   RefreshCw, Zap, Activity, Brain, Database, Server,
   ArrowRight, Cpu, Gauge, DollarSign, Bell,
-  ShieldAlert, Puzzle, Layers, Shield, Sparkles,
+  ShieldAlert, Puzzle, Layers, Sparkles,
   FlaskConical,
 } from 'lucide-react'
 import Link from 'next/link'
