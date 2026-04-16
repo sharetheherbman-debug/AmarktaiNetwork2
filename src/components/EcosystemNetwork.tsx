@@ -6,11 +6,11 @@ interface EcosystemNetworkProps {
   className?: string;
 }
 
-const LABELS = ["Chat", "Studio", "Code", "Voice", "Agents", "Search"];
+const LABELS = ["Chat", "Images", "Code", "Voice", "Music", "Video"];
 const BLUE = "#3b82f6";
 const CYAN = "#22d3ee";
 const VIOLET = "#8b5cf6";
-const COLORS = [BLUE, CYAN, BLUE, VIOLET, CYAN, BLUE];
+const COLORS = [BLUE, CYAN, VIOLET, BLUE, CYAN, VIOLET];
 
 interface Signal {
   line: number;

@@ -51,11 +51,11 @@ const navGroups: NavGroup[] = [
     icon: Sparkles,
     accent: 'text-amber-400',
     items: [
-      { href: '/admin/dashboard/build-studio', label: 'Studio',    icon: FlaskConical },
+      { href: '/admin/dashboard/build-studio', label: 'Workspace',  icon: FlaskConical },
     ],
   },
   {
-    label: 'Media',
+    label: 'Media & Artifacts',
     icon: Package,
     accent: 'text-pink-400',
     items: [
@@ -72,6 +72,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/dashboard/intelligence', label: 'Intelligence', icon: Brain },
       { href: '/admin/dashboard/models',       label: 'Models',       icon: Layers },
+      { href: '/admin/dashboard/media',        label: 'Capabilities', icon: Activity },
       { href: '/admin/dashboard/emotions',     label: 'Emotions',     icon: Sparkles },
     ],
   },

@@ -51,7 +51,12 @@ export default function GitHubTab() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ repoName: selectedRepo, branch }),
       })
-      const data = await res.json()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `Push failed: HTTP ${res.status}` }))
+        setPushResult({ success: false, error: errData.error ?? `Push failed: HTTP ${res.status}` })
+        return
+      }
+      const data = await res.json().catch(() => ({ success: false, error: 'Invalid response from server' }))
       setPushResult(data)
     } catch (e) { setPushResult({ success: false, error: e instanceof Error ? e.message : 'Push failed' }) } finally { setPushing(false) }
   }, [selectedRepo, branch])

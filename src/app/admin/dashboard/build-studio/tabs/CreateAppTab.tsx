@@ -60,7 +60,7 @@ export default function CreateAppTab() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'generate', description, projectType, options: { includeDocker, styling, capabilityPack: capabilityPack || undefined } }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({ error: `Unexpected response from server (HTTP ${res.status})` }))
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setSession(data.session ?? null)
       if (data.session?.files?.length) setSelectedFile(data.session.files[0])
@@ -76,7 +76,7 @@ export default function CreateAppTab() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'refine', sessionId: session.id, feedback }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({ error: `Unexpected response from server (HTTP ${res.status})` }))
       if (!res.ok) throw new Error(data.error ?? 'Refine failed')
       setSession(data.session ?? null); setFeedback('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Refine failed') } finally { setRefining(false) }
