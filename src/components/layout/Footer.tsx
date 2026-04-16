@@ -66,7 +66,7 @@ export default function Footer() {
         <div className="my-12 h-px w-full bg-white/[0.06]" />
 
         <p className="text-xs text-slate-600">
-          &copy; {new Date().getFullYear()} AmarktAI Network. All rights reserved.
+          &copy; {new Date().getFullYear()} Amarktai Network. All rights reserved.
         </p>
       </div>
     </footer>

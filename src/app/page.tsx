@@ -351,7 +351,7 @@ export default function HomePage() {
                   <div className="h-2.5 w-2.5 rounded-full bg-red-400/60" />
                   <div className="h-2.5 w-2.5 rounded-full bg-amber-400/60" />
                   <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/60" />
-                  <span className="ml-3 text-[10px] text-slate-600 font-mono">AmarktAI Command Center</span>
+                  <span className="ml-3 text-[10px] text-slate-600 font-mono">Amarktai Command Center</span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   {[
