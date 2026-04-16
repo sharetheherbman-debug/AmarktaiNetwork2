@@ -12,7 +12,8 @@ function rgba(hex: string, a: number): string {
 
 /* ── Node & edge types ────────────────────────────────────────── */
 interface Node {
-  x: number; y: number; ox: number; oy: number
+  x: number; y: number
+  ox: number; oy: number  // original/home position for elastic pull
   vx: number; vy: number; phase: number
   color: string; size: number; layer: number
 }
@@ -26,6 +27,10 @@ interface Particle {
   x: number; y: number; vx: number; vy: number
   life: number; maxLife: number; color: string; size: number
 }
+
+/* ── Tuning constants ─────────────────────────────────────────── */
+const MAX_PARTICLES = 30
+const PARTICLE_SPAWN_INTERVAL_MS = 200
 
 /* ── Build network with 4 concentric rings ────────────────────── */
 function buildNetwork(): Node[] {
@@ -174,7 +179,7 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
     // Ambient particles near center
     const particles: Particle[] = []
     function spawnParticle() {
-      if (particles.length > 30) return
+      if (particles.length > MAX_PARTICLES) return
       const angle = Math.random() * Math.PI * 2
       const dist = 0.02 + Math.random() * 0.08
       particles.push({
@@ -283,7 +288,7 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
       // ── Draw ambient particles ──
       if (!prefersReduced) {
         spawnTimer += dt
-        if (spawnTimer > 200) { spawnParticle(); spawnTimer = 0 }
+        if (spawnTimer > PARTICLE_SPAWN_INTERVAL_MS) { spawnParticle(); spawnTimer = 0 }
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i]
           p.life += dt
