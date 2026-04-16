@@ -3,96 +3,136 @@ import { useEffect, useRef } from 'react'
 
 interface LivingCoreProps { className?: string }
 
-const COLORS = { blue: '#3b82f6', cyan: '#22d3ee', violet: '#8b5cf6' }
+const C = { blue: '#3b82f6', cyan: '#22d3ee', violet: '#8b5cf6', rose: '#f43f5e', amber: '#f59e0b' }
 
 function rgba(hex: string, a: number): string {
   const v = (s: number, e: number) => parseInt(hex.slice(s, e), 16)
   return `rgba(${v(1,3)},${v(3,5)},${v(5,7)},${a})`
 }
 
-interface Node { x: number; y: number; vx: number; vy: number; phase: number; color: string; size: number; layer: number }
-interface Pulse { fromIdx: number; toIdx: number; t: number; speed: number; color: string }
+/* ── Node & edge types ────────────────────────────────────────── */
+interface Node {
+  x: number; y: number; ox: number; oy: number
+  vx: number; vy: number; phase: number
+  color: string; size: number; layer: number
+}
 
+interface Pulse {
+  fromIdx: number; toIdx: number; t: number
+  speed: number; color: string; size: number
+}
+
+interface Particle {
+  x: number; y: number; vx: number; vy: number
+  life: number; maxLife: number; color: string; size: number
+}
+
+/* ── Build network with 4 concentric rings ────────────────────── */
 function buildNetwork(): Node[] {
   const nodes: Node[] = []
-  // Central core node
-  nodes.push({ x: 0.5, y: 0.5, vx: 0, vy: 0, phase: 0, color: COLORS.cyan, size: 1.8, layer: 0 })
-  // Inner ring — 6 nodes
+
+  // Core node — large, cyan, center
+  const cx = 0.5, cy = 0.5
+  nodes.push({ x: cx, y: cy, ox: cx, oy: cy, vx: 0, vy: 0, phase: 0, color: C.cyan, size: 2.4, layer: 0 })
+
+  // Inner ring — 6 capability nodes
+  const innerColors = [C.blue, C.cyan, C.violet, C.blue, C.cyan, C.violet]
   for (let i = 0; i < 6; i++) {
-    const angle = (i / 6) * Math.PI * 2 + 0.3
-    const r = 0.16 + (Math.random() - 0.5) * 0.02
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+    const r = 0.14
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
     nodes.push({
-      x: 0.5 + Math.cos(angle) * r,
-      y: 0.5 + Math.sin(angle) * r,
-      vx: (Math.random() - 0.5) * 0.000015,
-      vy: (Math.random() - 0.5) * 0.000015,
-      phase: Math.random() * Math.PI * 2,
-      color: i % 2 === 0 ? COLORS.blue : COLORS.cyan,
-      size: 1.2,
-      layer: 1,
-    })
-  }
-  // Middle ring — 9 nodes
-  for (let i = 0; i < 9; i++) {
-    const angle = (i / 9) * Math.PI * 2 + 0.7
-    const r = 0.28 + (Math.random() - 0.5) * 0.03
-    nodes.push({
-      x: 0.5 + Math.cos(angle) * r,
-      y: 0.5 + Math.sin(angle) * r,
+      x, y, ox: x, oy: y,
       vx: (Math.random() - 0.5) * 0.00001,
       vy: (Math.random() - 0.5) * 0.00001,
       phase: Math.random() * Math.PI * 2,
-      color: i % 3 === 0 ? COLORS.violet : i % 3 === 1 ? COLORS.blue : COLORS.cyan,
-      size: 1.0,
-      layer: 2,
+      color: innerColors[i], size: 1.4, layer: 1,
     })
   }
-  // Outer ring — 12 nodes
-  for (let i = 0; i < 12; i++) {
-    const angle = (i / 12) * Math.PI * 2 + 1.1
-    const r = 0.38 + (Math.random() - 0.5) * 0.04
+
+  // Middle ring — 10 process nodes
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.5
+    const r = 0.26 + (Math.random() - 0.5) * 0.02
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+    const colors = [C.blue, C.violet, C.cyan, C.rose, C.blue, C.violet, C.cyan, C.amber, C.blue, C.violet]
     nodes.push({
-      x: 0.5 + Math.cos(angle) * r,
-      y: 0.5 + Math.sin(angle) * r,
+      x, y, ox: x, oy: y,
       vx: (Math.random() - 0.5) * 0.000008,
       vy: (Math.random() - 0.5) * 0.000008,
       phase: Math.random() * Math.PI * 2,
-      color: i % 4 === 0 ? COLORS.violet : COLORS.blue,
-      size: 0.8,
-      layer: 3,
+      color: colors[i], size: 1.0, layer: 2,
     })
   }
+
+  // Outer ring — 14 endpoint nodes
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + 1.0
+    const r = 0.37 + (Math.random() - 0.5) * 0.03
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+    nodes.push({
+      x, y, ox: x, oy: y,
+      vx: (Math.random() - 0.5) * 0.000006,
+      vy: (Math.random() - 0.5) * 0.000006,
+      phase: Math.random() * Math.PI * 2,
+      color: i % 5 === 0 ? C.violet : i % 3 === 0 ? C.cyan : C.blue,
+      size: 0.7, layer: 3,
+    })
+  }
+
+  // Distant halo — 8 ambient nodes
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.3
+    const r = 0.44 + (Math.random() - 0.5) * 0.02
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+    nodes.push({
+      x, y, ox: x, oy: y,
+      vx: (Math.random() - 0.5) * 0.000004,
+      vy: (Math.random() - 0.5) * 0.000004,
+      phase: Math.random() * Math.PI * 2,
+      color: C.blue, size: 0.4, layer: 4,
+    })
+  }
+
   return nodes
 }
 
 function buildEdges(nodes: Node[]): [number, number][] {
   const edges: [number, number][] = []
-  // center -> all inner
+  // Core → inner ring (all 6)
   for (let i = 1; i <= 6; i++) edges.push([0, i])
-  // inner -> middle (each inner connects to ~2 middle nodes)
+  // Inner ring circular
+  for (let i = 1; i <= 6; i++) edges.push([i, i === 6 ? 1 : i + 1])
+  // Inner → middle (proximity-based)
   for (let i = 1; i <= 6; i++) {
-    for (let j = 7; j <= 15; j++) {
-      const a = nodes[i], b = nodes[j]
-      const d = Math.hypot(a.x - b.x, a.y - b.y)
-      if (d < 0.18) edges.push([i, j])
+    for (let j = 7; j <= 16; j++) {
+      if (Math.hypot(nodes[i].ox - nodes[j].ox, nodes[i].oy - nodes[j].oy) < 0.18)
+        edges.push([i, j])
     }
   }
-  // middle -> outer
-  for (let i = 7; i <= 15; i++) {
-    for (let j = 16; j < nodes.length; j++) {
-      const a = nodes[i], b = nodes[j]
-      const d = Math.hypot(a.x - b.x, a.y - b.y)
-      if (d < 0.16) edges.push([i, j])
+  // Middle → outer
+  for (let i = 7; i <= 16; i++) {
+    for (let j = 17; j <= 30; j++) {
+      if (j < nodes.length && Math.hypot(nodes[i].ox - nodes[j].ox, nodes[i].oy - nodes[j].oy) < 0.16)
+        edges.push([i, j])
     }
   }
-  // adjacent inner ring connections
-  for (let i = 1; i <= 6; i++) {
-    const next = i === 6 ? 1 : i + 1
-    edges.push([i, next])
+  // Outer → halo (sparse)
+  for (let i = 17; i <= 30 && i < nodes.length; i++) {
+    for (let j = 31; j < nodes.length; j++) {
+      if (Math.hypot(nodes[i].ox - nodes[j].ox, nodes[i].oy - nodes[j].oy) < 0.14)
+        edges.push([i, j])
+    }
+  }
+  // Middle ring partial circular
+  for (let i = 7; i <= 16; i++) {
+    const next = i === 16 ? 7 : i + 1
+    if (Math.random() < 0.6) edges.push([i, next])
   }
   return edges
 }
 
+/* ── Component ────────────────────────────────────────────────── */
 export default function LivingCore({ className = '' }: LivingCoreProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -107,17 +147,50 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
     const nodes = buildNetwork()
     const edges = buildEdges(nodes)
 
-    // Build pulses — one per edge, staggered
-    const pulses: Pulse[] = edges.map((e, i) => ({
-      fromIdx: e[0],
-      toIdx: e[1],
-      t: (i / edges.length),
-      speed: 0.00018 + Math.random() * 0.00012,
-      color: Math.random() < 0.4 ? COLORS.cyan : Math.random() < 0.6 ? COLORS.violet : COLORS.blue,
-    }))
+    // Build pulses — 2 per edge for density, staggered start
+    const pulses: Pulse[] = []
+    for (let i = 0; i < edges.length; i++) {
+      const [a, b] = edges[i]
+      const fromLayer = nodes[a].layer
+      pulses.push({
+        fromIdx: a, toIdx: b,
+        t: (i / edges.length),
+        speed: 0.00016 + Math.random() * 0.00014,
+        color: Math.random() < 0.35 ? C.cyan : Math.random() < 0.5 ? C.violet : C.blue,
+        size: fromLayer === 0 ? 1.6 : fromLayer === 1 ? 1.3 : 1.0,
+      })
+      // Second staggered pulse on core connections
+      if (fromLayer <= 1) {
+        pulses.push({
+          fromIdx: b, toIdx: a,
+          t: Math.random(),
+          speed: 0.00012 + Math.random() * 0.0001,
+          color: Math.random() < 0.3 ? C.amber : C.cyan,
+          size: 1.1,
+        })
+      }
+    }
+
+    // Ambient particles near center
+    const particles: Particle[] = []
+    function spawnParticle() {
+      if (particles.length > 30) return
+      const angle = Math.random() * Math.PI * 2
+      const dist = 0.02 + Math.random() * 0.08
+      particles.push({
+        x: 0.5 + Math.cos(angle) * dist,
+        y: 0.5 + Math.sin(angle) * dist,
+        vx: (Math.random() - 0.5) * 0.00002,
+        vy: (Math.random() - 0.5) * 0.00002,
+        life: 0, maxLife: 2000 + Math.random() * 3000,
+        color: Math.random() < 0.5 ? C.cyan : C.violet,
+        size: 0.5 + Math.random() * 1.0,
+      })
+    }
 
     let animFrame = 0
     let lastTime = performance.now()
+    let spawnTimer = 0
 
     function draw(now: number) {
       const dt = Math.min(now - lastTime, 50)
@@ -130,47 +203,56 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
 
       ctx!.clearRect(0, 0, canvas!.width, canvas!.height)
 
-      // Background radial glow (subtle)
-      const bgGlow = ctx!.createRadialGradient(cx, cy, 0, cx, cy, s * 0.55)
-      bgGlow.addColorStop(0, rgba(COLORS.blue, 0.06))
-      bgGlow.addColorStop(0.5, rgba(COLORS.violet, 0.02))
-      bgGlow.addColorStop(1, rgba(COLORS.blue, 0))
-      ctx!.fillStyle = bgGlow
+      // ── Deep background radial glow (multiple layers) ──
+      const bg1 = ctx!.createRadialGradient(cx, cy, 0, cx, cy, s * 0.55)
+      bg1.addColorStop(0, rgba(C.blue, 0.08))
+      bg1.addColorStop(0.3, rgba(C.violet, 0.04))
+      bg1.addColorStop(0.6, rgba(C.cyan, 0.02))
+      bg1.addColorStop(1, rgba(C.blue, 0))
+      ctx!.fillStyle = bg1
       ctx!.fillRect(0, 0, w, h)
 
-      // Drift nodes slightly
+      // Second glow layer — offset for depth
+      const bg2 = ctx!.createRadialGradient(cx * 0.95, cy * 1.05, 0, cx, cy, s * 0.4)
+      bg2.addColorStop(0, rgba(C.violet, 0.04))
+      bg2.addColorStop(1, rgba(C.violet, 0))
+      ctx!.fillStyle = bg2
+      ctx!.fillRect(0, 0, w, h)
+
+      // ── Drift nodes ──
       if (!prefersReduced) {
         for (const n of nodes) {
-          if (n.layer === 0) continue // core doesn't drift
-          const drift = Math.sin(now * 0.0004 + n.phase) * 0.000006
+          if (n.layer === 0) continue
+          const drift = Math.sin(now * 0.0003 + n.phase) * 0.000005
+          const orbit = Math.cos(now * 0.00015 + n.phase * 2) * 0.000003
           n.x += (n.vx + drift) * dt
-          n.y += (n.vy + drift * 0.8) * dt
-          // Gentle home pull toward original position — approximate with center pull weighted by layer
-          const homeR = n.layer === 1 ? 0.16 : n.layer === 2 ? 0.28 : 0.38
-          const dist = Math.hypot(n.x - 0.5, n.y - 0.5)
-          if (dist > homeR + 0.07) {
-            n.x += (0.5 - n.x) * 0.00003 * dt
-            n.y += (0.5 - n.y) * 0.00003 * dt
-          }
+          n.y += (n.vy + orbit) * dt
+          // Elastic home pull
+          const dx = n.ox - n.x, dy = n.oy - n.y
+          const pullStrength = 0.00004 * n.layer
+          n.x += dx * pullStrength * dt
+          n.y += dy * pullStrength * dt
         }
       }
 
-      // Draw edges
+      // ── Draw edges with gradient alpha based on depth ──
       for (const [i, j] of edges) {
         const ax = nodes[i].x * w, ay = nodes[i].y * h
         const bx = nodes[j].x * w, by = nodes[j].y * h
         const dist = Math.hypot(ax - bx, ay - by)
         const maxDist = 0.35 * s
-        const alpha = Math.max(0, 1 - dist / maxDist) * 0.18
+        const depthAlpha = Math.max(0.04, (1 - (nodes[i].layer + nodes[j].layer) / 8))
+        const alpha = Math.max(0, 1 - dist / maxDist) * 0.2 * depthAlpha
+        const edgeColor = nodes[i].layer <= 1 ? C.cyan : C.blue
         ctx!.beginPath()
         ctx!.moveTo(ax, ay)
         ctx!.lineTo(bx, by)
-        ctx!.strokeStyle = rgba(COLORS.blue, alpha)
-        ctx!.lineWidth = 0.6
+        ctx!.strokeStyle = rgba(edgeColor, alpha)
+        ctx!.lineWidth = nodes[i].layer === 0 ? 1.2 : 0.6
         ctx!.stroke()
       }
 
-      // Draw pulses
+      // ── Draw pulses — signals traveling along edges ──
       if (!prefersReduced) {
         for (const p of pulses) {
           p.t += p.speed * dt
@@ -178,48 +260,103 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
           const fn = nodes[p.fromIdx], tn = nodes[p.toIdx]
           const px = (fn.x + (tn.x - fn.x) * p.t) * w
           const py = (fn.y + (tn.y - fn.y) * p.t) * h
-          const pr = Math.max(2, s * 0.004)
-          const pg = ctx!.createRadialGradient(px, py, 0, px, py, pr * 2.5)
-          pg.addColorStop(0, rgba(p.color, 0.7))
+          const pr = Math.max(1.5, s * 0.003) * p.size
+
+          // Bright core of pulse
+          const pg = ctx!.createRadialGradient(px, py, 0, px, py, pr * 3)
+          pg.addColorStop(0, rgba(p.color, 0.85))
+          pg.addColorStop(0.3, rgba(p.color, 0.35))
           pg.addColorStop(1, rgba(p.color, 0))
           ctx!.beginPath()
-          ctx!.arc(px, py, pr * 2.5, 0, Math.PI * 2)
+          ctx!.arc(px, py, pr * 3, 0, Math.PI * 2)
+          ctx!.fillStyle = pg
+          ctx!.fill()
+
+          // Tight bright dot
+          ctx!.beginPath()
+          ctx!.arc(px, py, pr * 0.6, 0, Math.PI * 2)
+          ctx!.fillStyle = rgba(p.color, 0.9)
+          ctx!.fill()
+        }
+      }
+
+      // ── Draw ambient particles ──
+      if (!prefersReduced) {
+        spawnTimer += dt
+        if (spawnTimer > 200) { spawnParticle(); spawnTimer = 0 }
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i]
+          p.life += dt
+          if (p.life > p.maxLife) { particles.splice(i, 1); continue }
+          p.x += p.vx * dt
+          p.y += p.vy * dt
+          const lifeRatio = p.life / p.maxLife
+          const alpha = lifeRatio < 0.2 ? lifeRatio * 5 : lifeRatio > 0.8 ? (1 - lifeRatio) * 5 : 1
+          const pr = s * 0.002 * p.size
+          const pg = ctx!.createRadialGradient(p.x * w, p.y * h, 0, p.x * w, p.y * h, pr * 2)
+          pg.addColorStop(0, rgba(p.color, 0.5 * alpha))
+          pg.addColorStop(1, rgba(p.color, 0))
+          ctx!.beginPath()
+          ctx!.arc(p.x * w, p.y * h, pr * 2, 0, Math.PI * 2)
           ctx!.fillStyle = pg
           ctx!.fill()
         }
       }
 
-      // Draw nodes
+      // ── Draw nodes with layered glow ──
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i]
         const nx = n.x * w, ny = n.y * h
-        const pulse = prefersReduced ? 0.5 : 0.5 + 0.5 * Math.sin(now * 0.0018 + n.phase)
-        const baseR = Math.max(2, s * 0.005) * n.size
+        const pulse = prefersReduced ? 0.5 : 0.5 + 0.5 * Math.sin(now * 0.002 + n.phase)
+        const baseR = Math.max(1.5, s * 0.005) * n.size
 
-        // Outer glow
-        const og = ctx!.createRadialGradient(nx, ny, 0, nx, ny, baseR * 5)
-        og.addColorStop(0, rgba(n.color, 0.12 * pulse))
-        og.addColorStop(1, rgba(n.color, 0))
+        // Deep glow (large, faint)
+        if (n.layer <= 2) {
+          const dg = ctx!.createRadialGradient(nx, ny, 0, nx, ny, baseR * 8)
+          dg.addColorStop(0, rgba(n.color, 0.06 * pulse))
+          dg.addColorStop(1, rgba(n.color, 0))
+          ctx!.beginPath()
+          ctx!.arc(nx, ny, baseR * 8, 0, Math.PI * 2)
+          ctx!.fillStyle = dg
+          ctx!.fill()
+        }
+
+        // Mid glow
+        const mg = ctx!.createRadialGradient(nx, ny, 0, nx, ny, baseR * 4)
+        mg.addColorStop(0, rgba(n.color, 0.15 * pulse))
+        mg.addColorStop(1, rgba(n.color, 0))
         ctx!.beginPath()
-        ctx!.arc(nx, ny, baseR * 5, 0, Math.PI * 2)
-        ctx!.fillStyle = og
+        ctx!.arc(nx, ny, baseR * 4, 0, Math.PI * 2)
+        ctx!.fillStyle = mg
         ctx!.fill()
 
-        // Core dot
+        // Core dot — bright
         ctx!.beginPath()
         ctx!.arc(nx, ny, baseR, 0, Math.PI * 2)
-        ctx!.fillStyle = rgba(n.color, 0.55 + 0.3 * pulse)
+        ctx!.fillStyle = rgba(n.color, 0.6 + 0.35 * pulse)
         ctx!.fill()
+
+        // White-hot center for core node
+        if (n.layer === 0) {
+          ctx!.beginPath()
+          ctx!.arc(nx, ny, baseR * 0.4, 0, Math.PI * 2)
+          ctx!.fillStyle = rgba('#ffffff', 0.3 + 0.2 * pulse)
+          ctx!.fill()
+        }
       }
 
-      // Central breathing ring
+      // ── Central breathing rings (double) ──
       if (!prefersReduced) {
-        const ringPulse = 0.5 + 0.5 * Math.sin(now * 0.0008)
-        ctx!.beginPath()
-        ctx!.arc(cx, cy, s * 0.04 * (1 + ringPulse * 0.3), 0, Math.PI * 2)
-        ctx!.strokeStyle = rgba(COLORS.cyan, 0.15 * ringPulse)
-        ctx!.lineWidth = 1
-        ctx!.stroke()
+        const t = now * 0.001
+        for (let ring = 0; ring < 3; ring++) {
+          const ringPulse = 0.5 + 0.5 * Math.sin(t * 0.8 + ring * 1.2)
+          const ringR = s * (0.035 + ring * 0.02) * (1 + ringPulse * 0.25)
+          ctx!.beginPath()
+          ctx!.arc(cx, cy, ringR, 0, Math.PI * 2)
+          ctx!.strokeStyle = rgba(ring === 1 ? C.violet : C.cyan, 0.1 * ringPulse)
+          ctx!.lineWidth = 0.8
+          ctx!.stroke()
+        }
       }
 
       animFrame = requestAnimationFrame(draw)
@@ -247,6 +384,8 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
       ref={canvasRef}
       className={className}
       style={{ display: 'block', width: '100%', height: '100%' }}
+      aria-label="Living neural intelligence core — multi-ring network with active signal flow"
+      role="img"
     />
   )
 }

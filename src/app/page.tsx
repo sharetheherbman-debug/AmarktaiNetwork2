@@ -30,14 +30,14 @@ function Section({ children, className = '', id }: { children: React.ReactNode; 
 
 /* ── Data ──────────────────────────────────────────────── */
 const POWER_DOMAINS = [
-  { icon: MessageSquare, label: 'Conversational Intelligence', color: 'from-blue-500 to-blue-600' },
-  { icon: ImageIcon,     label: 'Visual Creation',            color: 'from-pink-500 to-rose-600' },
-  { icon: Mic,           label: 'Voice & Audio',              color: 'from-violet-500 to-purple-600' },
-  { icon: Video,         label: 'Video Production',           color: 'from-cyan-500 to-teal-600' },
-  { icon: Music,         label: 'Music Generation',           color: 'from-emerald-500 to-green-600' },
-  { icon: Code2,         label: 'Code & App Building',        color: 'from-amber-500 to-orange-600' },
-  { icon: Brain,         label: 'Research & Analysis',        color: 'from-indigo-500 to-blue-600' },
-  { icon: Zap,           label: 'Workflow Automation',        color: 'from-rose-500 to-pink-600' },
+  { icon: MessageSquare, label: 'Conversational Intelligence', desc: 'Multi-turn reasoning across any domain',  color: 'from-blue-500 to-blue-600' },
+  { icon: ImageIcon,     label: 'Visual Creation',            desc: 'Generate, edit, and understand images',     color: 'from-pink-500 to-rose-600' },
+  { icon: Mic,           label: 'Voice & Audio',              desc: 'Speak, listen, transcribe, and clone',      color: 'from-violet-500 to-purple-600' },
+  { icon: Video,         label: 'Video Production',           desc: 'Generate and transform video content',      color: 'from-cyan-500 to-teal-600' },
+  { icon: Music,         label: 'Music Generation',           desc: 'Compose, produce, and master audio',        color: 'from-emerald-500 to-green-600' },
+  { icon: Code2,         label: 'Code & App Building',        desc: 'Scaffold entire applications with AI',      color: 'from-amber-500 to-orange-600' },
+  { icon: Brain,         label: 'Research & Analysis',        desc: 'Deep retrieval, reasoning, synthesis',      color: 'from-indigo-500 to-blue-600' },
+  { icon: Zap,           label: 'Workflow Automation',        desc: 'Chain tasks into intelligent pipelines',    color: 'from-rose-500 to-pink-600' },
 ]
 
 const ARCHITECTURE = [
@@ -85,7 +85,7 @@ export default function HomePage() {
             </div>
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
               One Brain.<br />
-              <span className="gradient-text">Infinite Power.</span>
+              <span className="gradient-text">Every Power.</span>
             </h1>
           </motion.div>
           <motion.p
@@ -94,8 +94,9 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.25 }}
             className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-slate-400 sm:text-xl"
           >
-            AmarktAI Network is the intelligence layer behind multiple connected applications.
-            One system that creates, reasons, sees, speaks, composes, codes, and builds.
+            The intelligence layer behind your entire product stack.
+            One system that creates, reasons, sees, speaks, composes, codes, and builds —
+            orchestrated across 13+ AI providers through a single command center.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -128,12 +129,15 @@ export default function HomePage() {
       <Section id="power" className="py-28">
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center mb-16">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
+              Capabilities
+            </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
               Eight Domains.<br />
-              <span className="text-slate-400">One System.</span>
+              <span className="text-slate-400">One Operating System.</span>
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-slate-500">
-              Every creative and operational capability — orchestrated through one intelligence core.
+              Every creative and operational capability — orchestrated through one intelligence core that gets smarter with every request.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
@@ -152,9 +156,64 @@ export default function HomePage() {
                     <Icon className="h-5 w-5 text-white" />
                   </div>
                   <p className="text-sm font-semibold text-white">{item.label}</p>
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">{item.desc}</p>
                 </motion.div>
               )
             })}
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Divider ──────────────────────────────────────── */}
+      <div className="section-divider mx-auto max-w-4xl" />
+
+      {/* ── THE LIVING BRAIN — Ecosystem Visualization ──── */}
+      <Section id="brain" className="relative py-32 overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Text */}
+            <div>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-cyan-400">
+                Intelligence Core
+              </p>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                A Living Brain.<br />
+                <span className="text-slate-400">Not a Static API.</span>
+              </h2>
+              <p className="mt-6 text-slate-400 leading-relaxed">
+                At the center of everything is a neural routing core that orchestrates across providers, learns from every interaction, and powers every capability in real time.
+              </p>
+              <p className="mt-4 text-slate-500 leading-relaxed text-sm">
+                Every signal you see represents a live intelligence flow — requests routing to the optimal provider, context compounding across sessions, and capabilities activating on demand.
+              </p>
+              <div className="mt-8 grid grid-cols-2 gap-4">
+                {[
+                  { value: '13+', label: 'AI Providers' },
+                  { value: '8', label: 'Capability Domains' },
+                  { value: '<200ms', label: 'Routing Latency' },
+                  { value: '∞', label: 'Context Depth' },
+                ].map(stat => (
+                  <div key={stat.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                    <p className="text-2xl font-bold font-mono text-cyan-400">{stat.value}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Brain visualization */}
+            <div className="relative aspect-square max-w-[520px] mx-auto w-full">
+              <LivingCore className="absolute inset-0 z-0" />
+              {/* Center label overlay */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-white/[0.08] flex items-center justify-center backdrop-blur-sm">
+                    <Brain className="w-7 h-7 text-cyan-400" />
+                  </div>
+                  <p className="mt-3 text-xs font-semibold text-white/80 tracking-wide">Super-Brain</p>
+                  <p className="text-[10px] text-slate-500">Active Intelligence Core</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </Section>
@@ -333,11 +392,11 @@ export default function HomePage() {
             Controlled Access
           </p>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-            This System Is Not<br />
-            <span className="text-slate-400">Open to Everyone.</span>
+            Built for Operators.<br />
+            <span className="text-slate-400">Not the General Public.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-slate-400 leading-relaxed">
-            AmarktAI Network is built for serious operators. If you&apos;re building apps that need real intelligence infrastructure — get in touch.
+            AmarktAI Network is infrastructure-grade intelligence — designed for builders who need real multi-modal AI orchestration, not another chatbot wrapper.
           </p>
           <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link
