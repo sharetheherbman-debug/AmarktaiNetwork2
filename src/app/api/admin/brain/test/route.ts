@@ -128,6 +128,8 @@ export async function POST(request: NextRequest) {
   const start = Date.now()
   const traceId = randomUUID()
 
+  try {
+
   // Sync the in-process provider health cache from DB before any capability
   // resolution. Without this, resolveCapabilityRoutes() calls getUsableModels()
   // against an empty cache on cold-start and returns all capabilities as
@@ -471,4 +473,16 @@ export async function POST(request: NextRequest) {
     },
     { status: success ? 200 : 502 },
   )
+
+  } catch (err) {
+    const latencyMs = Date.now() - start
+    return NextResponse.json(
+      {
+        success: false, executed: false, traceId, output: null,
+        error: err instanceof Error ? err.message : 'Internal server error',
+        latencyMs, timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    )
+  }
 }

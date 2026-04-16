@@ -67,7 +67,7 @@ export default function CompareTab() {
           appSlug: '__admin_test__',
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({ error: `Unexpected response from server (HTTP ${res.status})` }))
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setResults(data.results ?? [])
       setSummary(data.summary ?? null)

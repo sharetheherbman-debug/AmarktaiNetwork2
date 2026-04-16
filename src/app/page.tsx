@@ -65,13 +65,13 @@ export default function HomePage() {
       {/* ── HERO ──────────────────────────────────────────── */}
       <section className="relative flex min-h-[100vh] items-center justify-center overflow-hidden">
         {/* Living neural network background */}
-        <LivingCore className="absolute inset-0 z-0 opacity-30" />
+        <LivingCore className="absolute inset-0 z-0 opacity-40" />
 
         {/* Ambient glow layers */}
         <div className="pointer-events-none absolute inset-0 z-[1]">
           <div className="absolute right-1/4 top-1/5 h-[500px] w-[500px] rounded-full bg-violet-600/[0.08] blur-[150px] ambient-drift" />
           <div className="absolute bottom-1/4 left-1/5 h-[400px] w-[400px] rounded-full bg-blue-600/[0.06] blur-[120px] ambient-drift" style={{ animationDelay: '-6s' }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[300px] w-[300px] rounded-full bg-cyan-500/[0.04] blur-[100px] animate-breathe" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[300px] w-[300px] rounded-full bg-cyan-500/[0.05] blur-[100px] animate-breathe" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-5xl px-6 text-center">
@@ -81,7 +81,7 @@ export default function HomePage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
               </span>
-              <span className="text-xs font-medium tracking-wide text-slate-300">AI Operating System</span>
+              <span className="text-xs font-medium tracking-wide text-slate-300">AI Operating System — Live</span>
             </div>
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
               One Brain.<br />
@@ -106,23 +106,23 @@ export default function HomePage() {
           >
             <Link
               href="/contact"
-              className="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-8 py-4 text-sm font-semibold text-white transition-all hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-0.5"
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-8 py-4 text-sm font-semibold text-white transition-all hover:shadow-2xl hover:shadow-blue-500/25 hover:-translate-y-0.5 active:translate-y-0"
             >
               Request Access
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
-              href="#what"
+              href="#brain"
               className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-8 py-4 text-sm font-medium text-slate-300 transition-all hover:border-white/[0.15] hover:text-white hover:-translate-y-0.5"
             >
               <Eye className="h-4 w-4" />
-              Explore the System
+              See the Brain
             </Link>
           </motion.div>
         </div>
 
         {/* Bottom fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#030712] to-transparent z-20" />
+        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#030712] to-transparent z-20" />
       </section>
 
       {/* ── POWER DOMAINS — What it can do ────────────────── */}
@@ -168,9 +168,9 @@ export default function HomePage() {
       <div className="section-divider mx-auto max-w-4xl" />
 
       {/* ── THE LIVING BRAIN — Ecosystem Visualization ──── */}
-      <Section id="brain" className="relative py-32 overflow-hidden">
+      <Section id="brain" className="relative py-36 overflow-hidden">
         <div className="mx-auto max-w-6xl px-6">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
             {/* Text */}
             <div>
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-cyan-400">
@@ -180,20 +180,20 @@ export default function HomePage() {
                 A Living Brain.<br />
                 <span className="text-slate-400">Not a Static API.</span>
               </h2>
-              <p className="mt-6 text-slate-400 leading-relaxed">
-                At the center of everything is a neural routing core that orchestrates across providers, learns from every interaction, and powers every capability in real time.
+              <p className="mt-6 text-slate-400 leading-relaxed text-base">
+                At the center of every request is a neural routing core — choosing the optimal provider, compounding context across sessions, and activating capabilities on demand. Every signal you see is real intelligence flow.
               </p>
               <p className="mt-4 text-slate-500 leading-relaxed text-sm">
-                Every signal you see represents a live intelligence flow — requests routing to the optimal provider, context compounding across sessions, and capabilities activating on demand.
+                It doesn&apos;t just route — it learns. Provider performance, task success patterns, and cost efficiency are continuously optimized across every app in the network.
               </p>
-              <div className="mt-8 grid grid-cols-2 gap-4">
+              <div className="mt-10 grid grid-cols-2 gap-4">
                 {[
                   { value: '13+', label: 'AI Providers' },
                   { value: '8', label: 'Capability Domains' },
                   { value: '<200ms', label: 'Routing Latency' },
                   { value: '∞', label: 'Context Depth' },
                 ].map(stat => (
-                  <div key={stat.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                  <div key={stat.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 transition-all hover:border-white/[0.10]">
                     <p className="text-2xl font-bold font-mono text-cyan-400">{stat.value}</p>
                     <p className="text-[11px] text-slate-500 mt-1">{stat.label}</p>
                   </div>
@@ -201,12 +201,12 @@ export default function HomePage() {
               </div>
             </div>
             {/* Brain visualization */}
-            <div className="relative aspect-square max-w-[520px] mx-auto w-full">
+            <div className="relative aspect-square max-w-[560px] mx-auto w-full">
               <LivingCore className="absolute inset-0 z-0" />
               {/* Center label overlay */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-white/[0.08] flex items-center justify-center backdrop-blur-sm">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-white/[0.10] flex items-center justify-center backdrop-blur-sm shadow-lg shadow-cyan-500/10">
                     <Brain className="w-7 h-7 text-cyan-400" />
                   </div>
                   <p className="mt-3 text-xs font-semibold text-white/80 tracking-wide">Super-Brain</p>
@@ -382,10 +382,10 @@ export default function HomePage() {
       </Section>
 
       {/* ── FINAL CTA ─────────────────────────────────────── */}
-      <Section id="access" className="relative py-32">
+      <Section id="access" className="relative py-36">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
-          <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/[0.05] blur-[150px]" />
+          <div className="absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/[0.06] blur-[180px]" />
         </div>
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <p className="mb-5 text-xs font-semibold uppercase tracking-[0.15em] text-blue-400">
@@ -396,18 +396,18 @@ export default function HomePage() {
             <span className="text-slate-400">Not the General Public.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-slate-400 leading-relaxed">
-            AmarktAI Network is infrastructure-grade intelligence — designed for builders who need real multi-modal AI orchestration, not another chatbot wrapper.
+            AmarktAI Network is infrastructure-grade intelligence — designed for builders who need real multi-modal AI orchestration, not another chatbot wrapper. If you&apos;re building something serious, let&apos;s talk.
           </p>
-          <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+          <div className="mt-14 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link
               href="/contact"
-              className="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-8 py-4 text-sm font-semibold text-white transition-all hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-0.5"
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-10 py-4.5 text-sm font-semibold text-white transition-all hover:shadow-2xl hover:shadow-blue-500/25 hover:-translate-y-0.5 active:translate-y-0"
             >
-              Request Access <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              Request Access <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
               href="/about"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-8 py-4 text-sm font-medium text-slate-300 transition-all hover:border-white/[0.15] hover:text-white hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-10 py-4.5 text-sm font-medium text-slate-300 transition-all hover:border-white/[0.15] hover:text-white hover:-translate-y-0.5"
             >
               Learn About the System
             </Link>

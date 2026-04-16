@@ -122,6 +122,7 @@ async function createHfVideoJob(
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  try {
   let body: unknown;
   try {
     body = await req.json();
@@ -227,4 +228,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     },
     { status: 202 },
   );
+
+  } catch (err) {
+    return NextResponse.json(
+      {
+        capability: 'video_generation',
+        executed: false,
+        error: err instanceof Error ? err.message : 'Internal server error',
+      },
+      { status: 500 },
+    );
+  }
 }

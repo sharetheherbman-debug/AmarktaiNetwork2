@@ -79,7 +79,7 @@ export default function TestAITab() {
     try {
       const res = await fetch('/api/admin/providers')
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json().catch(() => ({ providers: [] }))
         setProviders((data.providers ?? []).map((p: Record<string, string>) => ({
           key: p.providerKey, label: p.displayName, healthStatus: p.healthStatus,
         })))
@@ -91,7 +91,7 @@ export default function TestAITab() {
     try {
       const res = await fetch('/api/admin/models')
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json().catch(() => ({ models: [] }))
         setModels(data.models ?? [])
       }
     } catch { /* best-effort */ }
@@ -102,7 +102,7 @@ export default function TestAITab() {
     try {
       const res = await fetch('/api/admin/brain/test')
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json().catch(() => ({ capabilities: [] }))
         setCapabilityStatus(data.capabilities ?? [])
       }
     } catch { /* best-effort */ } finally { setLoadingCaps(false) }

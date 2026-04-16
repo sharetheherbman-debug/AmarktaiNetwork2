@@ -46,7 +46,10 @@ export default function SkillLibraryTab() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install', templateId: id }),
       })
-      if (!res.ok) throw new Error('Install failed')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `Install failed: HTTP ${res.status}` }))
+        throw new Error(errData.error ?? 'Install failed')
+      }
       load()
     } catch { /* best-effort */ } finally { setInstalling(null) }
   }, [load])

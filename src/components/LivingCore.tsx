@@ -362,6 +362,38 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
           ctx!.lineWidth = 0.8
           ctx!.stroke()
         }
+
+        // ── Rotating orbital scan arcs — cinematic radar-like sweep ──
+        for (let orbit = 0; orbit < 2; orbit++) {
+          const orbitR = s * (0.18 + orbit * 0.14)
+          const sweepAngle = t * (0.4 + orbit * 0.15)
+          const arcLen = Math.PI * 0.35
+          ctx!.beginPath()
+          ctx!.arc(cx, cy, orbitR, sweepAngle, sweepAngle + arcLen)
+          const arcGrad = ctx!.createLinearGradient(
+            cx + Math.cos(sweepAngle) * orbitR,
+            cy + Math.sin(sweepAngle) * orbitR,
+            cx + Math.cos(sweepAngle + arcLen) * orbitR,
+            cy + Math.sin(sweepAngle + arcLen) * orbitR,
+          )
+          arcGrad.addColorStop(0, rgba(orbit === 0 ? C.cyan : C.violet, 0))
+          arcGrad.addColorStop(0.5, rgba(orbit === 0 ? C.cyan : C.violet, 0.12))
+          arcGrad.addColorStop(1, rgba(orbit === 0 ? C.cyan : C.violet, 0))
+          ctx!.strokeStyle = arcGrad
+          ctx!.lineWidth = 1.0
+          ctx!.stroke()
+        }
+
+        // ── Expanding ripple waves from center ──
+        const RIPPLE_PERIOD = 4000
+        const ripplePhase = (now % RIPPLE_PERIOD) / RIPPLE_PERIOD
+        const rippleR = s * 0.04 + ripplePhase * s * 0.3
+        const rippleAlpha = (1 - ripplePhase) * 0.08
+        ctx!.beginPath()
+        ctx!.arc(cx, cy, rippleR, 0, Math.PI * 2)
+        ctx!.strokeStyle = rgba(C.blue, rippleAlpha)
+        ctx!.lineWidth = 0.6
+        ctx!.stroke()
       }
 
       animFrame = requestAnimationFrame(draw)
