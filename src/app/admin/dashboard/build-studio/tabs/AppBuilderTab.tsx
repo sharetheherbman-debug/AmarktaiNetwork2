@@ -174,7 +174,7 @@ export default function AppBuilderTab() {
           },
         }),
       })
-      const data = await res.json().catch(() => ({ error: 'Invalid response from server' }))
+      const data = await res.json().catch(() => ({ error: 'Failed to parse server response during app generation' }))
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setSession(data.session ?? null)
       if (data.session?.files?.length) setSelectedFile(data.session.files[0])
