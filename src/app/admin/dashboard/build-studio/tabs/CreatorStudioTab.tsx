@@ -101,7 +101,10 @@ export default function CreatorStudioTab({ initialMode }: CreatorStudioTabProps)
           const contentType = res.headers.get('Content-Type') ?? ''
           if (contentType.includes('audio')) {
             const buffer = await res.arrayBuffer()
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+            const bytes = new Uint8Array(buffer)
+            let binary = ''
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+            const base64 = btoa(binary)
             return { success: true, audioUrl: `data:audio/mpeg;base64,${base64}`, output: '[TTS audio generated]' }
           }
           return await res.json().catch(() => ({ success: false, error: 'Unexpected TTS response format' }))

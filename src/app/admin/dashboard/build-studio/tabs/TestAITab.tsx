@@ -180,7 +180,10 @@ export default function TestAITab() {
           const contentType = res.headers.get('Content-Type') ?? ''
           if (contentType.includes('audio')) {
             const buffer = await res.arrayBuffer()
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+            const bytes = new Uint8Array(buffer)
+            let binary = ''
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+            const base64 = btoa(binary)
             const audioUrl = `data:audio/mpeg;base64,${base64}`
             setResult({ success: true, executed: true, output: '[TTS audio generated]', capability: ['tts'], routedProvider: res.headers.get('X-Provider') ?? null, routedModel: res.headers.get('X-Model') ?? null, executionMode: 'direct', confidenceScore: null, validationUsed: false, consensusUsed: false, fallbackUsed: false, fallback_used: false, warnings: [], error: null, latencyMs: 0, audioUrl })
           } else {
