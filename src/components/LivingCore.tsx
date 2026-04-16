@@ -384,7 +384,7 @@ export default function LivingCore({ className = '' }: LivingCoreProps) {
           ctx!.stroke()
         }
 
-        // ── Expanding ripple waves from center ──
+        // ── Expanding ripple waves from center (4s cycle) ──
         const RIPPLE_PERIOD = 4000
         const ripplePhase = (now % RIPPLE_PERIOD) / RIPPLE_PERIOD
         const rippleR = s * 0.04 + ripplePhase * s * 0.3
