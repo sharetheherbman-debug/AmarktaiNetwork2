@@ -382,6 +382,20 @@ export async function getCapabilityTruth(
         'Realtime voice service not configured: set REALTIME_SERVICE_URL to the running ' +
         'WebSocket service (see services/realtime/). The session endpoint ' +
         '(/api/realtime/session) exists but streaming requires the separate service.';
+    } else if (cap === 'adult_18plus_image') {
+      // Adult 18+ image generation exclusively uses HuggingFace diffusion models.
+      // OpenAI and other image providers are NOT used for this capability.
+      // Showing AVAILABLE_NOW when only OpenAI is active would be a lie.
+      const hfActive = activeProviders.has('huggingface');
+      if (hfActive) {
+        state = 'AVAILABLE_NOW';
+        implementationState = 'ACTIVE_NOW';
+        reason = 'Adult 18+ image generation ready via HuggingFace diffusion models. Requires adultMode=true on the app (Admin → App Agents → Settings).';
+      } else {
+        state = 'UNAVAILABLE_WITH_CURRENT_CONFIG';
+        implementationState = 'AVAILABLE_IN_CATALOG';
+        reason = 'Adult 18+ image generation requires a HuggingFace API key — add it via Admin → AI Providers. HuggingFace diffusion models (RealVisXL, DreamShaper) are used for this capability.';
+      }
     } else if (PLATFORM_LEVEL_CAPABILITIES.has(cap)) {
       // Platform-level capability: no AI model flag required.
       // These are always AVAILABLE_NOW as long as the route exists (which it does).
