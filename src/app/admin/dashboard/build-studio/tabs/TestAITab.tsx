@@ -79,8 +79,13 @@ export default function TestAITab() {
     try {
       const res = await fetch('/api/admin/providers')
       if (res.ok) {
-        const data = await res.json().catch(() => ({ providers: [] }))
-        setProviders((data.providers ?? []).map((p: Record<string, string>) => ({
+        const data = await res.json().catch(() => [])
+        const list: Record<string, string>[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data.providers)
+            ? data.providers
+            : []
+        setProviders(list.map((p) => ({
           key: p.providerKey, label: p.displayName, healthStatus: p.healthStatus,
         })))
       }
