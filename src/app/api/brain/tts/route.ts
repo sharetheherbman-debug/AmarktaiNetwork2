@@ -119,11 +119,12 @@ export async function POST(request: NextRequest) {
       }
       provider = 'huggingface';
     } else {
-      // Auto: prefer Groq (low-cost, fast), fallback to OpenAI, then Gemini, then HuggingFace
-      if (groqKey) {
-        provider = 'groq';
-      } else if (openaiKey) {
+      // Auto: OpenAI is the golden-path baseline. Groq is used as fallback when
+      // OpenAI is not configured. Gemini and HuggingFace are last-resort options.
+      if (openaiKey) {
         provider = 'openai';
+      } else if (groqKey) {
+        provider = 'groq';
       } else if (geminiKey) {
         provider = 'gemini';
       } else if (hfKey) {
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
       } else {
         return NextResponse.json(
           {
-            error: 'No TTS provider configured. Add an API key via Admin → AI Providers. Supported providers: Groq (low cost), OpenAI (premium), Gemini (multimodal), HuggingFace (free fallback).',
+            error: 'No TTS provider configured. Add an API key via Admin → AI Providers. Supported providers: OpenAI (premium), Groq (low cost), Gemini (multimodal), HuggingFace (free fallback).',
             executed: false,
             capability: 'voice_output',
           },

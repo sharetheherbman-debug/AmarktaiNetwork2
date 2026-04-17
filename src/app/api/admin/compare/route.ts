@@ -33,16 +33,23 @@ export async function POST(req: NextRequest) {
     const promises = modelsToCompare.map(async (m: { provider: string; model: string }) => {
       const start = Date.now()
       try {
-        const brainUrl = new URL('/api/brain/request', req.url)
-        const response = await fetch(brainUrl.toString(), {
+        // Use the admin brain-test endpoint — it has session auth bypass, correct
+        // schema, and handles specialist routing. Sending to /api/brain/request
+        // would require appId + appSecret which are not available here.
+        const testUrl = new URL('/api/admin/brain/test', req.url)
+        const response = await fetch(testUrl.toString(), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            // Forward cookies so session auth is preserved across the internal call
+            cookie: req.headers.get('cookie') ?? '',
+          },
           body: JSON.stringify({
-            prompt,
-            capability: capability || 'chat',
-            app_slug: appSlug || '__admin_test__',
-            force_provider: m.provider,
-            force_model: m.model,
+            message: prompt,
+            taskType: capability || 'chat',
+            providerKey: m.provider,
+            modelId: m.model,
+            appSlug: appSlug || '__admin_test__',
           }),
         })
         const data = await response.json()

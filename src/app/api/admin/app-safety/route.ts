@@ -62,6 +62,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // Hydrate from DB so the guard checks below reflect the persisted state,
+  // not just whatever is in the in-memory cache (which may be empty on cold start).
+  await loadAppSafetyConfigFromDB(appSlug)
+
   // Enforce: adult mode requires safe mode OFF
   if (adultMode === true && safeMode !== false) {
     const currentConfig = getAppSafetyConfig(appSlug)
