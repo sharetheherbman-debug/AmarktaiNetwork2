@@ -285,18 +285,16 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Orchestrate ───────────────────────────────────────────────────────
-  // If an App Agent is configured, its system prompt is prepended to the
-  // assembled message so it reaches the provider as the leading instruction
-  // block. This keeps the orchestrator signature stable while ensuring agent
-  // rules are always honoured.
-  const agentPrefix = agentSystemPrompt
-    ? `[System Instructions]\n${agentSystemPrompt}\n\n[User Request]\n`
-    : ''
+  // The agent system prompt (if any) is passed as a dedicated parameter so
+  // orchestrate() can inject it via the provider's native system role mechanism
+  // (OpenAI system message, Anthropic `system` field, Gemini systemInstruction).
+  // This keeps it out of the user message turn entirely.
   const result = await orchestrate({
     appSlug: app.slug,
     appCategory: app.category,
     taskType: body.taskType,
-    message: agentPrefix + suggestiveModeNote + emotionContext + federatedMemoryContext + memoryContext + body.message,
+    message: suggestiveModeNote + emotionContext + federatedMemoryContext + memoryContext + body.message,
+    agentSystemPrompt,
     providerOverride: typeof body.metadata?.provider_override === 'string' ? body.metadata.provider_override : undefined,
     modelOverride: typeof body.metadata?.model_override === 'string' ? body.metadata.model_override : undefined,
   })

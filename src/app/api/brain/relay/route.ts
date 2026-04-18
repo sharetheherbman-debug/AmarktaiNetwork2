@@ -154,15 +154,16 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Orchestrate through target app's pipeline ─────────────────────────
-  const agentPrefix = agentSystemPrompt
-    ? `[System Instructions for ${targetApp.name}]\n${agentSystemPrompt}\n\n[Relay from ${auth.app.name}]\n`
-    : `[Relay from ${auth.app.name}]\n`
-
+  // The agent system prompt is passed as a dedicated parameter so it reaches
+  // the provider's native system role. A relay prefix is added to the user
+  // message so the target agent knows the request origin.
+  const relayPrefix = `[Relay request from app: ${auth.app.name} (${auth.app.slug})]\n`
   const result = await orchestrate({
     appSlug: targetApp.slug,
     appCategory: targetApp.category,
     taskType: body.taskType,
-    message: agentPrefix + body.message,
+    message: relayPrefix + body.message,
+    agentSystemPrompt,
   })
 
   const latencyMs = Date.now() - start

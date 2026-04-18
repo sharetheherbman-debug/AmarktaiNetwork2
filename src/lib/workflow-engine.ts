@@ -246,6 +246,9 @@ const stepExecutors: Record<StepType, StepExecutor> = {
 
   ai_completion: async (step, input) => {
     const provider = step.config.provider as string ?? 'openai'
+    // Empty model string is intentional: callProvider resolves it from the
+    // vault's defaultModel for the configured provider, so omitting it here
+    // lets the admin's provider configuration control the default model.
     const model = step.config.model as string ?? ''
     const systemPrompt = step.config.systemPrompt as string || undefined
     const message = typeof input === 'string' ? input : JSON.stringify(input)

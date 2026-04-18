@@ -582,9 +582,15 @@ export async function orchestrate(opts: {
   modelOverride?: string
   /** Budget mode from app agent: 'low_cost' | 'balanced' | 'best_quality'. Controls maxCostTier. */
   budgetMode?: 'low_cost' | 'balanced' | 'best_quality'
+  /**
+   * Optional system-level instructions from the app's configured App Agent.
+   * Passed directly to each provider's native system role mechanism via callProvider,
+   * ensuring the agent persona is applied without polluting the user message.
+   */
+  agentSystemPrompt?: string
 }): Promise<OrchestrationResult> {
   const start = Date.now()
-  const { appSlug, appCategory, taskType, message, providerOverride, modelOverride, budgetMode } = opts
+  const { appSlug, appCategory, taskType, message, providerOverride, modelOverride, budgetMode, agentSystemPrompt } = opts
 
   // Hydrate smart-router state from Redis on first request (fire-and-forget)
   loadSmartRouterState().catch(() => {})
@@ -859,6 +865,7 @@ export async function orchestrate(opts: {
         decision.primaryProvider.providerKey,
         decision.primaryProvider.model,
         specialistMessage,
+        agentSystemPrompt,
       )
       if (!result.ok) {
         errors.push(result.error ?? 'Premium escalation provider call failed')
@@ -866,7 +873,7 @@ export async function orchestrate(opts: {
         if (routingDecision.fallbackModels.length > 0) {
           const fb = routingDecision.fallbackModels[0]
           warnings.push(`Premium escalation failed — attempting fallback to ${fb.provider}/${fb.model_id}`)
-          const fallback = await callProvider(fb.provider, fb.model_id, specialistMessage)
+          const fallback = await callProvider(fb.provider, fb.model_id, specialistMessage, agentSystemPrompt)
           if (fallback.ok) {
             const confidence = computeConfidenceScore({
               primaryProvider: { ...decision.primaryProvider, providerKey: fb.provider, isHealthy: true, healthStatus: 'configured', model: fb.model_id },
@@ -989,6 +996,7 @@ export async function orchestrate(opts: {
         decision.primaryProvider.providerKey,
         decision.primaryProvider.model,
         specialistMessage,
+        agentSystemPrompt,
       )
 
       // Record performance for smart-router learning (fire-and-forget)
@@ -1027,6 +1035,7 @@ export async function orchestrate(opts: {
             decision.secondaryProvider.providerKey,
             decision.secondaryProvider.model,
             specialistMessage,
+            agentSystemPrompt,
           )
           if (fallback.ok) {
             const confidence = computeConfidenceScore({
@@ -1101,6 +1110,7 @@ export async function orchestrate(opts: {
         decision.primaryProvider.providerKey,
         decision.primaryProvider.model,
         specialistMessage,
+        agentSystemPrompt,
       )
       if (!primary.ok) {
         errors.push(primary.error ?? 'Primary provider failed in review mode')
@@ -1173,12 +1183,14 @@ export async function orchestrate(opts: {
           decision.primaryProvider.providerKey,
           decision.primaryProvider.model,
           specialistMessage,
+          agentSystemPrompt,
         ),
         decision.secondaryProvider
           ? callProvider(
               decision.secondaryProvider.providerKey,
               decision.secondaryProvider.model,
               specialistMessage,
+              agentSystemPrompt,
             )
           : Promise.resolve(null as ProviderCallResult | null),
       ])

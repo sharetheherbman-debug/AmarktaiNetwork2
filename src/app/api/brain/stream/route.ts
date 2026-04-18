@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
   // ── Resolve system prompt: body override → app agent → generic fallback ─
   const appName = auth.app.name
-  let systemPrompt = body.systemPrompt || ''
+  let systemPrompt = body.systemPrompt
   if (!systemPrompt) {
     try {
       const agent = await getAppAgent(auth.app.slug)
