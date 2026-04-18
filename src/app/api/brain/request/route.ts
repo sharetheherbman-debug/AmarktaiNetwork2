@@ -20,6 +20,9 @@ import { checkRateLimit, getRateLimitHeaders } from '@/lib/rate-limiter'
 import { checkAppBudget } from '@/lib/app-budget-enforcement'
 import { recordUsage } from '@/lib/usage-meter'
 import { recordProviderMetric } from '@/lib/provider-reliability'
+import { getAppAgent, buildAgentSystemPrompt } from '@/lib/app-agent'
+import { dispatchEvent } from '@/lib/webhook-manager'
+import { emitSystemEvent } from '@/lib/event-bus'
 
 // ── Request schema ────────────────────────────────────────────────────────────
 
@@ -170,6 +173,30 @@ export async function POST(request: NextRequest) {
     ? '[App safety mode: Suggestive language, flirting, swearing, and tasteful adult themes are permitted. Explicit sexual acts, genitalia, minors in any adult context, and illegal content are strictly prohibited.]\n\n'
     : ''
 
+  // ── Load App Agent system prompt (B1 fix) ─────────────────────────────
+  // If the app has an active App Agent configured, inject its system prompt
+  // into the orchestration call so the agent's tone, rules, and persona are
+  // applied to every request through the standard /brain/request endpoint.
+  let agentSystemPrompt: string | undefined
+  try {
+    const agent = await getAppAgent(app.slug)
+    if (agent?.active) {
+      agentSystemPrompt = buildAgentSystemPrompt(agent)
+    }
+  } catch {
+    // Agent lookup failure must not block the request
+  }
+
+  // ── Emit SSE: request started ────────────────────────────────────────
+  emitSystemEvent('job_progress', {
+    traceId,
+    appSlug: app.slug,
+    appName: app.name,
+    taskType: body.taskType,
+    stage: 'started',
+    timestamp: new Date().toISOString(),
+  })
+
   // ── Emotion engine — detect user emotion and build personality context ─
   // Uses the synchronous pipeline to avoid adding streaming latency.
   // Emotion state is persisted to Redis/Qdrant in a fire-and-forget manner.
@@ -258,11 +285,18 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Orchestrate ───────────────────────────────────────────────────────
+  // If an App Agent is configured, its system prompt is prepended to the
+  // assembled message so it reaches the provider as the leading instruction
+  // block. This keeps the orchestrator signature stable while ensuring agent
+  // rules are always honoured.
+  const agentPrefix = agentSystemPrompt
+    ? `[System Instructions]\n${agentSystemPrompt}\n\n[User Request]\n`
+    : ''
   const result = await orchestrate({
     appSlug: app.slug,
     appCategory: app.category,
     taskType: body.taskType,
-    message: suggestiveModeNote + emotionContext + federatedMemoryContext + memoryContext + body.message,
+    message: agentPrefix + suggestiveModeNote + emotionContext + federatedMemoryContext + memoryContext + body.message,
     providerOverride: typeof body.metadata?.provider_override === 'string' ? body.metadata.provider_override : undefined,
     modelOverride: typeof body.metadata?.model_override === 'string' ? body.metadata.model_override : undefined,
   })
@@ -289,6 +323,33 @@ export async function POST(request: NextRequest) {
     warningsJson: JSON.stringify(result.warnings),
     latencyMs,
   })
+
+  // ── Emit SSE: request completed (B5) ─────────────────────────────────
+  emitSystemEvent(success ? 'job_completed' : 'job_failed', {
+    traceId,
+    appSlug: app.slug,
+    appName: app.name,
+    taskType: body.taskType,
+    routedProvider: result.routedProvider,
+    routedModel: result.routedModel,
+    latencyMs,
+    success,
+    timestamp: new Date().toISOString(),
+  })
+
+  // ── Dispatch webhooks (B4 — fire-and-forget) ──────────────────────────
+  // Sends to any webhook endpoints registered for this app. Never blocks response.
+  const webhookEventType = success ? 'brain.request.completed' : 'brain.request.failed'
+  dispatchEvent(app.slug, webhookEventType, {
+    traceId,
+    taskType: body.taskType,
+    routedProvider: result.routedProvider,
+    routedModel: result.routedModel,
+    latencyMs,
+    success,
+    ...(result.output ? { outputPreview: result.output.slice(0, 200) } : {}),
+    ...(hasErrors ? { errors: result.errors } : {}),
+  }).catch(() => { /* webhook delivery errors must not affect the response */ })
 
   // ── Usage metering + provider reliability ─────────────────────────────
   try {

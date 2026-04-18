@@ -9,6 +9,7 @@
  */
 
 import { randomUUID } from 'crypto'
+import { callProvider } from '@/lib/brain'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -244,18 +245,20 @@ const stepExecutors: Record<StepType, StepExecutor> = {
   input: async (_step, input) => input,
 
   ai_completion: async (step, input) => {
-    // In production, this would call the brain/orchestrator
-    const model = step.config.model as string ?? 'gpt-4o-mini'
-    const systemPrompt = step.config.systemPrompt as string ?? ''
+    const provider = step.config.provider as string ?? 'openai'
+    const model = step.config.model as string ?? ''
+    const systemPrompt = step.config.systemPrompt as string || undefined
     const message = typeof input === 'string' ? input : JSON.stringify(input)
 
-    // Simulate AI call (real implementation would use callProvider)
+    const result = await callProvider(provider, model, message, systemPrompt)
+    if (!result.ok) {
+      throw new Error(`AI step "${step.name}" failed: ${result.error ?? 'unknown error'}`)
+    }
     return {
-      model,
-      systemPrompt: systemPrompt.slice(0, 50),
-      input: message.slice(0, 100),
-      output: `[AI output from ${model}] Processed: ${message.slice(0, 200)}`,
-      _note: 'Connect to brain.callProvider() for real inference',
+      provider: result.providerKey,
+      model: result.model,
+      output: result.output,
+      latencyMs: result.latencyMs,
     }
   },
 

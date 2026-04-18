@@ -235,7 +235,7 @@ async function collectSignals(appSlug: string, since: Date): Promise<LearningSig
       totalRequests,
       successRate,
       avgLatencyMs,
-      avgCost: 0, // TODO: integrate with budget tracker for real cost data
+      avgCost: await computeAvgCostCents(appSlug, since),
       topProviders,
       topTaskTypes,
       failurePatterns,
@@ -252,6 +252,30 @@ async function collectSignals(appSlug: string, since: Date): Promise<LearningSig
       failurePatterns: [],
       weakAreas: [],
     }
+  }
+}
+
+// ── Cost Helper ────────────────────────────────────────────────────────────
+
+/**
+ * Compute average cost in USD cents per request from UsageMeter aggregates.
+ * UsageMeter stores daily rolled-up totals — we sum across all rows in the
+ * period and divide by total request count.
+ * Falls back to 0 if the table is unavailable.
+ */
+async function computeAvgCostCents(appSlug: string, since: Date): Promise<number> {
+  try {
+    const rows = await prisma.usageMeter.findMany({
+      where: { appSlug, date: { gte: since } },
+      select: { costUsdCents: true, requestCount: true },
+    })
+    if (rows.length === 0) return 0
+    const totalCost = rows.reduce((sum, r) => sum + (r.costUsdCents ?? 0), 0)
+    const totalRequests = rows.reduce((sum, r) => sum + (r.requestCount ?? 0), 0)
+    if (totalRequests === 0) return 0
+    return totalCost / totalRequests
+  } catch {
+    return 0
   }
 }
 

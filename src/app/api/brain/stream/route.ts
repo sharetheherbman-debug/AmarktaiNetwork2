@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { authenticateApp, getVaultApiKey, callProvider } from '@/lib/brain'
 import { scanContent } from '@/lib/content-filter'
+import { getAppAgent, buildAgentSystemPrompt } from '@/lib/app-agent'
 
 // ── Provider streaming configuration ──────────────────────────────────────────
 
@@ -111,10 +112,25 @@ export async function POST(request: NextRequest) {
   }
   const resolvedModel = body.model || DEFAULT_STREAM_MODELS[resolvedProvider] || 'gpt-4o-mini'
 
+  // ── Resolve system prompt: body override → app agent → generic fallback ─
+  const appName = auth.app.name
+  let systemPrompt = body.systemPrompt || ''
+  if (!systemPrompt) {
+    try {
+      const agent = await getAppAgent(auth.app.slug)
+      if (agent?.active) {
+        systemPrompt = buildAgentSystemPrompt(agent)
+      }
+    } catch {
+      // Agent lookup failure must not block streaming
+    }
+  }
+  if (!systemPrompt) {
+    systemPrompt = `You are a helpful assistant for ${appName}.`
+  }
+
   // ── Stream response via SSE ──────────────────────────────────────────
   const encoder = new TextEncoder()
-  const appName = auth.app.name
-  const systemPrompt = body.systemPrompt || `You are a helpful assistant for ${appName}.`
 
   const stream = new ReadableStream({
     async start(controller) {
