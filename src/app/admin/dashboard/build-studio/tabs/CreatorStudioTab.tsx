@@ -194,13 +194,19 @@ export default function CreatorStudioTab({ initialMode }: CreatorStudioTabProps)
 
   const saveArtifact = useCallback(async () => {
     if (!result) return
-    const contentUrl = mode === 'music'
-      ? (result.audioUrl ?? result.imageUrl ?? result.videoUrl ?? null)
-      : (result.imageUrl ?? result.audioUrl ?? result.videoUrl ?? null)
+    const preferAudio = mode === 'music' || mode === 'voice'
+    const primaryAudioUrl = preferAudio ? (result.audioUrl ?? null) : null
+    const primaryImageUrl = result.imageUrl ?? null
+    const primaryVideoUrl = result.videoUrl ?? null
+    const fallbackAudioUrl = !preferAudio ? (result.audioUrl ?? null) : null
+    const contentUrl = primaryAudioUrl ?? primaryImageUrl ?? primaryVideoUrl ?? fallbackAudioUrl
     if (!contentUrl) return
-    const type = mode === 'music'
-      ? (result.audioUrl ? 'music' : result.imageUrl ? 'image' : 'video')
-      : (result.imageUrl ? 'image' : result.audioUrl ? 'audio' : 'video')
+    const type =
+      contentUrl === primaryAudioUrl
+        ? (mode === 'music' ? 'music' : 'audio')
+        : contentUrl === primaryImageUrl
+          ? 'image'
+          : 'video'
     const subType = mode === 'voice' ? 'tts' : mode
     setSavingArtifact(true)
     try {
