@@ -95,7 +95,7 @@ export default function HomePage() {
           <p className="text-label text-amber-300">Why it is different</p>
           <h2 className="text-headline mt-3">Built for operators, not prompt tourists.</h2>
           <div className="mt-8 space-y-3">
-            {difference.map((item, i) => (
+            {difference.map((item) => (
               <div key={item} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
                 <Sparkles className="mt-0.5 h-4 w-4 text-cyan-300" />
                 <span>{item}</span>

@@ -18,8 +18,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
 
-  if (pathname.startsWith('/admin')) return null
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -30,12 +28,14 @@ export default function Header() {
     setMenuOpen(false)
   }, [pathname])
 
+  if (pathname.startsWith('/admin')) return null
+
   return (
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${scrolled ? 'glass-strong' : 'bg-transparent'}`}>
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" aria-label="Amarktai Network OS">
           <span className="text-base font-bold tracking-tight text-white">Amarktai Network</span>
-          <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300">OS</span>
+          <span aria-hidden="true" className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300">OS</span>
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">

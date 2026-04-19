@@ -69,17 +69,32 @@ export default function ContactPage() {
               </div>
             ) : (
               <form className="space-y-4" onSubmit={onSubmit}>
-                <input className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" placeholder="Full name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                <input className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" type="email" placeholder="Work email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                <input className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" placeholder="Company / project" value={form.org} onChange={(e) => setForm({ ...form, org: e.target.value })} />
-                <select className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" required value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                  <option value="">Select request type</option>
+                <label className="block text-xs text-slate-400">
+                  Full name
+                  <input aria-label="Full name" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" placeholder="Full name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </label>
+                <label className="block text-xs text-slate-400">
+                  Work email
+                  <input aria-label="Work email" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" type="email" placeholder="Work email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                </label>
+                <label className="block text-xs text-slate-400">
+                  Company / project
+                  <input aria-label="Company or project" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" placeholder="Company / project" value={form.org} onChange={(e) => setForm({ ...form, org: e.target.value })} />
+                </label>
+                <label className="block text-xs text-slate-400">
+                  Request type
+                  <select aria-label="Request type" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" required value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option value="" disabled>Select request type</option>
                   <option>Enterprise access</option>
                   <option>Partnership</option>
                   <option>Integrator onboarding</option>
                   <option>Investment conversation</option>
                 </select>
-                <textarea className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" rows={5} placeholder="Describe your use case" required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+                </label>
+                <label className="block text-xs text-slate-400">
+                  Use case description
+                  <textarea aria-label="Use case description" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" rows={5} placeholder="Describe your use case" required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+                </label>
                 {error && <p className="text-xs text-red-300">Unable to submit right now. Please retry.</p>}
                 <button disabled={loading} className="btn-primary w-full justify-center" type="submit">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />} Send Request

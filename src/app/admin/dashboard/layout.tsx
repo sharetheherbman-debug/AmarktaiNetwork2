@@ -4,7 +4,7 @@ import '@fontsource-variable/inter'
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, LogOut, User, LayoutDashboard, AppWindow, Sparkles, Film, Brain, Server } from 'lucide-react'
+import { Menu, X, User, LayoutDashboard, AppWindow, Sparkles, Film, Brain, Server } from 'lucide-react'
 
 const sections = [
   { href: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },

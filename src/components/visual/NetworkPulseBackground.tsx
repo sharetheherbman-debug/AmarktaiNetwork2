@@ -12,7 +12,7 @@ export default function NetworkPulseBackground({ className = '' }: { className?:
   ]
 
   return (
-    <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`} aria-hidden>
+    <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`} aria-hidden={true}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(34,211,238,0.18),rgba(3,7,18,0.02)_46%,rgba(3,7,18,0.94)_90%)]" />
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 700 420" fill="none" preserveAspectRatio="none">
         {strands.map((d, i) => (
