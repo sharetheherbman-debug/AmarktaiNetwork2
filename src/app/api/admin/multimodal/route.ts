@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { getMultimodalStatus } from '@/lib/multimodal-router'
 import { getModelRegistry } from '@/lib/model-registry'
 import { getAppSafetyConfig } from '@/lib/content-filter'
+import { isProviderUsable } from '@/lib/model-registry'
 
 /**
  * GET /api/admin/multimodal — returns multimodal capabilities in dashboard format.
@@ -53,6 +54,8 @@ export async function GET() {
 
     // Adult 18+ safety config status
     const defaultSafety = getAppSafetyConfig('__default__')
+    // Adult image generation requires HuggingFace. Only report as available when HF is usable.
+    const hfUsable = isProviderUsable('huggingface')
 
     const capabilities = [
       {
@@ -93,10 +96,12 @@ export async function GET() {
         requestVolume: 0,
       },
       adultMode: {
-        available: true,
+        available: hfUsable,
         enabled: defaultSafety.adultMode,
         safeMode: defaultSafety.safeMode,
-        note: 'Adult 18+ content is gated per-app. CSAM/violence/self-harm always blocked.',
+        note: hfUsable
+          ? 'Adult 18+ content is gated per-app. CSAM/violence/self-harm always blocked.'
+          : 'Adult image generation requires a Hugging Face API key (Admin → AI Providers → Hugging Face). Configure HF to enable adult mode.',
       },
       statusLabel: status.statusLabel,
     })

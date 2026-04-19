@@ -202,11 +202,17 @@ export const OPENAI_IMAGE_MODELS = new Set([
  * Call an AI provider via the single provider vault.
  * Reads API key + base URL from the vault — never from the request.
  * Returns a normalised result. Never throws.
+ *
+ * @param systemPrompt - Optional system-level instructions injected via the
+ *   provider's native system role (OpenAI/Groq/etc. system message, Anthropic
+ *   `system` field, Gemini `systemInstruction`). Providers that lack a system
+ *   role receive it prepended to the user message.
  */
 export async function callProvider(
   providerKey: string,
   model: string,
   message: string,
+  systemPrompt?: string,
 ): Promise<ProviderCallResult> {
   const start = Date.now()
 
@@ -290,7 +296,10 @@ export async function callProvider(
           headers,
           body: JSON.stringify({
             model: resolvedModel,
-            messages: [{ role: 'user', content: message }],
+            messages: [
+              ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+              { role: 'user', content: message },
+            ],
             max_tokens: 1024,
           }),
           signal: AbortSignal.timeout(timeout),
@@ -306,10 +315,16 @@ export async function callProvider(
       // ── Gemini ──────────────────────────────────────────────────────────────
       case 'gemini': {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${encodeURIComponent(resolvedApiKey)}`
+        const geminiBody: Record<string, unknown> = {
+          contents: [{ parts: [{ text: message }] }],
+        }
+        if (systemPrompt) {
+          geminiBody.systemInstruction = { parts: [{ text: systemPrompt }] }
+        }
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: message }] }] }),
+          body: JSON.stringify(geminiBody),
           signal: AbortSignal.timeout(timeout),
         })
         if (!res.ok) {
@@ -392,7 +407,10 @@ export async function callProvider(
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resolvedApiKey}` },
           body: JSON.stringify({
             model: resolvedModel,
-            messages: [{ role: 'user', content: message }],
+            messages: [
+              ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+              { role: 'user', content: message },
+            ],
             max_tokens: 1024,
           }),
           signal: AbortSignal.timeout(timeout),
@@ -407,6 +425,14 @@ export async function callProvider(
       // ── Anthropic (Claude) ────────────────────────────────────────────────
       case 'anthropic': {
         const base = vault.baseUrl || 'https://api.anthropic.com'
+        const anthropicBody: Record<string, unknown> = {
+          model: resolvedModel,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: message }],
+        }
+        if (systemPrompt) {
+          anthropicBody.system = systemPrompt
+        }
         const res = await fetch(`${base}/v1/messages`, {
           method: 'POST',
           headers: {
@@ -414,11 +440,7 @@ export async function callProvider(
             'x-api-key': resolvedApiKey,
             'anthropic-version': '2023-06-01',
           },
-          body: JSON.stringify({
-            model: resolvedModel,
-            max_tokens: 1024,
-            messages: [{ role: 'user', content: message }],
-          }),
+          body: JSON.stringify(anthropicBody),
           signal: AbortSignal.timeout(timeout),
         })
         if (!res.ok) {
@@ -441,7 +463,10 @@ export async function callProvider(
           },
           body: JSON.stringify({
             model: resolvedModel,
-            messages: [{ role: 'user', content: message }],
+            messages: [
+              ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+              { role: 'user', content: message },
+            ],
           }),
           signal: AbortSignal.timeout(timeout),
         })
@@ -465,7 +490,10 @@ export async function callProvider(
           },
           body: JSON.stringify({
             model: resolvedModel,
-            messages: [{ role: 'user', content: message }],
+            messages: [
+              ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+              { role: 'user', content: message },
+            ],
             max_tokens: 1024,
           }),
           signal: AbortSignal.timeout(timeout),

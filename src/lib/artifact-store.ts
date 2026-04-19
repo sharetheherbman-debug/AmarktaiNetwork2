@@ -12,6 +12,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { getStorageDriver, type StorageDriver } from '@/lib/storage-driver'
+import { emitSystemEvent } from '@/lib/event-bus'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,7 +155,22 @@ export async function createArtifact(input: CreateArtifactInput): Promise<Artifa
     },
   })
 
-  return toArtifactRecord(row)
+  const artifact = toArtifactRecord(row)
+
+  // Emit SSE event so the dashboard live feed shows new artifacts in real time
+  emitSystemEvent('artifact_created', {
+    id: artifact.id,
+    type: artifact.type,
+    appSlug: artifact.appSlug,
+    title: artifact.title,
+    provider: artifact.provider,
+    model: artifact.model,
+    traceId: artifact.traceId,
+    storageUrl: artifact.storageUrl,
+    timestamp: new Date().toISOString(),
+  }, artifact.appSlug)
+
+  return artifact
 }
 
 /**

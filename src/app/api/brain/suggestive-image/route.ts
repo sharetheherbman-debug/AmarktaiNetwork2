@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppSafetyConfig, validateSuggestivePrompt } from '@/lib/content-filter';
+import { getAppSafetyConfig, loadAppSafetyConfigFromDB, validateSuggestivePrompt } from '@/lib/content-filter';
 import { getVaultApiKey } from '@/lib/brain';
 
 /**
@@ -95,6 +95,9 @@ export async function POST(request: NextRequest) {
 
     // ── Per-app gating check ────────────────────────────────────────────
     if (appSlug) {
+      // Always hydrate from DB first so cold-start / server restart doesn't
+      // incorrectly default to safeMode=true / suggestiveMode=false.
+      await loadAppSafetyConfigFromDB(appSlug);
       const safetyConfig = getAppSafetyConfig(appSlug);
       if (safetyConfig.safeMode || !safetyConfig.suggestiveMode) {
         return NextResponse.json(

@@ -38,7 +38,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAppSafetyConfig, scanContent } from '@/lib/content-filter';
+import { getAppSafetyConfig, loadAppSafetyConfigFromDB, scanContent } from '@/lib/content-filter';
 import { getVaultApiKey } from '@/lib/brain';
 
 const ALLOWED_SIZES = ['512x512', '768x768', '1024x1024'] as const;
@@ -115,6 +115,9 @@ export async function POST(request: NextRequest) {
     // ── Per-app adult mode enforcement ───────────────────────────────────
     // Adult mode requires the operator to explicitly configure the app with
     // safeMode=false AND adultMode=true. This cannot be bypassed.
+    // Always hydrate from DB first so cold-start / server restart doesn't
+    // incorrectly default to safeMode=true / adultMode=false.
+    await loadAppSafetyConfigFromDB(appSlug);
     const safetyConfig = getAppSafetyConfig(appSlug);
     if (safetyConfig.safeMode || !safetyConfig.adultMode) {
       return NextResponse.json(
