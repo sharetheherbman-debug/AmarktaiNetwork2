@@ -6,7 +6,7 @@
  * this wrapper makes it usable inside Build Studio without duplication.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
   Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen, Download,
@@ -20,7 +20,21 @@ const CAPABILITIES = [
 
 interface ProviderOption { key: string; label: string; healthStatus: string }
 interface CapabilityEntry { capability: string; available: boolean; reason: string | null; routeExists: boolean }
-interface ModelOption { id: string; name: string; provider: string; category: string }
+interface ModelOption {
+  id: string
+  name: string
+  provider: string
+  category: string
+  shortDescription?: string
+  estimatedCostTier?: 'cheap' | 'medium' | 'expensive'
+}
+
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((b) => { binary += String.fromCharCode(b) })
+  return btoa(binary)
+}
 
 interface TestResult {
   success: boolean
@@ -73,6 +87,7 @@ export default function TestAITab() {
   const [videoJobId, setVideoJobId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [savingArtifact, setSavingArtifact] = useState(false)
+  const [selectedModelMeta, setSelectedModelMeta] = useState<ModelOption | null>(null)
   const videoPollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadProviders = useCallback(async () => {
@@ -115,6 +130,11 @@ export default function TestAITab() {
   }, [])
 
   useEffect(() => { loadProviders(); loadModels(); loadCapabilities() }, [loadProviders, loadModels, loadCapabilities])
+
+  const visibleModels = forceProvider === 'auto'
+    ? models
+    : models.filter((m) => m.provider === forceProvider)
+  const visibleModelKeys = useMemo(() => new Set(visibleModels.map((m) => `${m.provider}:${m.id}`)), [visibleModels])
 
   const runTest = useCallback(async () => {
     if (!prompt.trim()) return
@@ -204,8 +224,12 @@ export default function TestAITab() {
     // General brain test
     try {
       const body: Record<string, unknown> = { appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt }
+      const modelParts = forceModel !== 'auto' ? forceModel.split(':', 2) : []
+      const forcedModelProvider = modelParts.length === 2 ? modelParts[0] : null
+      const forcedModelId = modelParts.length === 2 ? modelParts[1] : (forceModel !== 'auto' ? forceModel : null)
       if (forceProvider !== 'auto') body.providerKey = forceProvider
-      if (forceModel !== 'auto') body.modelId = forceModel
+      if (forceModel !== 'auto' && forcedModelId) body.modelId = forcedModelId
+      if (forceProvider === 'auto' && forcedModelProvider) body.providerKey = forcedModelProvider
       const res = await fetch('/api/admin/brain/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({ success: false, error: `Unexpected response from server (HTTP ${res.status})`, executed: false, output: null, capability: [capability], routedProvider: null, routedModel: null, executionMode: null, confidenceScore: null, validationUsed: false, consensusUsed: false, fallbackUsed: false, fallback_used: false, warnings: [], latencyMs: 0 }))
       if (!res.ok && !data.error) {
@@ -235,18 +259,36 @@ export default function TestAITab() {
 
   useEffect(() => { return () => { if (videoPollingRef.current) clearInterval(videoPollingRef.current) } }, [])
 
+  useEffect(() => {
+    if (forceProvider !== 'auto' && forceModel !== 'auto') {
+      const stillAvailable = visibleModelKeys.has(forceModel)
+      if (!stillAvailable) setForceModel('auto')
+    }
+  }, [forceProvider, forceModel, visibleModelKeys])
+
+  useEffect(() => {
+    if (forceModel === 'auto') {
+      setSelectedModelMeta(null)
+      return
+    }
+    setSelectedModelMeta(models.find((m) => `${m.provider}:${m.id}` === forceModel) ?? null)
+  }, [forceModel, models])
+
   const saveArtifact = useCallback(async () => {
     if (!result) return
     const contentUrl = result.imageUrl ?? result.audioUrl ?? videoUrl ?? null
-    if (!contentUrl) return
-    const type = result.imageUrl ? 'image' : result.audioUrl ? 'audio' : 'video'
+    const textOutput = !contentUrl && result.output ? result.output : null
+    if (!contentUrl && !textOutput) return
+    const type = contentUrl
+      ? (result.imageUrl ? 'image' : result.audioUrl ? 'audio' : 'video')
+      : 'code'
     setSavingArtifact(true)
     try {
       const res = await fetch('/api/admin/artifacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appSlug: '__workspace__',
+          appSlug: 'workspace',
           type,
           subType: capability,
           title: `${capability} test output`,
@@ -254,6 +296,8 @@ export default function TestAITab() {
           provider: result.routedProvider ?? '',
           model: result.routedModel ?? '',
           contentUrl,
+          contentBase64: textOutput ? encodeBase64Utf8(textOutput) : undefined,
+          mimeType: textOutput ? 'text/plain; charset=utf-8' : undefined,
           metadata: { capability, prompt },
         }),
       })
@@ -327,8 +371,22 @@ export default function TestAITab() {
           <select value={forceModel} onChange={e => setForceModel(e.target.value)}
             className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white">
             <option value="auto">Auto-select model</option>
-            {models.map(m => <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>)}
+            {visibleModels.map((m) => (
+              <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+                {m.name} ({m.provider}) [{m.estimatedCostTier ?? 'medium'}]
+              </option>
+            ))}
           </select>
+          {forceProvider !== 'auto' && visibleModels.length === 0 && (
+            <p className="text-[11px] text-amber-300">No models available for this provider.</p>
+          )}
+          {selectedModelMeta && (
+            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[11px] text-slate-300">
+              <div className="font-medium text-white">{selectedModelMeta.name}</div>
+              <div>{selectedModelMeta.shortDescription ?? 'No description available'}</div>
+              <div className="mt-1 text-slate-400">Cost tier: {selectedModelMeta.estimatedCostTier ?? 'medium'}</div>
+            </div>
+          )}
           {capability === 'chat' && (
             <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
               <input type="checkbox" checked={streamMode} onChange={e => setStreamMode(e.target.checked)}

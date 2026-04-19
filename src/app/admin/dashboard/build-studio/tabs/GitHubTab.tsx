@@ -11,8 +11,22 @@ import {
   FolderGit2, RefreshCw, Rocket,
 } from 'lucide-react'
 
-interface RepoInfo { name: string; fullName: string; url: string; defaultBranch: string }
+interface RepoInfo {
+  name: string
+  fullName: string
+  url: string
+  defaultBranch: string
+}
 interface GitHubStatus { connected: boolean; user?: string; repos?: RepoInfo[]; error?: string }
+interface RawRepoInfo {
+  name?: string
+  fullName?: string
+  full_name?: string
+  url?: string
+  html_url?: string
+  defaultBranch?: string
+  default_branch?: string
+}
 
 export default function GitHubTab() {
   const [status, setStatus] = useState<GitHubStatus | null>(null)
@@ -33,10 +47,19 @@ export default function GitHubTab() {
       ])
       const valData = valRes.ok ? await valRes.json() : { valid: false }
       const repoData = repoRes.ok ? await repoRes.json() : { repos: [] }
+      const repos: RepoInfo[] = Array.isArray(repoData.repos)
+        ? repoData.repos.map((r: RawRepoInfo) => ({
+            name: r.name ?? '',
+            fullName: r.fullName ?? r.full_name ?? '',
+            url: r.url ?? r.html_url ?? '',
+            defaultBranch: r.defaultBranch ?? r.default_branch ?? 'main',
+          }))
+        : []
+
       setStatus({
         connected: valData.valid ?? false,
-        user: valData.user,
-        repos: repoData.repos ?? [],
+        user: valData.username ?? valData.user ?? '',
+        repos,
         error: valData.error,
       })
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to check GitHub') } finally { setLoading(false) }
