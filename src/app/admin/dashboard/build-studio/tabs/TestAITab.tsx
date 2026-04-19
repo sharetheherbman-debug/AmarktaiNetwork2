@@ -6,7 +6,7 @@
  * this wrapper makes it usable inside Build Studio without duplication.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
   Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen, Download,
@@ -27,6 +27,13 @@ interface ModelOption {
   category: string
   shortDescription?: string
   estimatedCostTier?: 'cheap' | 'medium' | 'expensive'
+}
+
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((b) => { binary += String.fromCharCode(b) })
+  return btoa(binary)
 }
 
 interface TestResult {
@@ -127,6 +134,7 @@ export default function TestAITab() {
   const visibleModels = forceProvider === 'auto'
     ? models
     : models.filter((m) => m.provider === forceProvider)
+  const visibleModelKeys = useMemo(() => new Set(visibleModels.map((m) => `${m.provider}:${m.id}`)), [visibleModels])
 
   const runTest = useCallback(async () => {
     if (!prompt.trim()) return
@@ -216,8 +224,12 @@ export default function TestAITab() {
     // General brain test
     try {
       const body: Record<string, unknown> = { appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt }
+      const modelParts = forceModel !== 'auto' ? forceModel.split(':', 2) : []
+      const forcedModelProvider = modelParts.length === 2 ? modelParts[0] : null
+      const forcedModelId = modelParts.length === 2 ? modelParts[1] : (forceModel !== 'auto' ? forceModel : null)
       if (forceProvider !== 'auto') body.providerKey = forceProvider
-      if (forceModel !== 'auto') body.modelId = forceModel
+      if (forceModel !== 'auto' && forcedModelId) body.modelId = forcedModelId
+      if (forceProvider === 'auto' && forcedModelProvider) body.providerKey = forcedModelProvider
       const res = await fetch('/api/admin/brain/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({ success: false, error: `Unexpected response from server (HTTP ${res.status})`, executed: false, output: null, capability: [capability], routedProvider: null, routedModel: null, executionMode: null, confidenceScore: null, validationUsed: false, consensusUsed: false, fallbackUsed: false, fallback_used: false, warnings: [], latencyMs: 0 }))
       if (!res.ok && !data.error) {
@@ -249,17 +261,17 @@ export default function TestAITab() {
 
   useEffect(() => {
     if (forceProvider !== 'auto' && forceModel !== 'auto') {
-      const stillAvailable = visibleModels.some((m) => m.id === forceModel)
+      const stillAvailable = visibleModelKeys.has(forceModel)
       if (!stillAvailable) setForceModel('auto')
     }
-  }, [forceProvider, forceModel, visibleModels])
+  }, [forceProvider, forceModel, visibleModelKeys])
 
   useEffect(() => {
     if (forceModel === 'auto') {
       setSelectedModelMeta(null)
       return
     }
-    setSelectedModelMeta(models.find((m) => m.id === forceModel) ?? null)
+    setSelectedModelMeta(models.find((m) => `${m.provider}:${m.id}` === forceModel) ?? null)
   }, [forceModel, models])
 
   const saveArtifact = useCallback(async () => {
@@ -284,7 +296,7 @@ export default function TestAITab() {
           provider: result.routedProvider ?? '',
           model: result.routedModel ?? '',
           contentUrl,
-          contentBase64: textOutput ? btoa(unescape(encodeURIComponent(textOutput))) : undefined,
+          contentBase64: textOutput ? encodeBase64Utf8(textOutput) : undefined,
           mimeType: textOutput ? 'text/plain; charset=utf-8' : undefined,
           metadata: { capability, prompt },
         }),
@@ -360,7 +372,7 @@ export default function TestAITab() {
             className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white">
             <option value="auto">Auto-select model</option>
             {visibleModels.map((m) => (
-              <option key={`${m.provider}:${m.id}`} value={m.id}>
+              <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
                 {m.name} ({m.provider}) [{m.estimatedCostTier ?? 'medium'}]
               </option>
             ))}

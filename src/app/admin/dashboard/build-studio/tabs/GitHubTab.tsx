@@ -18,6 +18,15 @@ interface RepoInfo {
   defaultBranch: string
 }
 interface GitHubStatus { connected: boolean; user?: string; repos?: RepoInfo[]; error?: string }
+interface RawRepoInfo {
+  name?: string
+  fullName?: string
+  full_name?: string
+  url?: string
+  html_url?: string
+  defaultBranch?: string
+  default_branch?: string
+}
 
 export default function GitHubTab() {
   const [status, setStatus] = useState<GitHubStatus | null>(null)
@@ -39,15 +48,7 @@ export default function GitHubTab() {
       const valData = valRes.ok ? await valRes.json() : { valid: false }
       const repoData = repoRes.ok ? await repoRes.json() : { repos: [] }
       const repos: RepoInfo[] = Array.isArray(repoData.repos)
-        ? repoData.repos.map((r: {
-            name?: string
-            fullName?: string
-            full_name?: string
-            url?: string
-            html_url?: string
-            defaultBranch?: string
-            default_branch?: string
-          }) => ({
+        ? repoData.repos.map((r: RawRepoInfo) => ({
             name: r.name ?? '',
             fullName: r.fullName ?? r.full_name ?? '',
             url: r.url ?? r.html_url ?? '',

@@ -25,7 +25,8 @@ const DEFAULT_SETTINGS: VoiceAccessSettings = {
 }
 
 function getSettingsKey(session: { email?: string; adminId?: number }): string {
-  return `voice-access-settings:${session.email ?? session.adminId ?? 'admin'}`
+  const identifier = session.email ?? (session.adminId != null ? String(session.adminId) : 'admin')
+  return `voice-access-settings:${identifier}`
 }
 
 function parseSettings(notes: string | null | undefined): VoiceAccessSettings {

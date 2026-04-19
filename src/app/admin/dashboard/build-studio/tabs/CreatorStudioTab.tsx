@@ -38,6 +38,13 @@ interface CreatorStudioTabProps {
   initialMode?: CreatorMode
 }
 
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((b) => { binary += String.fromCharCode(b) })
+  return btoa(binary)
+}
+
 export default function CreatorStudioTab({ initialMode }: CreatorStudioTabProps) {
   const [mode, setMode] = useState<CreatorMode>(initialMode ?? 'image')
   const [prompt, setPrompt] = useState('')
@@ -224,7 +231,7 @@ export default function CreatorStudioTab({ initialMode }: CreatorStudioTabProps)
           provider: result.provider ?? '',
           model: result.model ?? '',
           contentUrl,
-          contentBase64: textOutput ? btoa(unescape(encodeURIComponent(textOutput))) : undefined,
+          contentBase64: textOutput ? encodeBase64Utf8(textOutput) : undefined,
           mimeType: textOutput ? 'text/plain; charset=utf-8' : undefined,
           metadata: { mode, prompt },
         }),
