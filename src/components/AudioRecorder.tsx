@@ -80,7 +80,7 @@ export default function AudioRecorder({
           : 'Failed to access microphone',
       )
     }
-  }, [])
+  }, [onAvailabilityChange])
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {

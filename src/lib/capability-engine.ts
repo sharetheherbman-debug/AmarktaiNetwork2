@@ -279,8 +279,7 @@ export interface ResolveCapabilityResult {
   routeResult: CapabilityRouteResult;
 }
 
-export interface ResolveCapabilityOptions
-  extends Omit<CapabilityRouteRequest, 'capabilities'> {}
+export type ResolveCapabilityOptions = Omit<CapabilityRouteRequest, 'capabilities'>;
 
 function mapExplicitTaskTypeToCapabilities(taskType: string): CapabilityClass[] {
   const t = (taskType ?? '').toLowerCase().trim();
@@ -331,10 +330,10 @@ export function resolveCapability(
   const explicitCaps = mapExplicitTaskTypeToCapabilities(taskType);
   const detectedCaps = classifyCapabilities(taskType, message);
   const explicitNonGeneric = explicitCaps.some((cap) => !isGenericExplicitCapability(cap));
-  const merged = explicitNonGeneric
+  const merged: CapabilityClass[] = explicitNonGeneric
     ? explicitCaps
     : Array.from(new Set<CapabilityClass>([...explicitCaps, ...detectedCaps]));
-  const capabilities = merged.length > 0 ? merged : ['general_chat'];
+  const capabilities: CapabilityClass[] = merged.length > 0 ? merged : ['general_chat'];
   const routeResult = resolveCapabilityRoutes({
     ...options,
     capabilities,
