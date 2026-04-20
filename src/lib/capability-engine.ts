@@ -145,7 +145,9 @@ const CAPABILITY_MAP: Record<CapabilityClass, CapabilityRequirement> = {
   video_generation: {
     anyCapabilityFlag: ['supports_video_generation'],
     label: 'video generation',
-    suggestedProviders: ['replicate', 'huggingface'],
+    // HuggingFace is NOT a valid video generation provider (no async job API).
+    // Use Replicate or Together AI for real video generation.
+    suggestedProviders: ['replicate', 'together'],
   },
   voice_input: {
     anyCapabilityFlag: ['supports_stt', 'supports_voice_interaction'],
@@ -594,7 +596,7 @@ const BACKEND_ROUTE_EXISTS: Record<CapabilityClass, boolean> = {
   image_generation:          true,   // /api/brain/request (DALL-E / FLUX)
   image_editing:             true,   // /api/brain/image-edit (OpenAI DALL-E 2 inpainting + HuggingFace SD-inpainting)
   video_planning:            true,   // /api/brain/request (AI text — always possible via chat models)
-  video_generation:          true,   // /api/brain/video-generate (async job pipeline — Replicate / HuggingFace)
+  video_generation:          true,   // /api/brain/video-generate (async job pipeline — Replicate / Together AI)
   voice_input:               true,   // /api/brain/stt + /api/voice/stt (Groq Whisper / OpenAI Whisper / Gemini Live / HuggingFace Whisper)
   voice_output:              true,   // /api/brain/tts + /api/voice/tts (Groq PlayAI / OpenAI TTS / Gemini TTS / HuggingFace MMS)
   realtime_voice:            true,   // /api/realtime/session (session config) + separate WS service (services/realtime)
