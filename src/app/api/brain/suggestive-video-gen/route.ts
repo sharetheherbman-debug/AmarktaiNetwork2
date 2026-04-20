@@ -4,7 +4,7 @@
  * Suggestive (non-explicit) video generation.
  *
  * CURRENT STATE: BLOCKED — no working video provider for this capability.
- * HuggingFace Inference API does not support zeroscope or text-to-video-ms
+ * Hugging Face Inference API does not support zeroscope or text-to-video-ms
  * via a stable endpoint. This route returns a truthful 503 with a clear
  * provider requirement until Replicate or another video provider is wired.
  *
@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Provider gate — HuggingFace video is not a supported endpoint ───
-    // The HuggingFace Inference API does not provide a working async video
+    // ── Provider gate — Hugging Face video is not a supported endpoint ───
+    // The Hugging Face Inference API does not provide a working async video
     // pipeline for models like zeroscope_v2_576w or text-to-video-ms-1.7b.
     // Calling those endpoints produces HTML error pages, not video data.
     // Return a truthful error instead of making a call we know will fail.

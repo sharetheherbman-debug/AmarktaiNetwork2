@@ -8,7 +8,7 @@ import { getVaultApiKey } from '@/lib/brain';
  *   - Groq STT (low-cost, fast — whisper-large-v3 / distil-whisper-large-v3-en / whisper-large-v3-turbo)
  *   - OpenAI STT (premium — whisper-1)
  *   - Gemini STT (premium multimodal — gemini-2.0-flash-live-001)
- *   - HuggingFace STT (free fallback — openai/whisper-large-v3 / openai/whisper-small)
+ *   - Hugging Face STT (free fallback — openai/whisper-large-v3 / openai/whisper-small)
  *
  * API keys are resolved from the DB vault first, then env var fallback.
  *
@@ -86,12 +86,12 @@ export async function POST(request: NextRequest) {
       provider = 'gemini';
     } else if (requestedProvider === 'huggingface') {
       if (!hfKey) {
-        return unavailable('provider_not_configured', 'HuggingFace STT requested but no HuggingFace API key is configured. Add it via Admin → AI Providers.', 503, 'huggingface');
+        return unavailable('provider_not_configured', 'Hugging Face STT requested but no Hugging Face API key is configured. Add it via Admin → AI Providers.', 503, 'huggingface');
       }
       provider = 'huggingface';
     } else {
       // Auto: OpenAI is the golden-path baseline. Groq is used as fallback when
-      // OpenAI is not configured. Gemini and HuggingFace are last-resort options.
+      // OpenAI is not configured. Gemini and Hugging Face are last-resort options.
       if (openaiKey) {
         provider = 'openai';
       } else if (groqKey) {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       } else {
         return unavailable(
           'all_providers_unavailable',
-          'Voice input is currently unavailable: no STT provider is configured. Add an API key via Admin → AI Providers (OpenAI, Groq, Gemini, or HuggingFace).',
+          'Voice input is currently unavailable: no STT provider is configured. Add an API key via Admin → AI Providers (OpenAI, Groq, Gemini, or Hugging Face).',
           503,
         );
       }
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider === 'huggingface') {
-      // HuggingFace Inference API — free fallback STT
+      // Hugging Face Inference API — free fallback STT
       const ALLOWED_HF_STT_MODELS = ['openai/whisper-large-v3', 'openai/whisper-small', 'openai/whisper-base'] as const;
       const matched = ALLOWED_HF_STT_MODELS.find((m) => m === model);
       const hfModel = matched ?? 'openai/whisper-large-v3';
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const err = await response.text();
-        return unavailable('transcription_failed', `HuggingFace transcription failed: ${err}`, response.status, 'huggingface');
+        return unavailable('transcription_failed', `Hugging Face transcription failed: ${err}`, response.status, 'huggingface');
       }
 
       const result = await response.json();

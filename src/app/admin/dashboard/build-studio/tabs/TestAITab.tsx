@@ -19,6 +19,11 @@ const CAPABILITIES = [
   'adult_image', 'app_builder',
 ]
 
+/** Rough estimate: average English word is ~4 characters, ~1 token */
+const CHARS_PER_TOKEN_ESTIMATE = 4
+/** Conservative blended rate in USD per token across cheap→medium models */
+const COST_PER_TOKEN_USD = 0.000002
+
 interface ProviderOption { key: string; label: string; healthStatus: string }
 interface CapabilityEntry { capability: string; available: boolean; reason: string | null; routeExists: boolean }
 interface ModelOption {
@@ -585,7 +590,7 @@ export default function TestAITab() {
             {/* Estimated cost chip — computed from prompt length × rough token rate */}
             {result.routedModel && prompt.trim().length > 0 && (
               <span className="px-2 py-1 rounded-full bg-white/[0.04] text-slate-400">
-                Est. cost: ~${(Math.max(1, Math.ceil(prompt.trim().length / 4)) * 0.000002).toFixed(5)}
+                Est. cost: ~${(Math.max(1, Math.ceil(prompt.trim().length / CHARS_PER_TOKEN_ESTIMATE)) * COST_PER_TOKEN_USD).toFixed(5)}
               </span>
             )}
           </div>

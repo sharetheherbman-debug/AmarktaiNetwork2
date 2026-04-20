@@ -145,7 +145,7 @@ const CAPABILITY_MAP: Record<CapabilityClass, CapabilityRequirement> = {
   video_generation: {
     anyCapabilityFlag: ['supports_video_generation'],
     label: 'video generation',
-    // HuggingFace is NOT a valid video generation provider (no async job API).
+    // Hugging Face is NOT a valid video generation provider (no async job API).
     // Use Replicate or Together AI for real video generation.
     suggestedProviders: ['replicate', 'together'],
   },
@@ -587,20 +587,20 @@ const BACKEND_ROUTE_EXISTS: Record<CapabilityClass, boolean> = {
   coding:                    true,   // /api/brain/request
   retrieval:                 true,   // /api/brain/request (retrieval_chain)
   embeddings:                true,   // /api/brain/request (embedding pipeline)
-  reranking:                 true,   // /api/brain/rerank (HuggingFace cross-encoder / NVIDIA)
+  reranking:                 true,   // /api/brain/rerank (Hugging Face cross-encoder / NVIDIA)
   summarization:             true,   // /api/brain/request
   classification:            true,   // /api/brain/request
   validation:                true,   // /api/brain/request
   agent_planning:            true,   // /api/brain/request (agent_chain)
   multimodal_understanding:  true,   // /api/brain/request (multimodal_chain)
   image_generation:          true,   // /api/brain/request (DALL-E / FLUX)
-  image_editing:             true,   // /api/brain/image-edit (OpenAI DALL-E 2 inpainting + HuggingFace SD-inpainting)
+  image_editing:             true,   // /api/brain/image-edit (OpenAI DALL-E 2 inpainting + Hugging Face SD-inpainting)
   video_planning:            true,   // /api/brain/request (AI text — always possible via chat models)
   video_generation:          true,   // /api/brain/video-generate (async job pipeline — Replicate / Together AI)
-  voice_input:               true,   // /api/brain/stt + /api/voice/stt (Groq Whisper / OpenAI Whisper / Gemini Live / HuggingFace Whisper)
-  voice_output:              true,   // /api/brain/tts + /api/voice/tts (Groq PlayAI / OpenAI TTS / Gemini TTS / HuggingFace MMS)
+  voice_input:               true,   // /api/brain/stt + /api/voice/stt (Groq Whisper / OpenAI Whisper / Gemini Live / Hugging Face Whisper)
+  voice_output:              true,   // /api/brain/tts + /api/voice/tts (Groq PlayAI / OpenAI TTS / Gemini TTS / Hugging Face MMS)
   realtime_voice:            true,   // /api/realtime/session (session config) + separate WS service (services/realtime)
-  adult_18plus_image:        true,   // /api/brain/adult-image (HuggingFace — adultMode gated, ALWAYS_BLOCKED enforced)
+  adult_18plus_image:        true,   // /api/brain/adult-image (Hugging Face — adultMode gated, ALWAYS_BLOCKED enforced)
   moderation:                true,   // /api/brain/request (OpenAI moderation)
   app_analysis:              true,   // /api/brain/request
   research_search:           true,   // /api/brain/request + /api/brain/research
@@ -608,7 +608,7 @@ const BACKEND_ROUTE_EXISTS: Record<CapabilityClass, boolean> = {
   scraping_extraction:       true,   // /api/brain/request
   suggestive_image_generation:  true, // /api/brain/suggestive-image (prompt-guarded, safeMode+suggestiveMode gated)
   suggestive_video_planning:    true, // /api/brain/suggestive-video (planning only, no generation)
-  suggestive_video_generation:  true, // /api/brain/suggestive-video-gen (HuggingFace text-to-video, prompt-guarded)
+  suggestive_video_generation:  true, // /api/brain/suggestive-video-gen (Hugging Face text-to-video, prompt-guarded)
 };
 
 // ---------------------------------------------------------------------------

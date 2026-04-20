@@ -120,7 +120,7 @@ export async function GET(
         updated = { status: 'processing' };
       }
     } else if (job.provider === 'huggingface') {
-      // HuggingFace video generation is no longer supported. Any legacy jobs that
+      // Hugging Face video generation is no longer supported. Any legacy jobs that
       // were created via HF are marked failed with an actionable error message.
       updated = {
         status: 'failed',

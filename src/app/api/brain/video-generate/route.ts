@@ -7,7 +7,7 @@
  *   1. Replicate (wan-ai/wan2.1-t2v-480p, minimax/video-01)
  *   2. Together AI (black-forest-labs/FLUX.1-schnell-Free — video-capable models)
  *
- * HuggingFace is NOT supported for video generation. The Inference API does not
+ * Hugging Face is NOT supported for video generation. The Inference API does not
  * provide a stable asynchronous video job endpoint for models like zeroscope.
  * Explicit requests with provider="huggingface" return a 400 with a clear error.
  *
@@ -173,7 +173,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { prompt, style, duration, aspectRatio, appSlug, provider, model } = parsed.data;
 
-  // HuggingFace does NOT support video generation via the Inference API.
+  // Hugging Face does NOT support video generation via the Inference API.
   // The endpoint /models/cerspense/zeroscope_v2_576w is not a valid async job API.
   if (provider === 'huggingface') {
     return NextResponse.json(
