@@ -717,9 +717,53 @@ const SETTINGS_GATED_CAPABILITIES: ReadonlySet<CapabilityClass> = new Set([
 // Detailed capability status with reasons
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Phase 1 — AVAILABLE / PARTIAL / BLOCKED availability levels
+// ---------------------------------------------------------------------------
+
+/**
+ * Three-state availability for each capability:
+ *
+ *  AVAILABLE — route exists + at least one usable model is present.
+ *  PARTIAL   — route exists but only a lower-fidelity fallback mode can serve the
+ *              request (e.g. video_generation when only video_planning works because
+ *              no Replicate/Together key is configured).
+ *  BLOCKED   — no backend route, no provider, or settings-gated without the
+ *              required mode enabled.
+ *
+ * Use this level in UIs and routing logic instead of the boolean `available` to
+ * surface degraded-but-partial states clearly to operators.
+ */
+export type CapabilityAvailabilityLevel = 'AVAILABLE' | 'PARTIAL' | 'BLOCKED';
+
+/**
+ * Capabilities that have a lower-fidelity planning/scripting fallback.
+ * When the primary capability is unavailable but the fallback is available,
+ * the capability is marked PARTIAL rather than BLOCKED.
+ */
+const PARTIAL_FALLBACK_MAP: Partial<Record<CapabilityClass, CapabilityClass>> = {
+  video_generation:           'video_planning',
+  suggestive_video_generation: 'suggestive_video_planning',
+};
+
+function computeAvailabilityLevel(
+  cap: CapabilityClass,
+  available: boolean,
+): CapabilityAvailabilityLevel {
+  if (available) return 'AVAILABLE';
+  const fallbackCap = PARTIAL_FALLBACK_MAP[cap];
+  if (fallbackCap) {
+    const fallbackResult = resolveCapabilityRoutes({ capabilities: [fallbackCap] });
+    if (fallbackResult.allSatisfied) return 'PARTIAL';
+  }
+  return 'BLOCKED';
+}
+
 export interface CapabilityStatusEntry {
   capability: CapabilityClass;
   available: boolean;
+  /** Three-state availability level for UI and routing decisions. */
+  availabilityLevel: CapabilityAvailabilityLevel;
   reason: string | null;
   routeExists: boolean;
   /** True when the capability is gated by app-level settings (not a provider/infrastructure issue). */
@@ -732,10 +776,116 @@ export function getDetailedCapabilityStatus(): CapabilityStatusEntry[] {
   return result.routes.map((route) => ({
     capability: route.capability,
     available: route.available,
+    availabilityLevel: computeAvailabilityLevel(route.capability, route.available),
     reason: route.available ? null : (route.missingMessage ?? 'Unknown reason'),
     routeExists: BACKEND_ROUTE_EXISTS[route.capability] ?? false,
     blockedBySettings: !route.available && SETTINGS_GATED_CAPABILITIES.has(route.capability),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — resolveExecution: pre-flight capability + provider + model gate
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate whether a specific capability can be executed with the given
+ * provider and model BEFORE any API call is made.
+ *
+ * This is the authoritative pre-execution gate. Callers (routes, adapters)
+ * must check this result and return an error response immediately when
+ * `allowed === false`.
+ *
+ * Rules enforced:
+ *  1. Capability must exist in CAPABILITY_MAP.
+ *  2. A backend route must exist for the capability.
+ *  3. The provider must be usable (configured + not unhealthy).
+ *  4. The provider must have at least one model that satisfies the capability.
+ *  5. If a specific model is named, that model must satisfy the capability.
+ *
+ * @param capability - The CapabilityClass being requested.
+ * @param provider   - The provider key (e.g. 'openai', 'replicate').
+ * @param model      - The specific model ID to validate, or empty string for any.
+ */
+export function resolveExecution(
+  capability: CapabilityClass,
+  provider: string,
+  model: string,
+): { allowed: boolean; error?: string; reason?: string } {
+  const req = CAPABILITY_MAP[capability];
+  if (!req) {
+    return {
+      allowed: false,
+      error: `Unknown capability "${capability}". No entry in the capability map.`,
+      reason: 'unknown_capability',
+    };
+  }
+
+  if (!BACKEND_ROUTE_EXISTS[capability]) {
+    return {
+      allowed: false,
+      error: `No backend route exists for ${req.label}. This capability is not implemented.`,
+      reason: 'no_backend_route',
+    };
+  }
+
+  if (!isProviderUsable(provider)) {
+    return {
+      allowed: false,
+      error:
+        `Provider "${provider}" is not configured or not currently usable. ` +
+        `Add an API key for "${provider}" in the provider settings.`,
+      reason: 'provider_unavailable',
+    };
+  }
+
+  const usableModels = getUsableModels().filter((m) => m.provider === provider);
+  if (usableModels.length === 0) {
+    return {
+      allowed: false,
+      error: `Provider "${provider}" has no usable models in the registry.`,
+      reason: 'no_models',
+    };
+  }
+
+  if (model) {
+    const modelEntry = usableModels.find((m) => m.model_id === model);
+    if (!modelEntry) {
+      // Model not in registry — check if provider has any capable model
+      const capable = usableModels.filter((m) => modelSatisfiesCapability(m, req));
+      if (capable.length === 0) {
+        return {
+          allowed: false,
+          error:
+            `Provider "${provider}" does not support ${req.label}. ` +
+            `Model "${model}" is not registered and no capable model exists for this provider.`,
+          reason: 'capability_mismatch',
+        };
+      }
+      // Provider has capable models — model name unknown but provider can serve
+      return { allowed: true, reason: `requested_model_not_found_using_${capable[0].model_id}` };
+    }
+    if (!modelSatisfiesCapability(modelEntry, req)) {
+      return {
+        allowed: false,
+        error:
+          `Model "${model}" (${provider}) does not support ${req.label}. ` +
+          `Cross-capability execution is strictly prohibited.`,
+        reason: 'capability_mismatch',
+      };
+    }
+  } else {
+    // No specific model requested — verify provider has at least one capable model
+    const capable = usableModels.filter((m) => modelSatisfiesCapability(m, req));
+    if (capable.length === 0) {
+      return {
+        allowed: false,
+        error: `Provider "${provider}" has no models that support ${req.label}.`,
+        reason: 'no_capable_model',
+      };
+    }
+  }
+
+  return { allowed: true };
 }
 
 // ---------------------------------------------------------------------------

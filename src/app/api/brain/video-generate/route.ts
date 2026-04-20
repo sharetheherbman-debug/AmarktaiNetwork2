@@ -124,7 +124,7 @@ async function createTogetherVideoJob(
   // Together's image/generation API is synchronous; if data is present mark as succeeded
   const resultReady = Array.isArray(data.data) && data.data.length > 0;
   return {
-    providerJobId: resultReady ? `together-sync:${jobId}:${(data.data![0].url ?? '')}` : `together:${jobId}`,
+    providerJobId: resultReady ? `together-sync:${jobId}:${(data.data?.[0]?.url ?? '')}` : `together:${jobId}`,
     status: resultReady ? 'succeeded' : 'processing',
   };
 }

@@ -83,6 +83,43 @@ function getAdminSafetyOverride(appSlug: string): SafetyConfig | null {
   }
 }
 
+// ── Global platform adult mode toggle ────────────────────────────────────────
+// Enables adult content for ALL apps on the platform without requiring per-app
+// configuration. Useful for adult-only deployments.
+//
+// Priority order (highest wins):
+//   1. ADMIN_ALWAYS_ADULT_APPS hard-coded set (workspace / test slugs)
+//   2. globalAdultModeState (set via setGlobalAdultMode or GLOBAL_ADULT_MODE env)
+//   3. Per-app SafetyConfig (set via setAppSafetyConfig / loadAppSafetyConfigFromDB)
+//
+// IMPORTANT: Global adult mode still requires per-app safeMode=false to take effect.
+// An app with safeMode=true is NEVER upgraded to adult mode even with global enabled.
+
+/**
+ * In-process global adult mode state.
+ * Initialised from GLOBAL_ADULT_MODE env variable if set to "true".
+ */
+let globalAdultModeState: boolean =
+  process.env.GLOBAL_ADULT_MODE?.trim().toLowerCase() === 'true';
+
+/**
+ * Set the global adult mode toggle for the entire platform.
+ *
+ * When `enabled=true`, any app that already has `safeMode=false` will have
+ * `adultMode` treated as true, regardless of the per-app setting. Apps that
+ * have `safeMode=true` are unaffected.
+ *
+ * This is an admin-level operation — never expose to end users.
+ */
+export function setGlobalAdultMode(enabled: boolean): void {
+  globalAdultModeState = enabled;
+}
+
+/** Return the current global adult mode state. */
+export function getGlobalAdultMode(): boolean {
+  return globalAdultModeState;
+}
+
 /** Runtime per-app safety overrides (write-through cache). */
 const appSafetyConfigs = new Map<string, SafetyConfig>();
 
@@ -134,11 +171,20 @@ export function setAppSafetyConfig(appSlug: string, config: Partial<SafetyConfig
 /**
  * Get the safety configuration for an app from the in-memory cache.
  * Use `loadAppSafetyConfigFromDB` to warm the cache from the database.
+ *
+ * Applies the global adult mode toggle when the platform-level flag is set
+ * and the app has safeMode=false. Does not override safeMode=true apps.
  */
 export function getAppSafetyConfig(appSlug: string): SafetyConfig {
   const adminOverride = getAdminSafetyOverride(appSlug)
   if (adminOverride) return adminOverride
-  return appSafetyConfigs.get(appSlug) ?? { ...DEFAULT_SAFETY_CONFIG };
+  const base = appSafetyConfigs.get(appSlug) ?? { ...DEFAULT_SAFETY_CONFIG };
+  // Apply global adult mode: when the platform flag is set and the app has safeMode=false,
+  // treat adultMode as enabled regardless of the per-app setting.
+  if (globalAdultModeState && !base.safeMode) {
+    return { ...base, adultMode: true };
+  }
+  return base;
 }
 
 /**
