@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
   Loader2, Sparkles, Copy, Check, AlertCircle, Terminal, ChevronDown, ChevronUp,
 } from 'lucide-react'
@@ -146,10 +147,11 @@ export default function OnboardingAssistantTab() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [artifactSaved, setArtifactSaved] = useState(false)
 
   const generate = useCallback(async () => {
     if (!appDescription.trim()) return
-    setRunning(true); setError(null); setRawOutput(null); setSections([])
+    setRunning(true); setError(null); setRawOutput(null); setSections([]); setArtifactSaved(false)
     try {
       const res = await fetch('/api/admin/brain/test', {
         method: 'POST',
@@ -194,6 +196,7 @@ export default function OnboardingAssistantTab() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? `Save failed`)
       setSaved(true)
+      setArtifactSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save artifact')
@@ -245,6 +248,15 @@ export default function OnboardingAssistantTab() {
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             {saved ? 'Saved to Artifacts' : 'Save to Artifacts'}
           </button>
+        )}
+        {artifactSaved && (
+          <Link
+            href="/admin/dashboard/artifacts"
+            className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 underline"
+          >
+            <Check className="w-3 h-3 shrink-0" />
+            View in Artifacts →
+          </Link>
         )}
       </div>
 

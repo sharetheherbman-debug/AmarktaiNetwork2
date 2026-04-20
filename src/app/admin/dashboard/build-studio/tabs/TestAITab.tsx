@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import Link from 'next/link'
 import {
   Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
   Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen, Download,
@@ -87,6 +88,7 @@ export default function TestAITab() {
   const [videoJobId, setVideoJobId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [savingArtifact, setSavingArtifact] = useState(false)
+  const [artifactSaved, setArtifactSaved] = useState(false)
   const [selectedModelMeta, setSelectedModelMeta] = useState<ModelOption | null>(null)
   const videoPollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -138,7 +140,7 @@ export default function TestAITab() {
 
   const runTest = useCallback(async () => {
     if (!prompt.trim()) return
-    setRunning(true); setError(null); setResult(null); setStreamOutput(''); setVideoUrl(null)
+    setRunning(true); setError(null); setResult(null); setStreamOutput(''); setVideoUrl(null); setArtifactSaved(false)
 
     if (streamMode && capability === 'chat') {
       setStreaming(true)
@@ -286,6 +288,7 @@ export default function TestAITab() {
       ? (result.imageUrl ? 'image' : result.audioUrl ? 'audio' : 'video')
       : 'code'
     setSavingArtifact(true)
+    setArtifactSaved(false)
     try {
       const res = await fetch('/api/admin/artifacts', {
         method: 'POST',
@@ -306,6 +309,7 @@ export default function TestAITab() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? `Save failed: HTTP ${res.status}`)
+      setArtifactSaved(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save artifact')
     } finally {
@@ -376,7 +380,7 @@ export default function TestAITab() {
             <option value="auto">Auto-select model</option>
             {visibleModels.map((m) => (
               <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
-                {m.name} ({m.provider}) [{m.estimatedCostTier ?? 'medium'}]
+                {m.name} · {m.id} [{m.estimatedCostTier ?? 'medium'}]
               </option>
             ))}
           </select>
@@ -386,8 +390,9 @@ export default function TestAITab() {
           {selectedModelMeta && (
             <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[11px] text-slate-300">
               <div className="font-medium text-white">{selectedModelMeta.name}</div>
-              <div>{selectedModelMeta.shortDescription ?? 'No description available'}</div>
-              <div className="mt-1 text-slate-400">Cost tier: {selectedModelMeta.estimatedCostTier ?? 'medium'}</div>
+              <div className="font-mono text-blue-300 text-[10px] mt-0.5">{selectedModelMeta.id}</div>
+              <div className="text-slate-400 mt-0.5">{selectedModelMeta.shortDescription ?? 'No description available'}</div>
+              <div className="mt-1 text-slate-400">Cost tier: <span className="text-white">{selectedModelMeta.estimatedCostTier ?? 'medium'}</span></div>
             </div>
           )}
           {capability === 'chat' && (
@@ -577,7 +582,24 @@ export default function TestAITab() {
             {result.validationUsed && <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Validated</span>}
             {result.consensusUsed && <span className="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400">Consensus</span>}
             {(result.fallbackUsed || result.fallback_used) && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400">Fallback</span>}
+            {/* Estimated cost chip — computed from prompt length × rough token rate */}
+            {result.routedModel && prompt.trim().length > 0 && (
+              <span className="px-2 py-1 rounded-full bg-white/[0.04] text-slate-400">
+                Est. cost: ~${(Math.max(1, Math.ceil(prompt.trim().length / 4)) * 0.000002).toFixed(5)}
+              </span>
+            )}
           </div>
+
+          {/* Artifact save feedback */}
+          {artifactSaved && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+              Saved to Artifacts —{' '}
+              <Link href="/admin/dashboard/artifacts" className="underline hover:text-emerald-300">
+                View in Artifacts →
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>
