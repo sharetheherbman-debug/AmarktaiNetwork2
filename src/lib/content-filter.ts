@@ -98,9 +98,13 @@ function getAdminSafetyOverride(appSlug: string): SafetyConfig | null {
 /**
  * In-process global adult mode state.
  * Initialised from GLOBAL_ADULT_MODE env variable if set to "true".
+ * Write-through to DB via AppAiProfile.__platform__ sentinel row.
  */
 let globalAdultModeState: boolean =
   process.env.GLOBAL_ADULT_MODE?.trim().toLowerCase() === 'true';
+
+/** Sentinel appSlug used to persist the platform-level adult mode flag in the DB. */
+const PLATFORM_SENTINEL_SLUG = '__platform__';
 
 /**
  * Set the global adult mode toggle for the entire platform.
@@ -110,14 +114,46 @@ let globalAdultModeState: boolean =
  * have `safeMode=true` are unaffected.
  *
  * This is an admin-level operation — never expose to end users.
+ * Persists to DB so the state survives server restarts.
  */
 export function setGlobalAdultMode(enabled: boolean): void {
   globalAdultModeState = enabled;
+  // Persist to DB fire-and-forget so the toggle survives restarts
+  prisma.appAiProfile
+    .upsert({
+      where: { appSlug: PLATFORM_SENTINEL_SLUG },
+      update: { adultMode: enabled },
+      create: { appSlug: PLATFORM_SENTINEL_SLUG, appName: PLATFORM_SENTINEL_SLUG, adultMode: enabled },
+    })
+    .catch((err: unknown) => {
+      console.error('[content-filter] Failed to persist global adult mode:', err)
+    })
 }
 
-/** Return the current global adult mode state. */
+/** Return the current global adult mode state from the in-process cache. */
 export function getGlobalAdultMode(): boolean {
   return globalAdultModeState;
+}
+
+/**
+ * Load the global adult mode flag from the DB and warm the in-process cache.
+ * Call this from any API handler that reads global adult mode to ensure the
+ * persisted value is reflected even after a server restart.
+ */
+export async function loadGlobalAdultModeFromDB(): Promise<boolean> {
+  try {
+    const row = await prisma.appAiProfile.findUnique({
+      where: { appSlug: PLATFORM_SENTINEL_SLUG },
+      select: { adultMode: true },
+    })
+    if (row !== null) {
+      globalAdultModeState = row.adultMode
+    }
+  } catch {
+    // DB unavailable — keep current in-process state; log but don't throw
+    console.warn('[content-filter] Could not load global adult mode from DB; using in-process state.')
+  }
+  return globalAdultModeState
 }
 
 /** Runtime per-app safety overrides (write-through cache). */

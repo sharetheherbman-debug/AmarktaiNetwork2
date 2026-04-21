@@ -19,6 +19,12 @@ import {
 import { getAppSafetyConfig } from '@/lib/content-filter'
 import { syncProviderHealthFromDB } from '@/lib/sync-provider-health'
 import { recordUsage } from '@/lib/usage-meter'
+import { estimateCostUsd } from '@/lib/budget-tracker'
+
+/** Estimate prompt tokens from message character count (avg ~4 chars/token). */
+function estimateTokens(message: string): number {
+  return Math.max(1, Math.ceil(message.length / 4))
+}
 
 const testSchema = z.object({
   message: z.string().min(1).max(16_000),
@@ -230,13 +236,15 @@ export async function POST(request: NextRequest) {
         const buffer = await ttsRes.arrayBuffer()
         const base64 = Buffer.from(buffer).toString('base64')
         const audioUrl = `data:audio/mpeg;base64,${base64}`
+        const ttsModel = ttsRes.headers.get('X-Model') ?? ''
         await recordUsage({
           appSlug: usageAppSlug,
           capability: 'tts',
           provider: ttsRes.headers.get('X-Provider') ?? 'unknown',
-          model: ttsRes.headers.get('X-Model') ?? '',
+          model: ttsModel,
           success: true,
           latencyMs,
+          costUsdCents: Math.round(estimateCostUsd(ttsModel, estimateTokens(body.message)) * 100),
           artifactCreated: true,
         })
         return NextResponse.json({
@@ -244,7 +252,7 @@ export async function POST(request: NextRequest) {
           output: '[TTS audio generated]', audioUrl,
           capability: capabilities,
           routedProvider: ttsRes.headers.get('X-Provider') ?? 'auto',
-          routedModel: ttsRes.headers.get('X-Model') ?? null,
+          routedModel: ttsModel,
           executionMode: 'specialist', fallback_used: false, latencyMs,
           timestamp: new Date().toISOString(),
         })
@@ -257,6 +265,7 @@ export async function POST(request: NextRequest) {
         model: '',
         success: false,
         latencyMs,
+        costUsdCents: 0,
       })
       return NextResponse.json(
         {
@@ -315,6 +324,7 @@ export async function POST(request: NextRequest) {
         model: imageData.model ?? '',
         success: imageSuccess,
         latencyMs,
+        costUsdCents: imageSuccess ? Math.round(estimateCostUsd(imageData.model ?? 'default', estimateTokens(body.message)) * 100) : 0,
         artifactCreated: imageSuccess,
       })
       return NextResponse.json(
@@ -400,6 +410,7 @@ export async function POST(request: NextRequest) {
         model: imageData.model ?? '',
         success: imageRes.ok && (!!imageData.imageUrl || !!imageData.imageBase64),
         latencyMs,
+        costUsdCents: imageRes.ok ? Math.round(estimateCostUsd(imageData.model ?? 'default', estimateTokens(body.message)) * 100) : 0,
         artifactCreated: imageRes.ok && (!!imageData.imageUrl || !!imageData.imageBase64),
       })
       return NextResponse.json(
@@ -447,6 +458,7 @@ export async function POST(request: NextRequest) {
         model: imageData.model ?? '',
         success: imageSuccess,
         latencyMs,
+        costUsdCents: imageSuccess ? Math.round(estimateCostUsd(imageData.model ?? 'default', estimateTokens(body.message)) * 100) : 0,
         artifactCreated: imageSuccess,
       })
       return NextResponse.json(
@@ -484,6 +496,7 @@ export async function POST(request: NextRequest) {
         model: rd.model ?? '',
         success: researchRes.ok,
         latencyMs,
+        costUsdCents: researchRes.ok ? Math.round(estimateCostUsd(rd.model ?? 'default', estimateTokens(body.message)) * 100) : 0,
       })
       return NextResponse.json(
         {
@@ -522,6 +535,7 @@ export async function POST(request: NextRequest) {
         model: videoData.model ?? '',
         success: videoRes.ok && !!videoData.executed,
         latencyMs,
+        costUsdCents: (videoRes.ok && !!videoData.executed) ? Math.round(estimateCostUsd(videoData.model ?? 'default', estimateTokens(body.message)) * 100) : 0,
       })
       return NextResponse.json(
         {
@@ -582,6 +596,7 @@ export async function POST(request: NextRequest) {
       model: result.model,
       success: result.ok,
       latencyMs,
+      costUsdCents: result.ok ? Math.round(estimateCostUsd(result.model, estimateTokens(body.message)) * 100) : 0,
     })
     return NextResponse.json(
       {
@@ -631,6 +646,7 @@ export async function POST(request: NextRequest) {
     model: orchResult.routedModel ?? '',
     success,
     latencyMs,
+    costUsdCents: success ? Math.round(estimateCostUsd(orchResult.routedModel ?? 'default', estimateTokens(body.message)) * 100) : 0,
   })
 
   return NextResponse.json(

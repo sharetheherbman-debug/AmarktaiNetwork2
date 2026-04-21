@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { setGlobalAdultMode, getGlobalAdultMode } from '@/lib/content-filter'
+import { setGlobalAdultMode, getGlobalAdultMode, loadGlobalAdultModeFromDB } from '@/lib/content-filter'
 
 /**
- * GET  /api/admin/global-adult-mode — returns current global adult mode state.
- * POST /api/admin/global-adult-mode — sets global adult mode for the platform.
+ * GET  /api/admin/global-adult-mode — returns current global adult mode state (synced from DB).
+ * POST /api/admin/global-adult-mode — sets global adult mode for the platform (persisted to DB).
  *
  * Global adult mode upgrades any app that has safeMode=false to adultMode=true
  * without requiring per-app configuration. Apps with safeMode=true are unaffected.
@@ -17,8 +17,10 @@ export async function GET() {
   if (!session.isLoggedIn) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  // Always sync from DB so we reflect the persisted value after a server restart
+  const enabled = await loadGlobalAdultModeFromDB()
   return NextResponse.json({
-    enabled: getGlobalAdultMode(),
+    enabled,
     note: 'When enabled, any app with safeMode=false will have adultMode treated as true. CSAM, violence, and self-harm are always blocked.',
   })
 }
