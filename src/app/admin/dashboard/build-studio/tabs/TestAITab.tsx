@@ -88,6 +88,8 @@ export default function TestAITab() {
   const [streamMode, setStreamMode] = useState(false)
   const [streamOutput, setStreamOutput] = useState<string>('')
   const [streaming, setStreaming] = useState(false)
+  const [streamMeta, setStreamMeta] = useState<{ provider: string | null; tokensPerSec: number | null; elapsedMs: number | null } | null>(null)
+  const [costMode, setCostMode] = useState<'free_first' | 'balanced' | 'quality_first'>('balanced')
   const sttFileRef = useRef<HTMLInputElement>(null)
   const [sttFile, setSttFile] = useState<File | null>(null)
   const [videoJobId, setVideoJobId] = useState<string | null>(null)
@@ -156,11 +158,14 @@ export default function TestAITab() {
 
     if (streamMode && capability === 'chat') {
       setStreaming(true)
+      setStreamMeta(null)
+      const streamStart = Date.now()
+      let charCount = 0
       try {
         const res = await fetch('/api/brain/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt }),
+          body: JSON.stringify({ appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt, costMode }),
         })
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ error: `Stream failed: HTTP ${res.status}` }))
@@ -168,6 +173,8 @@ export default function TestAITab() {
           setStreaming(false); setRunning(false)
           return
         }
+        const streamProvider = res.headers.get('X-Stream-Provider') ?? null
+        const streamModel = res.headers.get('X-Stream-Model') ?? null
         const reader = res.body?.getReader()
         const decoder = new TextDecoder()
         let full = ''
@@ -178,11 +185,23 @@ export default function TestAITab() {
             const chunk = decoder.decode(value, { stream: true })
             for (const line of chunk.split('\n')) {
               if (!line.startsWith('data: ') || line === 'data: [DONE]') continue
-              try { const j = JSON.parse(line.slice(6)); full += j.delta ?? ''; setStreamOutput(full) } catch { /* skip */ }
+              try {
+                const j = JSON.parse(line.slice(6))
+                const delta = j.delta ?? j.content ?? ''
+                full += delta
+                charCount += delta.length
+                setStreamOutput(full)
+                const elapsed = Date.now() - streamStart
+                const approxTokens = Math.ceil(charCount / CHARS_PER_TOKEN_ESTIMATE)
+                const tokensPerSec = elapsed > 0 ? Math.round((approxTokens / elapsed) * 1000) : null
+                setStreamMeta({ provider: streamProvider, tokensPerSec, elapsedMs: elapsed })
+              } catch { /* skip */ }
             }
           }
         }
-        setResult({ success: true, executed: true, output: full, capability: [capability], routedProvider: null, routedModel: null, executionMode: 'stream', confidenceScore: null, validationUsed: false, consensusUsed: false, fallbackUsed: false, fallback_used: false, warnings: [], error: null, latencyMs: 0 })
+        const finalElapsed = Date.now() - streamStart
+        setStreamMeta({ provider: streamProvider, tokensPerSec: charCount > 0 ? Math.round((Math.ceil(charCount / CHARS_PER_TOKEN_ESTIMATE) / finalElapsed) * 1000) : null, elapsedMs: finalElapsed })
+        setResult({ success: true, executed: true, output: full, capability: [capability], routedProvider: streamProvider, routedModel: streamModel, executionMode: 'stream', confidenceScore: null, validationUsed: false, consensusUsed: false, fallbackUsed: false, fallback_used: false, warnings: [], error: null, latencyMs: finalElapsed })
       } catch (e) { setError(e instanceof Error ? e.message : 'Stream error') } finally { setStreaming(false); setRunning(false) }
       return
     }
@@ -279,7 +298,7 @@ export default function TestAITab() {
         }
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Test failed') } finally { setRunning(false) }
-  }, [prompt, capability, forceProvider, forceModel, appProfile, streamMode, ttsGender, ttsVoiceId, ttsAccent, ttsProvider, sttFile])
+  }, [prompt, capability, forceProvider, forceModel, appProfile, streamMode, costMode, ttsGender, ttsVoiceId, ttsAccent, ttsProvider, sttFile])
 
   useEffect(() => { return () => { if (videoPollingRef.current) clearInterval(videoPollingRef.current) } }, [])
 
@@ -415,11 +434,39 @@ export default function TestAITab() {
             </div>
           )}
           {capability === 'chat' && (
-            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-              <input type="checkbox" checked={streamMode} onChange={e => setStreamMode(e.target.checked)}
-                className="rounded border-slate-600 bg-transparent" />
-              <Radio className="w-3 h-3" /> Stream mode
-            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                <input type="checkbox" checked={streamMode} onChange={e => setStreamMode(e.target.checked)}
+                  className="rounded border-slate-600 bg-transparent" />
+                <Radio className="w-3 h-3" /> Stream mode
+              </label>
+              {/* Cost routing mode selector */}
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cost Mode</p>
+                <div className="flex gap-1">
+                  {([
+                    { key: 'free_first', label: 'Free First', title: 'Prefers free/cheap providers: groq → deepseek → huggingface' },
+                    { key: 'balanced', label: 'Balanced', title: 'Balances quality and cost: openai → groq → anthropic' },
+                    { key: 'quality_first', label: 'Quality', title: 'Prefers highest-quality: openai → anthropic → gemini' },
+                  ] as const).map(m => (
+                    <button
+                      key={m.key}
+                      title={m.title}
+                      onClick={() => setCostMode(m.key)}
+                      className={`flex-1 px-1.5 py-1 rounded text-[10px] font-medium transition-colors ${
+                        costMode === m.key
+                          ? m.key === 'free_first' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : m.key === 'quality_first' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          : 'bg-white/[0.02] text-slate-500 border border-white/[0.06] hover:text-white'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
           {capability === 'tts' && (
             <div className="space-y-1">
@@ -449,7 +496,15 @@ export default function TestAITab() {
       {/* Streaming output */}
       {streaming && streamOutput && (
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <div className="text-xs text-blue-400 mb-2 flex items-center gap-1"><Radio className="w-3 h-3 animate-pulse" /> Streaming…</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-blue-400 flex items-center gap-1"><Radio className="w-3 h-3 animate-pulse" /> Streaming…</div>
+            <div className="flex items-center gap-3 text-[10px] text-slate-500">
+              {streamMeta?.provider && <span className="font-mono">{streamMeta.provider}</span>}
+              {streamMeta?.tokensPerSec != null && <span>~{streamMeta.tokensPerSec} tok/s</span>}
+              {streamMeta?.elapsedMs != null && <span>{(streamMeta.elapsedMs / 1000).toFixed(1)}s</span>}
+              <span className="capitalize">{costMode.replace('_', ' ')}</span>
+            </div>
+          </div>
           <div className="text-sm text-slate-300 whitespace-pre-wrap">{streamOutput}</div>
         </div>
       )}

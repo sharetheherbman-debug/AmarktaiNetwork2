@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -8,6 +8,7 @@ import {
   ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock, WifiOff,
   LayoutDashboard, Brain, BarChart3, BookOpen, Target, FileText,
   Activity, Zap, Globe, Shield, Bot, Copy, Check, Loader2,
+  Send, MessageSquare,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -833,6 +834,114 @@ function AgentsTab({ appSlug, appId, appSecret, productId, onSecretRotated }: {
           )}
         </>
       )}
+
+      {/* ── Try Agent ─────────────────────────────────────── */}
+      {localSecret && (
+        <TryAgentPanel appId={appId} appSecret={localSecret} />
+      )}
+    </div>
+  )
+}
+
+/* ── Try Agent Panel ─────────────────────────────────────── */
+interface TryAgentMessage { role: 'user' | 'assistant'; content: string; latencyMs?: number }
+
+function TryAgentPanel({ appId, appSecret }: { appId: string; appSecret: string }) {
+  const [messages, setMessages] = useState<TryAgentMessage[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    setInput('')
+    setError(null)
+    const userMsg: TryAgentMessage = { role: 'user', content: text }
+    setMessages(prev => [...prev, userMsg])
+    setSending(true)
+    const start = Date.now()
+    try {
+      const res = await fetch('/api/admin/brain/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId, appSecret, taskType: 'chat', message: text }),
+      })
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      const latencyMs = Date.now() - start
+      const content = data.output ?? data.error ?? 'No response'
+      setMessages(prev => [...prev, { role: 'assistant', content, latencyMs }])
+      if (!data.success && data.error) setError(data.error)
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: e instanceof Error ? e.message : 'Request failed', latencyMs: Date.now() - start }])
+    } finally {
+      setSending(false)
+    }
+  }, [input, sending, appId, appSecret])
+
+  return (
+    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.01]">
+        <MessageSquare className="w-4 h-4 text-blue-400" />
+        <h4 className="text-sm font-semibold text-white">Try Agent</h4>
+        <span className="text-[10px] text-slate-500">Messages route through this app's rules, persona, safety filters, and memory — exactly as an end user would experience.</span>
+      </div>
+
+      {/* Message history */}
+      <div className="max-h-64 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 ? (
+          <p className="text-xs text-slate-600 text-center py-4">Send a message to see how your app agent responds.</p>
+        ) : (
+          messages.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                m.role === 'user'
+                  ? 'bg-blue-600/20 text-white border border-blue-500/20'
+                  : 'bg-white/[0.04] text-slate-300 border border-white/[0.06]'
+              }`}>
+                {m.content}
+                {m.role === 'assistant' && m.latencyMs != null && (
+                  <span className="block text-[9px] text-slate-600 mt-1">{m.latencyMs}ms</span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+        {sending && (
+          <div className="flex gap-2">
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl px-3 py-2">
+              <Loader2 className="w-3 h-3 text-slate-500 animate-spin" />
+            </div>
+          </div>
+        )}
+        {error && <p className="text-[10px] text-red-400">{error}</p>}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex items-center gap-2 px-3 py-3 border-t border-white/[0.06]">
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
+          placeholder="Send a message to test this agent…"
+          className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+          disabled={sending}
+        />
+        <button
+          onClick={send}
+          disabled={!input.trim() || sending}
+          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-500 disabled:opacity-40 transition-colors"
+        >
+          {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+        </button>
+      </div>
     </div>
   )
 }

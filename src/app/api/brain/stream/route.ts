@@ -50,6 +50,13 @@ const streamRequestSchema = z.object({
   model: z.string().optional(),
   /** System prompt override */
   systemPrompt: z.string().max(4000).optional(),
+  /**
+   * Cost routing mode:
+   *   free_first   — prefers cheapest/free providers (groq, deepseek, together, huggingface)
+   *   balanced     — default: quality/cost balance (openai, groq, anthropic, gemini)
+   *   quality_first — prefers highest-quality providers (openai, anthropic, gemini)
+   */
+  costMode: z.enum(['free_first', 'balanced', 'quality_first']).optional(),
 })
 
 /**
@@ -103,7 +110,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Resolve provider and model ────────────────────────────────────────
-  const resolvedProvider = await resolveProvider(body.provider)
+  const resolvedProvider = await resolveProvider(body.provider, body.costMode)
   if (!resolvedProvider) {
     return NextResponse.json(
       { error: 'No streaming provider is configured — add at least one API key.', traceId },
@@ -362,6 +369,7 @@ export async function POST(request: NextRequest) {
       'X-Trace-Id': traceId,
       'X-Stream-Provider': resolvedProvider,
       'X-Stream-Model': resolvedModel,
+      'X-Cost-Mode': body.costMode ?? 'balanced',
     },
   })
 }
@@ -371,20 +379,42 @@ export async function POST(request: NextRequest) {
 /**
  * Resolve which provider to use (auto-select first available or explicit).
  * Checks DB vault first via getVaultApiKey(), falls back to env vars.
+ *
+ * costMode determines the priority order when no explicit provider is given:
+ *   free_first   — groq → deepseek → together → huggingface → openai → anthropic → gemini
+ *   balanced     — openai → groq → anthropic → gemini → mistral → deepseek → … (default)
+ *   quality_first — openai → anthropic → gemini → grok → mistral → groq → …
  */
-async function resolveProvider(requested?: string): Promise<string | null> {
+async function resolveProvider(
+  requested?: string,
+  costMode?: 'free_first' | 'balanced' | 'quality_first',
+): Promise<string | null> {
   const allSupported = [...Object.keys(STREAMING_PROVIDERS), 'anthropic', 'gemini', 'cohere', 'huggingface', 'replicate']
 
   if (requested && allSupported.includes(requested)) {
     return requested
   }
 
-  // Auto-select: check DB vault + env for first available provider
-  const priority = [
-    'openai', 'groq', 'anthropic', 'gemini', 'mistral',
-    'deepseek', 'together', 'qwen', 'grok', 'openrouter', 'nvidia', 'cohere',
-    'huggingface', 'replicate',
-  ]
+  // Priority order per cost mode
+  const COST_MODE_PRIORITY: Record<string, string[]> = {
+    free_first: [
+      'groq', 'deepseek', 'together', 'huggingface',
+      'openrouter', 'qwen', 'nvidia',
+      'openai', 'anthropic', 'gemini', 'mistral', 'cohere', 'grok', 'replicate',
+    ],
+    balanced: [
+      'openai', 'groq', 'anthropic', 'gemini', 'mistral',
+      'deepseek', 'together', 'qwen', 'grok', 'openrouter', 'nvidia', 'cohere',
+      'huggingface', 'replicate',
+    ],
+    quality_first: [
+      'openai', 'anthropic', 'gemini', 'grok', 'mistral',
+      'groq', 'deepseek', 'together', 'openrouter', 'cohere', 'nvidia',
+      'qwen', 'huggingface', 'replicate',
+    ],
+  }
+
+  const priority = COST_MODE_PRIORITY[costMode ?? 'balanced']
 
   for (const provider of priority) {
     const key = await getVaultApiKey(provider)

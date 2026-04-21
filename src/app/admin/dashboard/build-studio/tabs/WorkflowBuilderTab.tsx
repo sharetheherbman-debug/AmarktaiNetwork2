@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Play, Loader2, CheckCircle, AlertCircle, Clock,
-  ArrowRight, RefreshCw, Tag,
+  ArrowRight, RefreshCw, Tag, Plus, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
 // Shape returned by GET /api/admin/skill-templates
@@ -49,6 +49,20 @@ export default function WorkflowBuilderTab() {
   // Per-template running state: templateId → 'creating' | 'executing' | null
   const [running, setRunning] = useState<Record<string, string | null>>({})
   const [runSuccess, setRunSuccess] = useState<string | null>(null)
+
+  // Custom workflow creator
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customDesc, setCustomDesc] = useState('')
+  const [customInput, setCustomInput] = useState('')
+  const [customSteps, setCustomSteps] = useState<Array<{ name: string; type: string }>>([
+    { name: 'Input', type: 'input' },
+    { name: 'AI Process', type: 'llm' },
+    { name: 'Output', type: 'output' },
+  ])
+  const [customRunning, setCustomRunning] = useState(false)
+  const [customSuccess, setCustomSuccess] = useState(false)
+  const [customError, setCustomError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -243,6 +257,178 @@ export default function WorkflowBuilderTab() {
           ))}
         </div>
       )}
+
+      {/* Custom Workflow Creator */}
+      <div className="border border-white/[0.06] rounded-xl overflow-hidden">
+        <button
+          onClick={() => setCustomOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] text-xs text-slate-300 transition-colors"
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            Create Custom Workflow
+          </span>
+          {customOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+        </button>
+
+        {customOpen && (
+          <div className="p-4 space-y-4 bg-white/[0.01]">
+            <p className="text-[11px] text-slate-500">Define a workflow with named steps. The workflow is created and executed immediately against the workspace app.</p>
+
+            {customError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-300 text-xs">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {customError}
+              </div>
+            )}
+            {customSuccess && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-emerald-300 text-xs">
+                <CheckCircle className="w-3.5 h-3.5" /> Workflow created and executed — see Instances above.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Workflow Name *</label>
+                <input
+                  type="text"
+                  value={customName}
+                  onChange={e => setCustomName(e.target.value)}
+                  placeholder="e.g. Blog Post Pipeline"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Description</label>
+                <input
+                  type="text"
+                  value={customDesc}
+                  onChange={e => setCustomDesc(e.target.value)}
+                  placeholder="Optional description"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                />
+              </div>
+            </div>
+
+            {/* Steps editor */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Steps</label>
+                <button
+                  onClick={() => setCustomSteps(s => [...s, { name: `Step ${s.length + 1}`, type: 'llm' }])}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Add Step
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {customSteps.map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/[0.04] text-[9px] text-slate-500 shrink-0">{idx + 1}</div>
+                    <input
+                      type="text"
+                      value={step.name}
+                      onChange={e => setCustomSteps(s => s.map((st, i) => i === idx ? { ...st, name: e.target.value } : st))}
+                      className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+                      placeholder="Step name"
+                    />
+                    <select
+                      value={step.type}
+                      onChange={e => setCustomSteps(s => s.map((st, i) => i === idx ? { ...st, type: e.target.value } : st))}
+                      className="bg-white/[0.03] border border-white/[0.06] rounded px-2 py-1 text-xs text-white"
+                    >
+                      <option value="input">input</option>
+                      <option value="llm">llm</option>
+                      <option value="transform">transform</option>
+                      <option value="output">output</option>
+                      <option value="condition">condition</option>
+                    </select>
+                    {customSteps.length > 1 && (
+                      <button
+                        onClick={() => setCustomSteps(s => s.filter((_, i) => i !== idx))}
+                        className="text-slate-600 hover:text-red-400 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {customSteps.length > 1 && (
+                <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-600 mt-1">
+                  {customSteps.map((s, i) => (
+                    <span key={i} className="flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 rounded bg-white/[0.03]">{s.name}</span>
+                      {i < customSteps.length - 1 && <ArrowRight className="w-3 h-3 shrink-0" />}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Input message */}
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider">Test Input (message)</label>
+              <input
+                type="text"
+                value={customInput}
+                onChange={e => setCustomInput(e.target.value)}
+                placeholder="e.g. Write an introduction about AI"
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+              />
+            </div>
+
+            <button
+              disabled={!customName.trim() || customRunning}
+              onClick={async () => {
+                if (!customName.trim()) return
+                setCustomRunning(true); setCustomError(null); setCustomSuccess(false)
+                try {
+                  const stepsFormatted = customSteps.map((s, i) => ({ id: `step_${i}`, name: s.name, type: s.type }))
+                  const createRes = await fetch('/api/workflows', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'create',
+                      name: customName.trim(),
+                      description: customDesc.trim() || undefined,
+                      appSlug: 'workspace',
+                      steps: stepsFormatted,
+                      entryStepId: stepsFormatted[0]?.id ?? 'step_0',
+                    }),
+                  })
+                  if (!createRes.ok) {
+                    const d = await createRes.json().catch(() => ({})) as { error?: string }
+                    throw new Error(d.error ?? `Create failed (HTTP ${createRes.status})`)
+                  }
+                  const createData = await createRes.json() as { workflow?: { id: string } }
+                  const workflowId = createData.workflow?.id
+                  if (!workflowId) throw new Error('Workflow created but no ID returned')
+                  const execRes = await fetch('/api/workflows', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'execute', workflowId, input: { message: customInput.trim() || 'test' } }),
+                  })
+                  if (!execRes.ok) {
+                    const d = await execRes.json().catch(() => ({})) as { error?: string }
+                    throw new Error(d.error ?? `Execute failed (HTTP ${execRes.status})`)
+                  }
+                  setCustomSuccess(true)
+                  setCustomName(''); setCustomDesc(''); setCustomInput('')
+                  setCustomSteps([{ name: 'Input', type: 'input' }, { name: 'AI Process', type: 'llm' }, { name: 'Output', type: 'output' }])
+                  load()
+                } catch (e) {
+                  setCustomError(e instanceof Error ? e.message : 'Workflow failed')
+                } finally {
+                  setCustomRunning(false)
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-40 transition-colors"
+            >
+              {customRunning ? <><Loader2 className="w-3 h-3 animate-spin" />Creating & Running…</> : <><Play className="w-3 h-3" />Create & Run</>}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
