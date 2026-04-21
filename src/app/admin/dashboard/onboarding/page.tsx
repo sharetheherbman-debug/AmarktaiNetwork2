@@ -64,17 +64,12 @@ function slugify(v: string): string {
 }
 
 /**
- * Generate a preview secret for display only.
- * This is NOT cryptographically secure — it uses Math.random() and is
- * intended as a placeholder only. The actual app secret is generated
- * server-side when the app is persisted and should be obtained from
- * Admin → Apps → [app] → Agents tab.
+ * Returns a clearly-labelled placeholder string — NOT a real secret.
+ * The actual app secret is generated server-side and displayed in
+ * Admin → Apps → [app] → Agents tab after creation.
  */
 function generatePreviewSecret(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let s = ''
-  for (let i = 0; i < 48; i++) s += chars[Math.floor(Math.random() * chars.length)]
-  return s
+  return `PREVIEW-ONLY-${Date.now().toString(36).toUpperCase()}-NOT-A-REAL-SECRET`
 }
 
 function buildOutput(data: WizardData): GeneratedOutput {
@@ -243,6 +238,8 @@ const STEP_ACTIVE_CLS = [
   'bg-amber-500/20 text-amber-300 border border-amber-500/30',
   'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
 ] as const
+
+const stepVariants = {
   enter:  { opacity: 0, x: 40,  filter: 'blur(4px)' },
   center: { opacity: 1, x: 0,   filter: 'blur(0px)' },
   exit:   { opacity: 0, x: -40, filter: 'blur(4px)' },

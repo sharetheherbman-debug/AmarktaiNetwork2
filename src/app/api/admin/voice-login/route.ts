@@ -49,9 +49,11 @@ function timingSafeStringEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf8')
   const bufB = Buffer.from(b, 'utf8')
   if (bufA.byteLength !== bufB.byteLength) {
-    // Run a fixed-length dummy comparison to keep timing consistent, then return false
-    const dummy = Buffer.alloc(32)
-    crypto.timingSafeEqual(dummy, dummy)
+    // Compare two different fixed-size buffers to ensure constant-time behaviour
+    // even when lengths differ (preventing timing oracle attacks)
+    const dummy1 = Buffer.alloc(32)
+    const dummy2 = Buffer.alloc(32, 1)
+    crypto.timingSafeEqual(dummy1, dummy2)
     return false
   }
   return crypto.timingSafeEqual(bufA, bufB)
