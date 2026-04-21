@@ -143,6 +143,13 @@ export default function TestAITab() {
     : models.filter((m) => m.provider === forceProvider)
   const visibleModelKeys = useMemo(() => new Set(visibleModels.map((m) => `${m.provider}:${m.id}`)), [visibleModels])
 
+  /** Pre-computed cost estimate for the current prompt, shown in the result panel. */
+  const estimatedRequestCost = useMemo(() => {
+    if (!prompt.trim()) return null
+    const tokens = Math.max(1, Math.ceil(prompt.trim().length / CHARS_PER_TOKEN_ESTIMATE))
+    return (tokens * COST_PER_TOKEN_USD).toFixed(5)
+  }, [prompt])
+
   const runTest = useCallback(async () => {
     if (!prompt.trim()) return
     setRunning(true); setError(null); setResult(null); setStreamOutput(''); setVideoUrl(null); setArtifactSaved(false)
@@ -588,9 +595,9 @@ export default function TestAITab() {
             {result.consensusUsed && <span className="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400">Consensus</span>}
             {(result.fallbackUsed || result.fallback_used) && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400">Fallback</span>}
             {/* Estimated cost chip — computed from prompt length × rough token rate */}
-            {result.routedModel && prompt.trim().length > 0 && (
+            {result.routedModel && estimatedRequestCost !== null && (
               <span className="px-2 py-1 rounded-full bg-white/[0.04] text-slate-400">
-                Est. cost: ~${(Math.max(1, Math.ceil(prompt.trim().length / CHARS_PER_TOKEN_ESTIMATE)) * COST_PER_TOKEN_USD).toFixed(5)}
+                Est. cost: ~${estimatedRequestCost}
               </span>
             )}
           </div>

@@ -547,7 +547,7 @@ function GlobalAdultModeSection() {
                 Platform-wide adult mode
               </p>
               <p className="text-[11px] text-slate-500">
-                When ON, any app with Safe Mode disabled is upgraded to adult mode. Apps with Safe Mode ON are unaffected.
+                When ON, any app with safe mode disabled is upgraded to adult mode. Apps with safe mode ON are unaffected.
               </p>
             </div>
             <button

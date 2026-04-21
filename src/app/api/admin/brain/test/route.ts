@@ -21,7 +21,13 @@ import { syncProviderHealthFromDB } from '@/lib/sync-provider-health'
 import { recordUsage } from '@/lib/usage-meter'
 import { estimateCostUsd } from '@/lib/budget-tracker'
 
-/** Estimate prompt tokens from message character count (avg ~4 chars/token). */
+/**
+ * Estimate prompt tokens from message character count.
+ * Approximation: average English text is ~4 characters per token.
+ * Actual tokenization varies by model (BPE, WordPiece, etc.) and content language.
+ * This is intentionally a rough lower-bound estimate — use only for cost attribution,
+ * not billing.
+ */
 function estimateTokens(message: string): number {
   return Math.max(1, Math.ceil(message.length / 4))
 }

@@ -99,6 +99,13 @@ function getAdminSafetyOverride(appSlug: string): SafetyConfig | null {
  * In-process global adult mode state.
  * Initialised from GLOBAL_ADULT_MODE env variable if set to "true".
  * Write-through to DB via AppAiProfile.__platform__ sentinel row.
+ *
+ * Priority (highest wins):
+ *   1. DB-persisted value (loaded via loadGlobalAdultModeFromDB)
+ *   2. GLOBAL_ADULT_MODE env var (set at startup only — DB overrides on first load)
+ *
+ * To avoid surprises, avoid setting both GLOBAL_ADULT_MODE env var and toggling via
+ * the admin UI simultaneously. The DB value wins once loadGlobalAdultModeFromDB runs.
  */
 let globalAdultModeState: boolean =
   process.env.GLOBAL_ADULT_MODE?.trim().toLowerCase() === 'true';

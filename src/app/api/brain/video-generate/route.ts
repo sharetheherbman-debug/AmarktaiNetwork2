@@ -45,6 +45,10 @@ const RequestSchema = z.object({
   duration: z.number().int().min(1).max(30).optional().default(4),
   aspectRatio: z.enum(['16:9', '9:16', '1:1']).optional().default('16:9'),
   appSlug: z.string().optional(),
+  // 'huggingface' is accepted by the schema but explicitly blocked at runtime (lines below)
+  // because the Hugging Face Inference API does not support async video generation.
+  // It is kept in the enum so existing integrations that send 'huggingface' receive a clear
+  // error message rather than a schema-validation failure.
   provider: z.enum(['replicate', 'together', 'huggingface', 'auto']).optional().default('auto'),
   model: z.string().optional(),
 });
