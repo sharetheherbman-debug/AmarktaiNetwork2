@@ -145,14 +145,16 @@ function AppHealthPanel({ appSlug }: { appSlug: string }) {
       {health.trend7d.length > 0 && (
         <div>
           <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-2">7-day Trend</p>
-          <div className="flex items-end gap-1 h-12">
+          <div className="flex items-end gap-1 h-12" role="img" aria-label={`7-day request trend for ${appSlug}`}>
             {health.trend7d.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-0.5" title={`${d.date}: ${d.requests} requests`}>
+              <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
                 <div
                   className="w-full rounded-sm bg-cyan-500/50 hover:bg-cyan-400/70 transition-colors"
                   style={{ height: `${Math.round((d.requests / maxBar) * 40) + 2}px` }}
+                  role="presentation"
+                  aria-label={`${d.date}: ${d.requests} requests, ${d.successRate !== null ? d.successRate + '% success' : 'no data'}`}
                 />
-                <span className="text-[8px] text-slate-600">{d.date.slice(5)}</span>
+                <span className="text-[8px] text-slate-600" aria-hidden="true">{d.date.slice(5)}</span>
               </div>
             ))}
           </div>

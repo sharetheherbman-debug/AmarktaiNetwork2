@@ -63,17 +63,23 @@ function slugify(v: string): string {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-function generateSecret(): string {
+/**
+ * Generate a preview secret for display only.
+ * This is NOT cryptographically secure — it uses Math.random() and is
+ * intended as a placeholder only. The actual app secret is generated
+ * server-side when the app is persisted and should be obtained from
+ * Admin → Apps → [app] → Agents tab.
+ */
+function generatePreviewSecret(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let s = ''
-  // Use Math.random for client-side display generation only — actual secret is generated server-side
   for (let i = 0; i < 48; i++) s += chars[Math.floor(Math.random() * chars.length)]
   return s
 }
 
 function buildOutput(data: WizardData): GeneratedOutput {
   const appId = slugify(data.appName) || 'my-app'
-  const appSecret = generateSecret()
+  const appSecret = generatePreviewSecret()
   const domain = data.subdomain
     ? `${data.subdomain}.yourdomain.com`
     : `${appId}.yourdomain.com`
@@ -229,7 +235,14 @@ const STEPS = [
   { label: 'Output',        icon: Rocket,       color: 'emerald' },
 ]
 
-const stepVariants = {
+/** Explicit active step styles per step index — avoids dynamic Tailwind class generation */
+const STEP_ACTIVE_CLS = [
+  'bg-violet-500/20 text-violet-300 border border-violet-500/30',
+  'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+  'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',
+  'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+] as const
   enter:  { opacity: 0, x: 40,  filter: 'blur(4px)' },
   center: { opacity: 1, x: 0,   filter: 'blur(0px)' },
   exit:   { opacity: 0, x: -40, filter: 'blur(4px)' },
@@ -342,7 +355,7 @@ export default function OnboardingWizardPage() {
           return (
             <div key={i} className="flex items-center gap-1 flex-shrink-0">
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                active ? `bg-${s.color}-500/20 text-${s.color}-300 border border-${s.color}-500/30`
+                active ? (STEP_ACTIVE_CLS[i] ?? STEP_ACTIVE_CLS[0])
                 : done ? 'bg-white/[0.04] text-emerald-400 border border-emerald-500/20'
                 : 'bg-white/[0.02] text-slate-600 border border-white/[0.04]'
               }`}>

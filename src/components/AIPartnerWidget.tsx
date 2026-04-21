@@ -71,6 +71,23 @@ function requiresConfirmation(action: AssistantAction): boolean {
   return action.type === 'generate_image' || action.type === 'run_test'
 }
 
+/** System prompt — defined outside component to avoid recreating on every render */
+const SYSTEM_PROMPT = `You are the Amarktai Network AI Partner — a capable operator assistant embedded in the admin dashboard.
+You can answer questions, explain features, AND trigger real dashboard actions.
+
+Available actions you can dispatch (include at the END of your reply if appropriate):
+- ACTION:{"type":"navigate_to","payload":{"section":"models"}}  — valid sections: models, apps, voice, brain, artifacts, budget, onboarding, workspace, healing, events, providers
+- ACTION:{"type":"show_artifacts"}
+- ACTION:{"type":"check_budget"}
+- ACTION:{"type":"start_onboarding"}
+- ACTION:{"type":"generate_image","payload":{"prompt":"<description>"}}  — will ask for confirmation
+- ACTION:{"type":"run_test","payload":{"capability":"chat","prompt":"Hello"}}  — will ask for confirmation
+
+Rules:
+- Only include an ACTION block when the operator explicitly asks for an action or you are certain it is appropriate.
+- Destructive/expensive actions (generate_image, run_test) will always ask for operator confirmation before executing.
+- Be concise and direct. Avoid unnecessary explanation.`
+
 export interface AIPartnerWidgetProps {
   open: boolean
   onClose: () => void
@@ -91,6 +108,8 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
   const recognitionRef = useRef<VoiceRecognizer | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  /** Ref to startVoice — avoids stale closure in speakText's audio.onended */
+  const startVoiceRef = useRef<(() => void) | null>(null)
   const SR = getSpeechRecognitionConstructor()
 
   useEffect(() => {
@@ -136,17 +155,15 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
       audio.onended = () => {
         setSpeaking(false)
         URL.revokeObjectURL(url)
-        if (voiceMode) {
-          // Auto-restart listening after TTS ends in voice loop mode
-          startVoice()
-        }
+        // Auto-restart listening in voice loop mode — use ref to avoid stale closure
+        startVoiceRef.current?.()
       }
       audio.onerror = () => setSpeaking(false)
       await audio.play()
     } catch {
       setSpeaking(false)
     }
-  }, [voiceMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // voiceMode and startVoice accessed via refs — no closure issue
 
   const stopSpeaking = useCallback(() => {
     if (audioRef.current) {
@@ -156,22 +173,6 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
     }
     setSpeaking(false)
   }, [])
-
-  const SYSTEM_PROMPT = `You are the Amarktai Network AI Partner — a capable operator assistant embedded in the admin dashboard.
-You can answer questions, explain features, AND trigger real dashboard actions.
-
-Available actions you can dispatch (include at the END of your reply if appropriate):
-- ACTION:{"type":"navigate_to","payload":{"section":"models"}}  — valid sections: models, apps, voice, brain, artifacts, budget, onboarding, workspace, healing, events, providers
-- ACTION:{"type":"show_artifacts"}
-- ACTION:{"type":"check_budget"}
-- ACTION:{"type":"start_onboarding"}
-- ACTION:{"type":"generate_image","payload":{"prompt":"<description>"}}  — will ask for confirmation
-- ACTION:{"type":"run_test","payload":{"capability":"chat","prompt":"Hello"}}  — will ask for confirmation
-
-Rules:
-- Only include an ACTION block when the operator explicitly asks for an action or you are certain it is appropriate.
-- Destructive/expensive actions (generate_image, run_test) will always ask for operator confirmation before executing.
-- Be concise and direct. Avoid unnecessary explanation.`
 
   const send = useCallback(async (text: string) => {
     if (!text.trim()) return
@@ -220,7 +221,10 @@ Rules:
     } finally {
       setSending(false)
     }
-  }, [messages, onAction, voiceMode, speakText, SYSTEM_PROMPT])
+  }, [messages, onAction, voiceMode, speakText])
+
+  // Keep startVoiceRef in sync with the current startVoice function
+  // so speakText's onended handler can call it without stale closure
 
   const startVoice = useCallback(() => {
     if (!SR) {
@@ -241,6 +245,11 @@ Rules:
     r.onend = () => setRecording(false)
     r.start()
   }, [SR, send])
+
+  // Sync startVoice to ref so speakText's audio.onended can call it without stale closure
+  useEffect(() => {
+    startVoiceRef.current = voiceMode ? startVoice : null
+  }, [voiceMode, startVoice])
 
   const stopVoice = useCallback(() => {
     recognitionRef.current?.stop()

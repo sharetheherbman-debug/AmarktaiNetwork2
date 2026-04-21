@@ -39,25 +39,26 @@ interface UsageSummary {
   byProvider: Record<string, { requests: number; costCents: number }>
 }
 
+/** Maps voice command section names to workspace tab keys */
+const SECTION_TO_TAB: Record<string, TabKey> = {
+  'test-ai': 'test-ai', 'test': 'test-ai',
+  'build-app': 'build-app', 'build': 'build-app',
+  'images': 'images', 'image': 'images',
+  'voice': 'voice',
+  'video': 'video',
+  'music': 'music',
+  'compare': 'compare', 'models': 'compare',
+  'workflows': 'workflows',
+  'export': 'export',
+  'onboard': 'onboard', 'onboarding': 'onboard',
+}
+
 export default function WorkspacePage() {
   const router = useRouter()
   const [active, setActive] = useState<TabKey>('test-ai')
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [partnerOpen, setPartnerOpen] = useState(false)
-
-  const SECTION_TO_TAB: Record<string, TabKey> = {
-    'test-ai': 'test-ai', 'test': 'test-ai',
-    'build-app': 'build-app', 'build': 'build-app',
-    'images': 'images', 'image': 'images',
-    'voice': 'voice',
-    'video': 'video',
-    'music': 'music',
-    'compare': 'compare', 'models': 'compare',
-    'workflows': 'workflows',
-    'export': 'export',
-    'onboard': 'onboard', 'onboarding': 'onboard',
-  }
 
   const handleAction = useCallback((action: AssistantAction) => {
     if (action.type === 'navigate_to') {
@@ -88,7 +89,7 @@ export default function WorkspacePage() {
       router.push('/admin/dashboard/onboarding')
     }
     // generate_image and run_test: handled by widget confirmation, no navigation needed here
-  }, [router]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [router, setActive, setPartnerOpen])
 
   const loadUsage = useCallback(() => {
     setLoadingUsage(true)

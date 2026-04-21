@@ -49,8 +49,9 @@ function timingSafeStringEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf8')
   const bufB = Buffer.from(b, 'utf8')
   if (bufA.byteLength !== bufB.byteLength) {
-    // Still run a dummy comparison to keep timing consistent
-    crypto.timingSafeEqual(bufA, bufA)
+    // Run a fixed-length dummy comparison to keep timing consistent, then return false
+    const dummy = Buffer.alloc(32)
+    crypto.timingSafeEqual(dummy, dummy)
     return false
   }
   return crypto.timingSafeEqual(bufA, bufB)
