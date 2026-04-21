@@ -8,7 +8,7 @@ import { getVaultApiKey } from '@/lib/brain';
  *   - Groq STT (low-cost, fast — whisper-large-v3 / distil-whisper-large-v3-en / whisper-large-v3-turbo)
  *   - OpenAI STT (premium — whisper-1)
  *   - Gemini STT (premium multimodal — gemini-2.0-flash-live-001)
- *   - HuggingFace STT (free fallback — openai/whisper-large-v3 / openai/whisper-small)
+ *   - Hugging Face STT (free fallback — openai/whisper-large-v3 / openai/whisper-small)
  *
  * API keys are resolved from the DB vault first, then env var fallback.
  *
@@ -26,24 +26,35 @@ import { getVaultApiKey } from '@/lib/brain';
  */
 
 export async function POST(request: NextRequest) {
+  const unavailable = (
+    reason: 'provider_not_configured' | 'all_providers_unavailable' | 'invalid_request' | 'transcription_failed',
+    error: string,
+    status: number,
+    provider?: string,
+  ) => NextResponse.json(
+    {
+      error,
+      executed: false,
+      capability: 'voice_input',
+      available: false,
+      reason,
+      ...(provider ? { provider } : {}),
+    },
+    { status },
+  );
+
   try {
     const contentType = request.headers.get('content-type') ?? '';
 
     if (!contentType.includes('multipart/form-data')) {
-      return NextResponse.json(
-        { error: 'Content-Type must be multipart/form-data with an audio file', executed: false },
-        { status: 400 },
-      );
+      return unavailable('invalid_request', 'Content-Type must be multipart/form-data with an audio file', 400);
     }
 
     const formData = await request.formData();
     const file = formData.get('file');
 
     if (!file || !(file instanceof Blob)) {
-      return NextResponse.json(
-        { error: 'An audio file is required in the "file" field', executed: false },
-        { status: 400 },
-      );
+      return unavailable('invalid_request', 'An audio file is required in the "file" field', 400);
     }
 
     const requestedModel = formData.get('model') as string | null;
@@ -60,39 +71,27 @@ export async function POST(request: NextRequest) {
     let provider: 'groq' | 'openai' | 'gemini' | 'huggingface';
     if (requestedProvider === 'groq') {
       if (!groqKey) {
-        return NextResponse.json(
-          { error: 'Groq STT requested but no Groq API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'groq', capability: 'voice_input' },
-          { status: 503 },
-        );
+        return unavailable('provider_not_configured', 'Groq STT requested but no Groq API key is configured. Add it via Admin → AI Providers.', 503, 'groq');
       }
       provider = 'groq';
     } else if (requestedProvider === 'openai') {
       if (!openaiKey) {
-        return NextResponse.json(
-          { error: 'OpenAI STT requested but no OpenAI API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'openai', capability: 'voice_input' },
-          { status: 503 },
-        );
+        return unavailable('provider_not_configured', 'OpenAI STT requested but no OpenAI API key is configured. Add it via Admin → AI Providers.', 503, 'openai');
       }
       provider = 'openai';
     } else if (requestedProvider === 'gemini') {
       if (!geminiKey) {
-        return NextResponse.json(
-          { error: 'Gemini STT requested but no Gemini API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'gemini', capability: 'voice_input' },
-          { status: 503 },
-        );
+        return unavailable('provider_not_configured', 'Gemini STT requested but no Gemini API key is configured. Add it via Admin → AI Providers.', 503, 'gemini');
       }
       provider = 'gemini';
     } else if (requestedProvider === 'huggingface') {
       if (!hfKey) {
-        return NextResponse.json(
-          { error: 'HuggingFace STT requested but no HuggingFace API key is configured. Add it via Admin → AI Providers.', executed: false, provider: 'huggingface', capability: 'voice_input' },
-          { status: 503 },
-        );
+        return unavailable('provider_not_configured', 'Hugging Face STT requested but no Hugging Face API key is configured. Add it via Admin → AI Providers.', 503, 'huggingface');
       }
       provider = 'huggingface';
     } else {
       // Auto: OpenAI is the golden-path baseline. Groq is used as fallback when
-      // OpenAI is not configured. Gemini and HuggingFace are last-resort options.
+      // OpenAI is not configured. Gemini and Hugging Face are last-resort options.
       if (openaiKey) {
         provider = 'openai';
       } else if (groqKey) {
@@ -102,9 +101,10 @@ export async function POST(request: NextRequest) {
       } else if (hfKey) {
         provider = 'huggingface';
       } else {
-        return NextResponse.json(
-          { error: 'No STT provider configured. Add an API key via Admin → AI Providers. Supported: OpenAI (premium), Groq (low cost), Gemini (multimodal), HuggingFace (free fallback).', executed: false, capability: 'voice_input' },
-          { status: 503 },
+        return unavailable(
+          'all_providers_unavailable',
+          'Voice input is currently unavailable: no STT provider is configured. Add an API key via Admin → AI Providers (OpenAI, Groq, Gemini, or Hugging Face).',
+          503,
         );
       }
     }
@@ -126,13 +126,10 @@ export async function POST(request: NextRequest) {
         body: upstream,
       });
 
-      if (!response.ok) {
-        const err = await response.text();
-        return NextResponse.json(
-          { error: 'Groq transcription failed', detail: err, executed: false, provider: 'groq', model },
-          { status: response.status },
-        );
-      }
+        if (!response.ok) {
+          const err = await response.text();
+          return unavailable('transcription_failed', `Groq transcription failed: ${err}`, response.status, 'groq');
+        }
 
       const result = await response.json();
       return NextResponse.json({
@@ -173,10 +170,7 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const err = await response.text();
-        return NextResponse.json(
-          { error: 'Gemini transcription failed', detail: err, executed: false, provider: 'gemini', model },
-          { status: response.status },
-        );
+        return unavailable('transcription_failed', `Gemini transcription failed: ${err}`, response.status, 'gemini');
       }
 
       const result = await response.json();
@@ -193,7 +187,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider === 'huggingface') {
-      // HuggingFace Inference API — free fallback STT
+      // Hugging Face Inference API — free fallback STT
       const ALLOWED_HF_STT_MODELS = ['openai/whisper-large-v3', 'openai/whisper-small', 'openai/whisper-base'] as const;
       const matched = ALLOWED_HF_STT_MODELS.find((m) => m === model);
       const hfModel = matched ?? 'openai/whisper-large-v3';
@@ -210,10 +204,7 @@ export async function POST(request: NextRequest) {
 
       if (!response.ok) {
         const err = await response.text();
-        return NextResponse.json(
-          { error: 'HuggingFace transcription failed', detail: err, executed: false, provider: 'huggingface', model: hfModel },
-          { status: response.status },
-        );
+        return unavailable('transcription_failed', `Hugging Face transcription failed: ${err}`, response.status, 'huggingface');
       }
 
       const result = await response.json();
@@ -242,10 +233,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const err = await response.text();
-      return NextResponse.json(
-        { error: 'OpenAI transcription failed', detail: err, executed: false, provider: 'openai', model },
-        { status: response.status },
-      );
+      return unavailable('transcription_failed', `OpenAI transcription failed: ${err}`, response.status, 'openai');
     }
 
     const result = await response.json();
@@ -259,9 +247,6 @@ export async function POST(request: NextRequest) {
       capability: 'voice_input',
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: 'Internal server error', detail: String(err), executed: false },
-      { status: 500 },
-    );
+    return unavailable('transcription_failed', `Internal server error: ${String(err)}`, 500);
   }
 }

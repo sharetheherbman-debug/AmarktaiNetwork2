@@ -108,14 +108,26 @@ export async function GET(
       if (apiKey) {
         updated = await pollReplicateJob(job.providerJobId, apiKey);
       }
-    } else if (job.provider === 'huggingface' && job.providerJobId) {
-      // HF jobs prefixed with "hf-sync:" are already complete
-      if (job.providerJobId.startsWith('hf-sync:')) {
-        updated = { status: 'succeeded' };
+    } else if (job.provider === 'together' && job.providerJobId) {
+      // Together AI synchronous jobs carry the result URL in the providerJobId itself.
+      // Format: "together-sync:<jobId>:<resultUrl>" when already complete.
+      if (job.providerJobId.startsWith('together-sync:')) {
+        const parts = job.providerJobId.split(':');
+        const resultUrl = parts.slice(2).join(':') || undefined;
+        updated = { status: 'succeeded', resultUrl };
       } else {
-        // For async HF jobs that were loading, mark as processing (no polling API)
+        // Async Together jobs — mark as processing (no dedicated poll API available).
         updated = { status: 'processing' };
       }
+    } else if (job.provider === 'huggingface') {
+      // Hugging Face video generation is no longer supported. Any legacy jobs that
+      // were created via HF are marked failed with an actionable error message.
+      updated = {
+        status: 'failed',
+        error:
+          'Video generation via Hugging Face is not supported. ' +
+          'Re-submit your request using Replicate or Together AI.',
+      };
     }
   } catch {
     // Poll error — return current DB state without failing

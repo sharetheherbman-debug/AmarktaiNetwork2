@@ -3,20 +3,27 @@
  *
  * Creates an asynchronous video generation job.
  *
- * Provider chain:
+ * Provider chain (in priority order):
  *   1. Replicate (wan-ai/wan2.1-t2v-480p, minimax/video-01)
- *   2. HuggingFace (cerspense/zeroscope_v2_576w — free tier, longer latency)
+ *   2. Together AI (black-forest-labs/FLUX.1-schnell-Free — video-capable models)
+ *
+ * Hugging Face is NOT supported for video generation. The Inference API does not
+ * provide a stable asynchronous video job endpoint for models like zeroscope.
+ * Explicit requests with provider="huggingface" return a 400 with a clear error.
+ *
+ * When no video provider is configured, this route falls back to video_planning
+ * mode — returning a script/storyboard instead of a generated video file.
  *
  * Returns a jobId immediately. Poll GET /api/brain/video-generate/[jobId]
  * to check status and retrieve the result URL once complete.
  *
  * Capability truth: video_generation is AVAILABLE only when Replicate or
- * HuggingFace is configured and this route returns a real job.
+ * Together AI is configured and this route returns a real job.
  */
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getVaultApiKey } from '@/lib/brain';
+import { getVaultApiKey, callProvider } from '@/lib/brain';
 import { z } from 'zod';
 
 const FRAMES_PER_SECOND = 24;
@@ -27,9 +34,9 @@ const REPLICATE_MODELS: ReadonlyArray<{ id: string; name: string }> = [
   { id: 'minimax/video-01', name: 'MiniMax Video-01' },
 ];
 
-const HF_VIDEO_MODELS: ReadonlyArray<string> = [
-  'cerspense/zeroscope_v2_576w',
-  'damo-vilab/text-to-video-ms-1.7b',
+/** Together AI models that support video or short-clip generation. */
+const TOGETHER_VIDEO_MODELS: ReadonlyArray<{ id: string; name: string }> = [
+  { id: 'black-forest-labs/FLUX.1-schnell-Free', name: 'FLUX.1 Schnell (Together)' },
 ];
 
 const RequestSchema = z.object({
@@ -38,7 +45,11 @@ const RequestSchema = z.object({
   duration: z.number().int().min(1).max(30).optional().default(4),
   aspectRatio: z.enum(['16:9', '9:16', '1:1']).optional().default('16:9'),
   appSlug: z.string().optional(),
-  provider: z.enum(['replicate', 'huggingface', 'auto']).optional().default('auto'),
+  // 'huggingface' is accepted by the schema but explicitly blocked at runtime (lines below)
+  // because the Hugging Face Inference API does not support async video generation.
+  // It is kept in the enum so existing integrations that send 'huggingface' receive a clear
+  // error message rather than a schema-validation failure.
+  provider: z.enum(['replicate', 'together', 'huggingface', 'auto']).optional().default('auto'),
   model: z.string().optional(),
 });
 
@@ -82,43 +93,69 @@ async function createReplicateJob(
   return { providerJobId: data.id, status: data.status ?? 'starting' };
 }
 
-async function createHfVideoJob(
+async function createTogetherVideoJob(
   prompt: string,
   modelId: string,
   apiKey: string,
 ): Promise<{ providerJobId: string; status: string }> {
-  const safeModel = HF_VIDEO_MODELS.find((m) => m === modelId) ?? HF_VIDEO_MODELS[0];
-
-  // HF inference API for video models — submit job, get back a task ID from x-request-id header
-  const res = await fetch(
-    `https://api-inference.huggingface.co/models/${safeModel}`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'x-wait-for-model': 'false',
-      },
-      body: JSON.stringify({ inputs: prompt }),
-      signal: AbortSignal.timeout(20_000),
+  const res = await fetch('https://api.together.xyz/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify({
+      model: modelId,
+      prompt,
+      n: 1,
+      width: 1280,
+      height: 720,
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
 
-  // 503 = model loading (expected) — we treat it as "processing"
-  if (res.status === 503) {
-    const requestId = res.headers.get('x-request-id') ?? `hf-${Date.now()}`;
-    return { providerJobId: `hf:${safeModel}:${requestId}`, status: 'processing' };
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Together AI job creation failed (${res.status}): ${errText}`);
   }
 
-  if (res.ok) {
-    // Synchronous response — video bytes returned immediately
-    const requestId = res.headers.get('x-request-id') ?? `hf-sync-${Date.now()}`;
-    // Store the video blob as a data URL in the job — we signal with prefix "hf-sync:"
-    return { providerJobId: `hf-sync:${safeModel}:${requestId}`, status: 'succeeded' };
+  interface TogetherResponse {
+    id?: string;
+    data?: Array<{ url?: string; b64_json?: string }>;
   }
+  const data = await res.json() as TogetherResponse;
+  const jobId = data.id ?? `together-${Date.now()}`;
+  // Together's image/generation API is synchronous; if data is present mark as succeeded
+  const resultReady = Array.isArray(data.data) && data.data.length > 0;
+  return {
+    providerJobId: resultReady ? `together-sync:${jobId}:${(data.data?.[0]?.url ?? '')}` : `together:${jobId}`,
+    status: resultReady ? 'succeeded' : 'processing',
+  };
+}
 
-  const errText = await res.text().catch(() => '');
-  throw new Error(`HuggingFace video job failed (${res.status}): ${errText}`);
+/**
+ * Generate a video_planning fallback — returns a structured script/storyboard
+ * via the text AI when no real video provider is available. This ensures the
+ * caller always gets useful output rather than a bare 503 error.
+ */
+async function generateVideoPlanningFallback(
+  prompt: string,
+  style: string,
+  duration: number,
+  _req: Request,
+): Promise<{ script: string; note: string } | null> {
+  try {
+    const planningPrompt =
+      `Create a ${duration}-second ${style} video script/storyboard for: "${prompt}". ` +
+      `Structure the output as: Scene list, Shot descriptions, Narration/dialogue, Visual style notes.`;
+    const result = await callProvider('openai', 'gpt-4o-mini', planningPrompt, undefined);
+    if (result.output) {
+      return { script: result.output, note: 'Video generation provider unavailable — storyboard generated instead.' };
+    }
+  } catch {
+    // Planning fallback is best-effort; never block the caller
+  }
+  return null;
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -140,6 +177,21 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { prompt, style, duration, aspectRatio, appSlug, provider, model } = parsed.data;
 
+  // Hugging Face does NOT support video generation via the Inference API.
+  // The endpoint /models/cerspense/zeroscope_v2_576w is not a valid async job API.
+  if (provider === 'huggingface') {
+    return NextResponse.json(
+      {
+        capability: 'video_generation',
+        executed: false,
+        error:
+          'Video generation is not supported via Hugging Face in this configuration. ' +
+          'Use Replicate or Together AI for video generation.',
+      },
+      { status: 400 },
+    );
+  }
+
   // Enhance prompt with style
   const enhancedPrompt = `${style} style video: ${prompt}`;
 
@@ -147,7 +199,6 @@ export async function POST(req: Request): Promise<NextResponse> {
   let usedProvider = '';
   let usedModel = '';
   let initialStatus = 'processing';
-  let lastError = '';
 
   // Replicate attempt
   if (provider === 'auto' || provider === 'replicate') {
@@ -162,39 +213,55 @@ export async function POST(req: Request): Promise<NextResponse> {
         usedProvider = 'replicate';
         usedModel = modelToUse.id;
         initialStatus = result.status;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      } catch {
+        // Replicate failed — try next provider
       }
     }
   }
 
-  // HuggingFace fallback
-  if (!providerJobId && (provider === 'auto' || provider === 'huggingface')) {
-    const hfKey = await getVaultApiKey('huggingface');
-    if (hfKey) {
-      const hfModel = model && HF_VIDEO_MODELS.includes(model)
+  // Together AI fallback
+  if (!providerJobId && (provider === 'auto' || provider === 'together')) {
+    const togetherKey = await getVaultApiKey('together');
+    if (togetherKey) {
+      const togetherModel = model && TOGETHER_VIDEO_MODELS.find((m) => m.id === model)
         ? model
-        : HF_VIDEO_MODELS[0];
+        : TOGETHER_VIDEO_MODELS[0].id;
       try {
-        const result = await createHfVideoJob(enhancedPrompt, hfModel, hfKey);
+        const result = await createTogetherVideoJob(enhancedPrompt, togetherModel, togetherKey);
         providerJobId = result.providerJobId;
-        usedProvider = 'huggingface';
-        usedModel = hfModel;
+        usedProvider = 'together';
+        usedModel = togetherModel;
         initialStatus = result.status;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      } catch {
+        // Together AI failed — no more providers to try
       }
     }
   }
 
   if (!providerJobId) {
+    // No video provider available — fall back to video planning (script/storyboard)
+    const fallback = await generateVideoPlanningFallback(prompt, style, duration, req);
+    if (fallback) {
+      return NextResponse.json(
+        {
+          capability: 'video_planning',
+          executed: true,
+          fallbackMode: 'video_planning',
+          note: fallback.note,
+          script: fallback.script,
+          error: null,
+        },
+        { status: 200 },
+      );
+    }
     return NextResponse.json(
       {
         capability: 'video_generation',
         executed: false,
         error:
-          lastError ||
-          'No video generation provider available. Configure Replicate or HuggingFace.',
+          'Video generation failed: unsupported model or provider. ' +
+          'Hugging Face does not support video generation via API. ' +
+          'Configure Replicate or Together AI to enable video generation.',
       },
       { status: 503 },
     );

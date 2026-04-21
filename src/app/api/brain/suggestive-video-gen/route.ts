@@ -3,45 +3,23 @@
  *
  * Suggestive (non-explicit) video generation.
  *
- * Generates tasteful video content: fashion, swimwear, lifestyle, model
- * poses. Strictly no nudity, no explicit acts, no minors.
+ * CURRENT STATE: BLOCKED — no working video provider for this capability.
+ * Hugging Face Inference API does not support zeroscope or text-to-video-ms
+ * via a stable endpoint. This route returns a truthful 503 with a clear
+ * provider requirement until Replicate or another video provider is wired.
  *
- * All prompts are validated and sanitized through the suggestive prompt
- * guard before being sent to any provider.
- *
- * GATING:
+ * GATING (still enforced for when a provider is added):
  *   - App must have safeMode=false AND suggestiveMode=true
  *   - All prompts pass through validateSuggestivePrompt() before generation
  *
- * PROVIDERS (in order):
- *   1. HuggingFace ZeroScope V2 576w (text-to-video, free)
- *   2. HuggingFace Text-to-Video MS 1.7B (fallback)
- *
- * The provider applies its own safety filters. The prompt is additionally
- * prefixed with a tasteful-content enforcement string.
- *
  * Returns:
- *   { capability, executed, videoBase64?, videoUrl?, provider, model,
- *     promptUsed, promptRewritten, duration }
+ *   { capability, executed: false, error, provider_required, availabilityLevel }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSafetyConfig, validateSuggestivePrompt } from '@/lib/content-filter';
-import { getVaultApiKey } from '@/lib/brain';
-
-const ALLOWED_HF_VIDEO_MODELS: ReadonlyArray<string> = [
-  'cerspense/zeroscope_v2_576w',
-  'damo-vilab/text-to-video-ms-1.7b',
-] as const;
-
-const HF_VIDEO_FRAMES_PER_SECOND = 8;
-const HF_VIDEO_MAX_FRAMES = 24;
 
 const ALLOWED_STYLES = ['fashion', 'beach', 'gym', 'lifestyle', 'cinematic'] as const;
-
-function enforceSafeVideoPrefix(prompt: string): string {
-  return `Tasteful lifestyle video, professional production, fashion/model content, no nudity, no explicit content: ${prompt}`;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -119,99 +97,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sanitizedPrompt = validation.sanitized;
-    const wasRewritten = sanitizedPrompt !== prompt.trim();
-    const finalPrompt = enforceSafeVideoPrefix(sanitizedPrompt);
-
-    // ── Get HuggingFace API key ──────────────────────────────────────────
-    const apiKey = await getVaultApiKey('huggingface');
-
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          capability: 'suggestive_video_generation',
-          executed: false,
-          error:
-            'No video generation provider available. Configure HuggingFace to enable suggestive video generation.',
-        },
-        { status: 503 },
-      );
-    }
-
-    // ── Provider attempt chain ───────────────────────────────────────────
-    let videoBase64: string | null = null;
-    let usedModel = '';
-    let lastError = '';
-
-    for (const modelId of ALLOWED_HF_VIDEO_MODELS) {
-      try {
-        const res = await fetch(
-          `https://api-inference.huggingface.co/models/${modelId}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              inputs: finalPrompt,
-              parameters: {
-                num_frames: Math.min(Math.round(duration * HF_VIDEO_FRAMES_PER_SECOND), HF_VIDEO_MAX_FRAMES),
-                num_inference_steps: 25,
-              },
-            }),
-            signal: AbortSignal.timeout(60_000),
-          },
-        );
-
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') ?? '';
-          if (contentType.startsWith('video/') || contentType === 'application/octet-stream') {
-            const videoBytes = await res.arrayBuffer();
-            videoBase64 = Buffer.from(videoBytes).toString('base64');
-            usedModel = modelId;
-            break;
-          }
-        } else if (res.status === 503) {
-          // Model loading — try next model
-          const responseText = await res.text().catch(() => '');
-          lastError = `Model ${modelId} loading (503): ${responseText.slice(0, 200)}`;
-          continue;
-        } else {
-          const errText = await res.text().catch(() => '');
-          lastError = `${modelId} failed (${res.status}): ${errText.slice(0, 200)}`;
-        }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-      }
-    }
-
-    if (!videoBase64) {
-      return NextResponse.json(
-        {
-          capability: 'suggestive_video_generation',
-          executed: false,
-          error:
-            lastError ||
-            'Video generation failed. The HuggingFace models may be loading. Retry in 30 seconds.',
-          retryable: true,
-        },
-        { status: 503 },
-      );
-    }
-
-    return NextResponse.json({
-      capability: 'suggestive_video_generation',
-      executed: true,
-      videoBase64,
-      videoMimeType: 'video/mp4',
-      provider: 'huggingface',
-      model: usedModel,
-      promptUsed: finalPrompt,
-      promptRewritten: wasRewritten,
-      style,
-      duration,
-    });
+    // ── Provider gate — Hugging Face video is not a supported endpoint ───
+    // The Hugging Face Inference API does not provide a working async video
+    // pipeline for models like zeroscope_v2_576w or text-to-video-ms-1.7b.
+    // Calling those endpoints produces HTML error pages, not video data.
+    // Return a truthful error instead of making a call we know will fail.
+    return NextResponse.json(
+      {
+        capability: 'suggestive_video_generation',
+        executed: false,
+        error:
+          'Video generation failed: unsupported model or provider. ' +
+          'Hugging Face does not support this video model via API. ' +
+          'Suggestive video generation requires Replicate or another video provider.',
+        provider_required: 'replicate',
+        availabilityLevel: 'BLOCKED',
+      },
+      { status: 503 },
+    );
   } catch (err) {
     console.error('[suggestive-video-gen] Unhandled error:', err);
     return NextResponse.json(

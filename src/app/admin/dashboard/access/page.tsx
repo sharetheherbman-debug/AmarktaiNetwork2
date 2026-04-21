@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   Settings, Shield, Key, Globe, Database, Bell, Lock,
-  RefreshCw, AlertCircle, CheckCircle,
+  RefreshCw, AlertCircle, CheckCircle, ShieldAlert, Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -472,7 +472,133 @@ export default function AccessPage() {
             )}
           </ul>
         </SectionShell>
+
+        {/* ── Global Adult Mode ── */}
+        <GlobalAdultModeSection />
       </motion.div>
     </motion.div>
+  )
+}
+
+/* ── Global Adult Mode Control ─────────────────────────────── */
+
+function GlobalAdultModeSection() {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/global-adult-mode')
+      .then((r) => r.json())
+      .then((d) => {
+        setEnabled(d.enabled ?? false)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+        setError('Failed to load global adult mode state')
+      })
+  }, [])
+
+  const toggle = async () => {
+    if (enabled === null) return
+    setSaving(true)
+    setError(null)
+    const next = !enabled
+    try {
+      const res = await fetch('/api/admin/global-adult-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setEnabled(data.enabled ?? next)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 space-y-4 hover:border-white/[0.1] transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center text-amber-400">
+          <ShieldAlert className="w-5 h-5" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white">Global Adult Mode</h3>
+          <p className="text-xs text-slate-500">Platform-level adult content toggle.</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <RefreshCw className="w-3 h-3 animate-spin" />
+          Loading…
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-xs text-white font-medium">
+                Platform-wide adult mode
+              </p>
+              <p className="text-[11px] text-slate-500">
+                When ON, any app with safe mode disabled is upgraded to adult mode. Apps with safe mode ON are unaffected.
+              </p>
+            </div>
+            <button
+              onClick={toggle}
+              disabled={saving}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 ${
+                enabled ? 'bg-amber-500' : 'bg-slate-600'
+              }`}
+            >
+              {saving && (
+                <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />
+              )}
+              {!saving && (
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transform transition-transform ${
+                    enabled ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${enabled ? 'bg-amber-400' : 'bg-slate-600'}`} />
+            <span className="text-slate-400">
+              Global adult mode: <strong className="text-white">{enabled ? 'ENABLED' : 'DISABLED'}</strong>
+            </span>
+          </div>
+
+          {enabled && (
+            <p className="text-[11px] text-amber-400 border border-amber-500/20 bg-amber-500/5 rounded-lg px-3 py-2">
+              ⚠ CSAM, violence, and self-harm content is always blocked regardless of this setting.
+              Only lawful adult 18+ content is permitted.
+            </p>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {error}
+            </p>
+          )}
+
+          <p className="text-[10px] text-slate-600">
+            Per-app adult controls are available in each app&apos;s Safety tab.{' '}
+            <Link href="/admin/dashboard/apps" className="text-slate-500 hover:text-slate-300 underline">
+              Manage apps →
+            </Link>
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
