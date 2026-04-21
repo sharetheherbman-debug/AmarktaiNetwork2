@@ -383,7 +383,7 @@ export default function WorkflowBuilderTab() {
                 if (!customName.trim()) return
                 setCustomRunning(true); setCustomError(null); setCustomSuccess(false)
                 try {
-                  const stepsFormatted = customSteps.map((s, i) => ({ id: `step_${i}`, name: s.name, type: s.type }))
+                  const stepsWithIds = customSteps.map((s, i) => ({ id: `step_${i}`, name: s.name, type: s.type }))
                   const createRes = await fetch('/api/workflows', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -392,8 +392,8 @@ export default function WorkflowBuilderTab() {
                       name: customName.trim(),
                       description: customDesc.trim() || undefined,
                       appSlug: 'workspace',
-                      steps: stepsFormatted,
-                      entryStepId: stepsFormatted[0]?.id ?? 'step_0',
+                      steps: stepsWithIds,
+                      entryStepId: stepsWithIds[0]?.id ?? 'step_0',
                     }),
                   })
                   if (!createRes.ok) {

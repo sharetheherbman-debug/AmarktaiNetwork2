@@ -889,7 +889,7 @@ function TryAgentPanel({ appId, appSecret }: { appId: string; appSecret: string 
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.01]">
         <MessageSquare className="w-4 h-4 text-blue-400" />
         <h4 className="text-sm font-semibold text-white">Try Agent</h4>
-        <span className="text-[10px] text-slate-500">Messages route through this app's rules, persona, safety filters, and memory — exactly as an end user would experience.</span>
+        <p className="text-[10px] text-slate-500">Messages route through this app&apos;s rules, persona, safety filters, and memory — exactly as an end user would experience.</p>
       </div>
 
       {/* Message history */}

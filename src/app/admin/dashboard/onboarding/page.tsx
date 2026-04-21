@@ -68,13 +68,13 @@ function slugify(v: string): string {
  * The actual app secret is generated server-side and displayed in
  * Admin → Apps → [app] → Agents tab after creation.
  */
-function generatePreviewSecret(): string {
+function generatePreviewPlaceholder(): string {
   return `PREVIEW-ONLY-${Date.now().toString(36).toUpperCase()}-NOT-A-REAL-SECRET`
 }
 
 function buildOutput(data: WizardData): GeneratedOutput {
   const appId = slugify(data.appName) || 'my-app'
-  const appSecret = generatePreviewSecret()
+  const appSecret = generatePreviewPlaceholder()
   const domain = data.subdomain
     ? `${data.subdomain}.yourdomain.com`
     : `${appId}.yourdomain.com`

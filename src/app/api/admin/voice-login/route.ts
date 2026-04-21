@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as { passphrase?: unknown }
     if (typeof body.passphrase !== 'string') {
-      return NextResponse.json({ error: 'passphrase must be a string' }, { status: 400 })
+      return NextResponse.json({ error: 'Passphrase must be a string' }, { status: 400 })
     }
     passphrase = body.passphrase
   } catch {

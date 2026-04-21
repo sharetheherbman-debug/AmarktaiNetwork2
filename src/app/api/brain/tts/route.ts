@@ -126,9 +126,9 @@ export async function POST(request: NextRequest) {
      * Meter this TTS call back to the given appSlug if one was provided.
      * Called fire-and-forget (void) so it never blocks the audio response.
      */
-    const meterCall = (provider: string, model: string, inputText: string, success: boolean) => {
+    const meterCall = (provider: string, model: string, text: string, success: boolean) => {
       if (!meterAppSlug || typeof meterAppSlug !== 'string') return;
-      const tokens = Math.max(1, Math.ceil(inputText.length / 4));
+      const tokens = Math.max(1, Math.ceil(text.length / 4));
       const estimated = Math.round(estimateCostUsd(model, tokens) * 100);
       void recordUsage({
         appSlug: meterAppSlug,
