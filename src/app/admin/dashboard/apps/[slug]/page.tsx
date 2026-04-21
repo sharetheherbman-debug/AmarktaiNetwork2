@@ -34,7 +34,139 @@ interface AppRecord {
   } | null
 }
 
-/* ── Config ──────────────────────────────────────────────── */
+/* ── App Health Types ─────────────────────────────────────── */
+interface AppHealthStats {
+  appSlug: string
+  lastRequestAt: string | null
+  requests7d: number
+  successRate7d: number | null
+  estimatedMonthlyCostCents: number
+  connectionStatus: 'active' | 'stale' | 'no_data'
+  trend7d: Array<{ date: string; requests: number; successRate: number | null }>
+  topCapability: string | null
+}
+
+/* ── App Health Panel Component ──────────────────────────── */
+function AppHealthPanel({ appSlug }: { appSlug: string }) {
+  const [health, setHealth] = useState<AppHealthStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/admin/app-health?slug=${encodeURIComponent(appSlug)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setHealth(d as AppHealthStats); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(e instanceof Error ? e.message : 'Failed'); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [appSlug])
+
+  const statusColor = {
+    active: 'text-emerald-400',
+    stale: 'text-amber-400',
+    no_data: 'text-slate-500',
+  }
+  const statusLabel = {
+    active: '● Active',
+    stale: '● Stale',
+    no_data: '● No data',
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 flex items-center gap-2 text-xs text-slate-500">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading health data…
+      </div>
+    )
+  }
+
+  if (error || !health) {
+    return (
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+        <p className="text-xs text-slate-500">Health data unavailable — start making API calls to populate stats.</p>
+      </div>
+    )
+  }
+
+  const costDollars = (health.estimatedMonthlyCostCents / 100).toFixed(2)
+  const maxBar = Math.max(...health.trend7d.map(d => d.requests), 1)
+
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-5">
+      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        <Activity className="w-4 h-4 text-cyan-400" />
+        Connection Health
+      </h3>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Status</p>
+          <p className={`text-sm font-medium ${statusColor[health.connectionStatus]}`}>
+            {statusLabel[health.connectionStatus]}
+          </p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">7d Requests</p>
+          <p className="text-sm font-medium text-white">{health.requests7d.toLocaleString()}</p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Success Rate</p>
+          <p className={`text-sm font-medium ${health.successRate7d === null ? 'text-slate-500' : health.successRate7d >= 90 ? 'text-emerald-400' : health.successRate7d >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+            {health.successRate7d !== null ? `${health.successRate7d}%` : '—'}
+          </p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Est. Monthly</p>
+          <p className="text-sm font-medium text-white">${costDollars}</p>
+        </div>
+      </div>
+
+      {/* Last request */}
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-slate-500">Last request</span>
+        <span className="text-slate-300">
+          {health.lastRequestAt
+            ? formatDistanceToNow(new Date(health.lastRequestAt), { addSuffix: true })
+            : 'Never'}
+        </span>
+      </div>
+
+      {/* Top capability */}
+      {health.topCapability && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-500">Top capability</span>
+          <span className="font-mono text-violet-300">{health.topCapability}</span>
+        </div>
+      )}
+
+      {/* 7-day bar chart */}
+      {health.trend7d.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-2">7-day Trend</p>
+          <div className="flex items-end gap-1 h-12">
+            {health.trend7d.map((d, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-0.5" title={`${d.date}: ${d.requests} requests`}>
+                <div
+                  className="w-full rounded-sm bg-cyan-500/50 hover:bg-cyan-400/70 transition-colors"
+                  style={{ height: `${Math.round((d.requests / maxBar) * 40) + 2}px` }}
+                />
+                <span className="text-[8px] text-slate-600">{d.date.slice(5)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {health.requests7d === 0 && (
+        <p className="text-[11px] text-slate-600">No requests in the past 7 days. Connect your app using the Agents tab credentials.</p>
+      )}
+    </div>
+  )
+}
+
+
 const STATUS: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   live:            { label: 'Live',    dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10' },
   ready_to_deploy: { label: 'Ready',   dot: 'bg-blue-400',    text: 'text-blue-400',    bg: 'bg-blue-400/10' },
@@ -275,62 +407,67 @@ export default function AppDetailPage() {
 /* ── Tab: Overview ───────────────────────────────────────── */
 function OverviewTab({ app }: { app: AppRecord }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Configuration */}
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-white">Configuration</h3>
-        <div className="space-y-3">
-          {[
-            { label: 'Connected to Brain', value: app.connectedToBrain },
-            { label: 'Monitoring Enabled', value: app.monitoringEnabled },
-            { label: 'Integration Enabled', value: app.integrationEnabled },
-            { label: 'AI Enabled', value: app.aiEnabled },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">{item.label}</span>
-              <span
-                className={`text-xs font-medium ${
-                  item.value ? 'text-emerald-400' : 'text-slate-600'
-                }`}
-              >
-                {item.value ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Health panel */}
+      <AppHealthPanel appSlug={app.slug} />
 
-      {/* Integration */}
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-white">Integration</h3>
-        {app.integration ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Configuration */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-white">Configuration</h3>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Environment</span>
-              <span className="text-xs text-white capitalize">
-                {app.integration.environment}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Health</span>
-              <span
-                className={`text-xs font-medium ${
-                  (HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).color
-                }`}
-              >
-                {(HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).label}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Onboarding</span>
-              <span className="text-xs text-slate-300 capitalize">
-                {app.onboardingStatus.replace(/_/g, ' ')}
-              </span>
-            </div>
+            {[
+              { label: 'Connected to Brain', value: app.connectedToBrain },
+              { label: 'Monitoring Enabled', value: app.monitoringEnabled },
+              { label: 'Integration Enabled', value: app.integrationEnabled },
+              { label: 'AI Enabled', value: app.aiEnabled },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">{item.label}</span>
+                <span
+                  className={`text-xs font-medium ${
+                    item.value ? 'text-emerald-400' : 'text-slate-600'
+                  }`}
+                >
+                  {item.value ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <p className="text-xs text-slate-500">No integration configured.</p>
-        )}
+        </div>
+
+        {/* Integration */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-white">Integration</h3>
+          {app.integration ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Environment</span>
+                <span className="text-xs text-white capitalize">
+                  {app.integration.environment}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Health</span>
+                <span
+                  className={`text-xs font-medium ${
+                    (HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).color
+                  }`}
+                >
+                  {(HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).label}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Onboarding</span>
+                <span className="text-xs text-slate-300 capitalize">
+                  {app.onboardingStatus.replace(/_/g, ' ')}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">No integration configured.</p>
+          )}
+        </div>
       </div>
     </div>
   )

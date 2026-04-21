@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Menu, X, User, LayoutDashboard, AppWindow, Sparkles, Film, Brain, Server,
-  Bot, Cpu, Archive, Plug, ClipboardList, Bell,
+  Bot, Cpu, Archive, Plug, ClipboardList, Bell, Rocket,
 } from 'lucide-react'
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
@@ -25,8 +25,9 @@ const NAV_GROUPS: Array<{
   {
     label: 'Apps',
     items: [
-      { href: '/admin/dashboard/apps',       label: 'Apps',        icon: AppWindow },
-      { href: '/admin/dashboard/app-agents', label: 'App Agents',  icon: Bot },
+      { href: '/admin/dashboard/apps',        label: 'Apps',        icon: AppWindow },
+      { href: '/admin/dashboard/app-agents',  label: 'App Agents',  icon: Bot },
+      { href: '/admin/dashboard/onboarding',  label: 'Connect App', icon: Rocket },
       { href: '/admin/dashboard/integrations', label: 'Integrations', icon: Plug },
     ],
   },

@@ -4,6 +4,8 @@ import { buildAffectiveVoiceConfig, type TTSProvider, type AffectiveVoiceConfig 
 import { detectEmotions } from '@/lib/emotion-engine';
 import { recordUsage } from '@/lib/usage-meter';
 import { estimateCostUsd } from '@/lib/budget-tracker';
+import { saveMemory } from '@/lib/memory';
+import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/brain/tts — Text-to-Speech endpoint
@@ -64,16 +66,61 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       text,
-      voiceId,
-      gender,
-      accent,
       model: requestedModel,
-      speed = 1.0,
+      speed: rawSpeed,
       provider: requestedProvider = 'auto',
       emotionAware = false,
       // Optional appSlug: when provided, usage is metered back to that app/workspace
+      // and voice persona settings are auto-loaded from the AppAgent record.
       appSlug: meterAppSlug,
     } = body;
+
+    // ── Load voice persona from DB (Phase 1 fix) ─────────────────────────────
+    // When an appSlug is provided, load the persisted voice persona settings
+    // from the AppAgent table and use them as the baseline for this TTS call.
+    // Explicit per-call params (voiceId, gender, accent, speed) always win.
+    let personaVoiceId: string | undefined
+    let personaGender: string | undefined
+    let personaAccent: string | undefined
+    let personaSpeed: number | undefined
+    let personaApplied: Record<string, string> = {}
+
+    if (meterAppSlug && typeof meterAppSlug === 'string') {
+      try {
+        const agent = await prisma.appAgent.findUnique({
+          where: { appSlug: meterAppSlug },
+          select: {
+            voiceGender: true,
+            voiceAccent: true,
+            voiceSpeed: true,
+          },
+        })
+        if (agent) {
+          if (agent.voiceGender) {
+            personaGender = agent.voiceGender === 'neutral' ? undefined : agent.voiceGender
+            personaApplied.gender = agent.voiceGender
+          }
+          if (agent.voiceAccent) {
+            personaAccent = agent.voiceAccent
+            personaApplied.accent = agent.voiceAccent
+          }
+          if (agent.voiceSpeed) {
+            personaSpeed = agent.voiceSpeed === 'slow' ? 0.85
+              : agent.voiceSpeed === 'fast' ? 1.2
+              : 1.0
+            personaApplied.speed = agent.voiceSpeed
+          }
+        }
+      } catch {
+        // DB lookup failure → proceed with call-level defaults
+      }
+    }
+
+    // Resolve final values: explicit call param wins over persona, persona wins over default
+    const voiceId: string | undefined = body.voiceId ?? personaVoiceId
+    const gender: string | undefined = body.gender ?? personaGender
+    const accent: string | undefined = body.accent ?? personaAccent
+    const speed: number = rawSpeed ?? personaSpeed ?? 1.0
 
     /**
      * Meter this TTS call back to the given appSlug if one was provided.
@@ -215,6 +262,10 @@ export async function POST(request: NextRequest) {
 
       const audioBuffer = await response.arrayBuffer();
       meterCall('groq', model, text, true);
+      // Auto-memory: record lightweight TTS event for this app
+      if (meterAppSlug) {
+        void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via groq/${model}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+      }
       return new NextResponse(audioBuffer, {
         status: 200,
         headers: {
@@ -222,6 +273,7 @@ export async function POST(request: NextRequest) {
           'Content-Length': String(audioBuffer.byteLength),
           'X-Provider': 'groq',
           'X-Model': model,
+          ...(Object.keys(personaApplied).length ? { 'X-Persona-Applied': JSON.stringify(personaApplied) } : {}),
         },
       });
     }
@@ -269,6 +321,10 @@ export async function POST(request: NextRequest) {
 
       const audioBuffer = Buffer.from(audioData, 'base64');
       meterCall('gemini', model, text, true);
+      // Auto-memory
+      if (meterAppSlug) {
+        void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via gemini/${model}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+      }
       return new NextResponse(audioBuffer, {
         status: 200,
         headers: {
@@ -276,6 +332,7 @@ export async function POST(request: NextRequest) {
           'Content-Length': String(audioBuffer.byteLength),
           'X-Provider': 'gemini',
           'X-Model': model,
+          ...(Object.keys(personaApplied).length ? { 'X-Persona-Applied': JSON.stringify(personaApplied) } : {}),
           ...(affective ? {
             'X-Emotion': affective.sourceEmotion,
             'X-Emotion-Confidence': String(affective.confidence),
@@ -310,6 +367,10 @@ export async function POST(request: NextRequest) {
 
       const audioBuffer = await response.arrayBuffer();
       meterCall('huggingface', hfModel, text, true);
+      // Auto-memory
+      if (meterAppSlug) {
+        void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via huggingface/${hfModel}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+      }
       return new NextResponse(audioBuffer, {
         status: 200,
         headers: {
@@ -352,6 +413,10 @@ export async function POST(request: NextRequest) {
 
     const audioBuffer = await response.arrayBuffer();
     meterCall('openai', model, text, true);
+    // Auto-memory
+    if (meterAppSlug) {
+      void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via openai/${model}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+    }
     return new NextResponse(audioBuffer, {
       status: 200,
       headers: {
@@ -359,6 +424,7 @@ export async function POST(request: NextRequest) {
         'Content-Length': String(audioBuffer.byteLength),
         'X-Provider': 'openai',
         'X-Model': model,
+        ...(Object.keys(personaApplied).length ? { 'X-Persona-Applied': JSON.stringify(personaApplied) } : {}),
         ...(affective ? {
           'X-Emotion': affective.sourceEmotion,
           'X-Emotion-Confidence': String(affective.confidence),

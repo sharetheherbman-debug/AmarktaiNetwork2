@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState, useRef, useCallback } from 'react'
+import React, { useMemo, useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mic, Loader2, ShieldCheck, MicOff } from 'lucide-react'
+import { Mic, Loader2, ShieldCheck, MicOff, AlertTriangle } from 'lucide-react'
 import VoiceAccessVisualizer, { VoiceVisualMode } from '@/components/voice/VoiceAccessVisualizer'
 
 interface VoiceRecognizer {
@@ -25,13 +26,14 @@ function getSpeechRecognitionConstructor(): (new () => VoiceRecognizer) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-export default function VoiceLoginBridgePage() {
-  const [recordedSample, setRecordedSample] = useState('')
+export default function VoiceLoginPage() {
+  const router = useRouter()
+  const [passphrase, setPassphrase] = useState('')
   const [mode, setMode] = useState<VoiceVisualMode>('idle')
   const [checking, setChecking] = useState(false)
   const [recording, setRecording] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
   const recognitionRef = useRef<VoiceRecognizer | null>(null)
 
   const SpeechRecAPI = getSpeechRecognitionConstructor()
@@ -57,7 +59,7 @@ export default function VoiceLoginBridgePage() {
 
     recognition.onresult = (event: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => {
       const transcript = event.results[0]?.[0]?.transcript ?? ''
-      setRecordedSample(transcript)
+      setPassphrase(transcript)
     }
 
     recognition.onerror = () => {
@@ -81,53 +83,65 @@ export default function VoiceLoginBridgePage() {
     setRecording(false)
   }, [])
 
-  const normalizedSample = useMemo(() => recordedSample.trim().toLowerCase(), [recordedSample])
+  const normalizedPassphrase = useMemo(() => passphrase.trim().toLowerCase(), [passphrase])
 
   async function validateVoiceLogin() {
-    if (!normalizedSample) {
-      setResult('No passphrase captured. Speak or type your passphrase first.')
+    if (!normalizedPassphrase) {
+      setResult({ ok: false, message: 'No passphrase captured. Speak or type your passphrase first.' })
       return
     }
     setChecking(true)
     setResult(null)
     try {
-      const res = await fetch('/api/admin/voice-access-settings')
-      const data = await res.json().catch(() => ({}))
-      const settings = data?.settings ?? {}
-      if (!settings.allowVoiceLogin) {
-        setResult('Voice login is not enabled. Use standard login.')
-        return
-      }
-      const expected = String(settings.loginPassphrase ?? '').trim().toLowerCase()
-      if (!expected) {
-        setResult('No passphrase configured. Configure one in System → Voice Access, or use standard login.')
-        return
-      }
-      if (normalizedSample === expected) {
+      // Server-side validation — passphrase never compared client-side
+      const res = await fetch('/api/admin/voice-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passphrase: normalizedPassphrase }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string; success?: boolean }
+
+      if (res.ok && data.success) {
         setMode('speaking')
-        setResult('Voice login validated. Continue with secure session handoff.')
+        setResult({ ok: true, message: 'Voice login successful. Redirecting to dashboard…' })
+        setTimeout(() => {
+          router.push('/admin/dashboard')
+        }, 1200)
       } else {
-        setResult('Passphrase did not match. Try again or use standard login.')
+        setResult({ ok: false, message: data.error ?? 'Voice login failed. Try again or use standard login.' })
+        setMode('idle')
       }
     } catch {
-      setResult('Voice login service unavailable. Use standard login fallback.')
+      setResult({ ok: false, message: 'Voice login service unavailable. Use standard login fallback.' })
+      setMode('idle')
     } finally {
       setChecking(false)
-      setTimeout(() => setMode('idle'), 1200)
+      setTimeout(() => setMode('idle'), 1500)
     }
   }
 
   return (
     <div className="min-h-screen bg-[#050816] px-4 py-10 text-white">
       <div className="mx-auto max-w-xl space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-          <h1 className="text-xl font-bold">Voice Login Bridge</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Speak your configured passphrase to authenticate, then continue to your session.
+
+        {/* Header + disclaimer */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-3">
+          <h1 className="text-xl font-bold">Voice Login</h1>
+          <p className="text-sm text-slate-400">
+            Speak your configured passphrase to authenticate. The passphrase is validated
+            server-side against your saved configuration.
           </p>
+          <div className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-300">
+              This is <strong>passphrase-based voice login</strong> — it recognises your spoken words,
+              not your voice biometrics. It is not biometric voiceprint authentication.
+            </p>
+          </div>
           {!speechSupported && (
-            <p className="mt-2 text-xs text-amber-400">
-              ⚠ Your browser does not support the Web Speech API. Type your passphrase manually below.
+            <p className="text-xs text-amber-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Your browser does not support the Web Speech API. Type your passphrase manually below.
             </p>
           )}
         </div>
@@ -154,25 +168,31 @@ export default function VoiceLoginBridgePage() {
           {micError && <p className="text-xs text-amber-300">{micError}</p>}
 
           <label className="text-xs text-slate-300 block">
-            Captured passphrase {speechSupported ? '(or type manually)' : ''}
+            Passphrase {speechSupported ? '(spoken or typed)' : '(type manually)'}
             <input
-              value={recordedSample}
-              onChange={(e) => setRecordedSample(e.target.value)}
-              placeholder="Your spoken or typed passphrase…"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              value={passphrase}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassphrase(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') validateVoiceLogin() }}
+              placeholder="Your passphrase…"
+              type="password"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/40 transition-colors"
             />
           </label>
 
-          <button onClick={validateVoiceLogin} disabled={checking || !normalizedSample}
-            className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200 disabled:opacity-50">
+          <button onClick={validateVoiceLogin} disabled={checking || !normalizedPassphrase}
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs text-emerald-200 disabled:opacity-50 hover:bg-emerald-400/15 transition-colors">
             {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-            Validate login
+            {checking ? 'Validating…' : 'Validate & Login'}
           </button>
 
-          {result && <p className="text-xs text-slate-200">{result}</p>}
+          {result && (
+            <p className={`text-xs ${result.ok ? 'text-emerald-300' : 'text-red-300'}`}>
+              {result.message}
+            </p>
+          )}
         </div>
 
-        <Link href="/admin/login" className="inline-flex text-sm text-cyan-300 hover:text-cyan-200">
+        <Link href="/admin/login" className="inline-flex text-sm text-cyan-300 hover:text-cyan-200 transition-colors">
           Use standard login instead →
         </Link>
       </div>

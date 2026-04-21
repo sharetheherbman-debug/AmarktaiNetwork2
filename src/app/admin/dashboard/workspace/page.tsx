@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { FlaskConical, Rocket, ImageIcon, Mic, Film, Music, Layers, Workflow, GitBranch, Bot, HelpCircle, RefreshCw } from 'lucide-react'
+import type { AssistantAction } from '@/components/AIPartnerWidget'
 
 const TestAITab = dynamic(() => import('../build-studio/tabs/TestAITab'), { ssr: false })
 const CreateAppTab = dynamic(() => import('../build-studio/tabs/CreateAppTab'), { ssr: false })
@@ -38,10 +40,55 @@ interface UsageSummary {
 }
 
 export default function WorkspacePage() {
+  const router = useRouter()
   const [active, setActive] = useState<TabKey>('test-ai')
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [partnerOpen, setPartnerOpen] = useState(false)
+
+  const SECTION_TO_TAB: Record<string, TabKey> = {
+    'test-ai': 'test-ai', 'test': 'test-ai',
+    'build-app': 'build-app', 'build': 'build-app',
+    'images': 'images', 'image': 'images',
+    'voice': 'voice',
+    'video': 'video',
+    'music': 'music',
+    'compare': 'compare', 'models': 'compare',
+    'workflows': 'workflows',
+    'export': 'export',
+    'onboard': 'onboard', 'onboarding': 'onboard',
+  }
+
+  const handleAction = useCallback((action: AssistantAction) => {
+    if (action.type === 'navigate_to') {
+      const section = action.payload?.section ?? ''
+      const tabKey = SECTION_TO_TAB[section]
+      if (tabKey) {
+        setActive(tabKey)
+        setPartnerOpen(false)
+        return
+      }
+      // Navigate to dashboard section
+      const routes: Record<string, string> = {
+        apps: '/admin/dashboard/apps',
+        brain: '/admin/dashboard/brain',
+        artifacts: '/admin/dashboard/artifacts',
+        budget: '/admin/dashboard/system',
+        onboarding: '/admin/dashboard/onboarding',
+        healing: '/admin/dashboard/healing',
+        events: '/admin/dashboard/events',
+        providers: '/admin/dashboard/providers',
+      }
+      if (routes[section]) router.push(routes[section])
+    } else if (action.type === 'show_artifacts') {
+      router.push('/admin/dashboard/artifacts')
+    } else if (action.type === 'check_budget') {
+      router.push('/admin/dashboard/system')
+    } else if (action.type === 'start_onboarding') {
+      router.push('/admin/dashboard/onboarding')
+    }
+    // generate_image and run_test: handled by widget confirmation, no navigation needed here
+  }, [router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUsage = useCallback(() => {
     setLoadingUsage(true)
@@ -157,7 +204,7 @@ export default function WorkspacePage() {
       </motion.div>
 
       {/* AI Partner floating widget */}
-      <AIPartnerWidget open={partnerOpen} onClose={() => setPartnerOpen(false)} />
+      <AIPartnerWidget open={partnerOpen} onClose={() => setPartnerOpen(false)} onAction={handleAction} />
     </div>
   )
 }
