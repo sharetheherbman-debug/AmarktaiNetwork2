@@ -172,7 +172,7 @@ export default function VoiceLoginPage() {
             <input
               value={passphrase}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassphrase(e.target.value)}
-              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') validateVoiceLogin() }}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { e.preventDefault(); validateVoiceLogin() } }}
               placeholder="Your passphrase…"
               type="password"
               className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/40 transition-colors"

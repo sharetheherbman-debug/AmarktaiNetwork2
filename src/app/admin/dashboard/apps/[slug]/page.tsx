@@ -144,8 +144,8 @@ function AppHealthPanel({ appSlug }: { appSlug: string }) {
       {/* 7-day bar chart */}
       {health.trend7d.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-2">7-day Trend</p>
-          <div className="flex items-end gap-1 h-12" role="img" aria-label={`7-day request trend for ${appSlug}`}>
+          <p id={`health-trend-label-${appSlug}`} className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-2">7-day Trend</p>
+          <div className="flex items-end gap-1 h-12" role="group" aria-labelledby={`health-trend-label-${appSlug}`}>
             {health.trend7d.map((d, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
                 <div
