@@ -71,6 +71,13 @@ function computeCostCents(capability: string, model: string, tokens: number, suc
   return Math.max(estimated, floor)
 }
 
+/** Max characters of output to include in auto-saved event memories. */
+const MEMORY_OUTPUT_SLICE = 200
+/** Importance weight for auto-saved brain test event memories (low, informational only). */
+const MEMORY_IMPORTANCE = 0.3
+/** TTL in days for auto-saved brain test event memories. */
+const MEMORY_TTL_DAYS = 30
+
 const testSchema = z.object({
   message: z.string().min(1).max(16_000),
   taskType: z.string().default('chat'),
@@ -671,9 +678,9 @@ export async function POST(request: NextRequest) {
         appSlug: usageAppSlug,
         memoryType: 'event',
         key: `brain_test_${traceId}`,
-        content: `[${body.taskType}] ${result.output.slice(0, 200)} via ${body.providerKey}/${result.model}`,
-        importance: 0.3,
-        ttlDays: 30,
+        content: `[${body.taskType}] ${result.output.slice(0, MEMORY_OUTPUT_SLICE)} via ${body.providerKey}/${result.model}`,
+        importance: MEMORY_IMPORTANCE,
+        ttlDays: MEMORY_TTL_DAYS,
       }).catch(() => { /* non-blocking */ })
     }
     return NextResponse.json(
@@ -736,9 +743,9 @@ export async function POST(request: NextRequest) {
       appSlug: usageAppSlug,
       memoryType: 'event',
       key: `brain_test_${traceId}`,
-      content: `[${body.taskType}] ${orchResult.output.slice(0, 200)} via ${orchResult.routedProvider ?? 'unknown'}/${orchResult.routedModel ?? 'unknown'}`,
-      importance: 0.3,
-      ttlDays: 30,
+      content: `[${body.taskType}] ${orchResult.output.slice(0, MEMORY_OUTPUT_SLICE)} via ${orchResult.routedProvider ?? 'unknown'}/${orchResult.routedModel ?? 'unknown'}`,
+      importance: MEMORY_IMPORTANCE,
+      ttlDays: MEMORY_TTL_DAYS,
     }).catch(() => { /* non-blocking */ })
   }
 
