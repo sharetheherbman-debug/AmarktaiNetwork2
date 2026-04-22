@@ -1,22 +1,32 @@
 'use client'
 
 /**
- * AIPartnerWidget — Optional floating AI partner for Workspace.
+ * AIPartnerWidget — Floating AI Partner for Workspace.
  *
- * Toggle on/off. Text mode + voice+text mode.
- * Can answer questions, navigate, explain, and trigger allowed actions.
- * Designed to be the foundation for future AI friend/avatar integration.
+ * Phase 2: Real voice assistant loop — STT input → AI reply → TTS playback.
+ * Phase 3: Structured command dispatch — navigate_to, generate_image, run_test,
+ *           show_artifacts, check_budget, start_onboarding.
+ *
+ * Voice persona settings from System → Voice Access are applied automatically
+ * to all TTS calls (Phase 1 fix).
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { Bot, X, Send, Mic, MicOff, Loader2 } from 'lucide-react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { Bot, X, Send, Mic, MicOff, Loader2, Volume2, VolumeX } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  /** Parsed action, if the assistant returned one */
+  action?: AssistantAction | null
 }
 
-/** Maximum number of recent messages to include in conversation context sent to the AI. */
+/** Structured action the assistant can dispatch */
+export interface AssistantAction {
+  type: 'navigate_to' | 'generate_image' | 'run_test' | 'show_artifacts' | 'check_budget' | 'start_onboarding'
+  payload?: Record<string, string>
+}
+
 const MAX_CONTEXT_MESSAGES = 10
 
 interface VoiceRecognizer {
@@ -39,19 +49,67 @@ function getSpeechRecognitionConstructor(): (new () => VoiceRecognizer) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-interface AIPartnerWidgetProps {
-  /** Whether the widget panel is visible */
-  open: boolean
-  onClose: () => void
+/** Parse a structured action block out of an assistant reply.
+ *  The AI is instructed to include a JSON block like:
+ *  ACTION:{"type":"navigate_to","payload":{"section":"models"}}
+ */
+function parseAction(text: string): { clean: string; action: AssistantAction | null } {
+  const match = text.match(/ACTION:\s*(\{[^}]+\})/i)
+  if (!match) return { clean: text, action: null }
+  try {
+    const action = JSON.parse(match[1]) as AssistantAction
+    if (!action.type) return { clean: text, action: null }
+    const clean = text.replace(match[0], '').replace(/\n{3,}/g, '\n\n').trim()
+    return { clean, action }
+  } catch {
+    return { clean: text, action: null }
+  }
 }
 
-export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps) {
+/** Returns true for destructive/high-impact actions that require confirmation */
+function requiresConfirmation(action: AssistantAction): boolean {
+  return action.type === 'generate_image' || action.type === 'run_test'
+}
+
+/** System prompt — defined outside component to avoid recreating on every render */
+const SYSTEM_PROMPT = `You are the Amarktai Network AI Partner — a capable operator assistant embedded in the admin dashboard.
+You can answer questions, explain features, AND trigger real dashboard actions.
+
+Available actions you can dispatch (include at the END of your reply if appropriate):
+- ACTION:{"type":"navigate_to","payload":{"section":"models"}}  — valid sections: models, apps, voice, brain, artifacts, budget, onboarding, workspace, healing, events, providers
+- ACTION:{"type":"show_artifacts"}
+- ACTION:{"type":"check_budget"}
+- ACTION:{"type":"start_onboarding"}
+- ACTION:{"type":"generate_image","payload":{"prompt":"<description>"}}  — will ask for confirmation
+- ACTION:{"type":"run_test","payload":{"capability":"chat","prompt":"Hello"}}  — will ask for confirmation
+
+Rules:
+- Only include an ACTION block when the operator explicitly asks for an action or you are certain it is appropriate.
+- Destructive/expensive actions (generate_image, run_test) will always ask for operator confirmation before executing.
+- Be concise and direct. Avoid unnecessary explanation.`
+
+export interface AIPartnerWidgetProps {
+  open: boolean
+  onClose: () => void
+  /** Called when the assistant dispatches a confirmed operator action */
+  onAction?: (action: AssistantAction) => void
+}
+
+export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [pendingAction, setPendingAction] = useState<AssistantAction | null>(null)
+  const [browserNote, setBrowserNote] = useState<string | null>(null)
+
   const recognitionRef = useRef<VoiceRecognizer | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  /** Ref to startVoice — avoids stale closure in speakText's audio.onended */
+  const startVoiceRef = useRef<(() => void) | null>(null)
   const SR = getSpeechRecognitionConstructor()
 
   useEffect(() => {
@@ -60,18 +118,74 @@ export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps)
     }
   }, [messages])
 
+  // Load voice settings once so we can pass them to TTS
+  const voiceSettingsRef = useRef<{ voiceId: string; accent: string } | null>(null)
+  useEffect(() => {
+    fetch('/api/admin/voice-access-settings')
+      .then(r => r.json())
+      .then(d => { if (d?.settings) voiceSettingsRef.current = d.settings })
+      .catch(() => {})
+  }, [])
+
+  const speakText = useCallback(async (text: string) => {
+    if (!text.trim()) return
+    setSpeaking(true)
+    try {
+      const vs = voiceSettingsRef.current
+      const body: Record<string, unknown> = { text, provider: 'auto' }
+      if (vs?.voiceId) body.voiceId = vs.voiceId
+      if (vs?.accent) body.accent = vs.accent
+
+      const res = await fetch('/api/voice/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) return
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+
+      if (audioRef.current) {
+        audioRef.current.pause()
+        URL.revokeObjectURL(audioRef.current.src)
+      }
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onended = () => {
+        setSpeaking(false)
+        URL.revokeObjectURL(url)
+        // Auto-restart listening in voice loop mode — use ref to avoid stale closure
+        startVoiceRef.current?.()
+      }
+      audio.onerror = () => setSpeaking(false)
+      await audio.play()
+    } catch {
+      setSpeaking(false)
+    }
+  }, []) // voiceMode and startVoice accessed via refs — no closure issue
+
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      URL.revokeObjectURL(audioRef.current.src)
+      audioRef.current = null
+    }
+    setSpeaking(false)
+  }, [])
+
   const send = useCallback(async (text: string) => {
     if (!text.trim()) return
     const userMsg: Message = { role: 'user', content: text.trim() }
-    setMessages(prev => [...prev, userMsg])
+    setMessages((prev: Message[]) => [...prev, userMsg])
     setInput('')
     setSending(true)
     try {
-      const history = [...messages, userMsg]
-        .slice(-MAX_CONTEXT_MESSAGES)
-        .map(m => `${m.role === 'user' ? 'Operator' : 'Partner'}: ${m.content}`)
+      const contextMessages = [...messages, userMsg].slice(-MAX_CONTEXT_MESSAGES)
+      const history = contextMessages
+        .map((m: Message) => `${m.role === 'user' ? 'Operator' : 'Partner'}: ${m.content}`)
         .join('\n')
-      const systemNote = 'You are the Amarktai Network AI partner. You help the operator navigate the dashboard, understand features, and get things done. Be concise, direct, and helpful. You can explain what sections do, suggest next steps, and help with AI tasks. You cannot execute actions directly — you guide the operator instead.'
+
       const res = await fetch('/api/admin/brain/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,21 +193,44 @@ export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps)
           appId: '__admin_test__',
           appSecret: 'admin-test-secret',
           taskType: 'chat',
-          message: `${systemNote}\n\nConversation so far:\n${history}`,
+          message: `${SYSTEM_PROMPT}\n\nConversation:\n${history}`,
         }),
       })
-      const data = await res.json().catch(() => ({ error: `Response error (HTTP ${res.status})` }))
-      const reply = data.output ?? data.text ?? data.error ?? 'No response.'
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { output?: string; text?: string; error?: string }
+      const rawReply = data.output ?? data.text ?? data.error ?? 'No response.'
+      const { clean: reply, action } = parseAction(rawReply)
+
+      const assistantMsg: Message = { role: 'assistant', content: reply, action }
+      setMessages((prev: Message[]) => [...prev, assistantMsg])
+
+      // Dispatch action or queue for confirmation
+      if (action) {
+        if (requiresConfirmation(action)) {
+          setPendingAction(action)
+        } else {
+          onAction?.(action)
+        }
+      }
+
+      // TTS playback in voice mode
+      if (voiceMode) {
+        await speakText(reply)
+      }
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: e instanceof Error ? e.message : 'Error communicating with AI.' }])
+      setMessages((prev: Message[]) => [...prev, { role: 'assistant', content: e instanceof Error ? e.message : 'Error communicating with AI.' }])
     } finally {
       setSending(false)
     }
-  }, [messages])
+  }, [messages, onAction, voiceMode, speakText])
+
+  // Keep startVoiceRef in sync with the current startVoice function
+  // so speakText's onended handler can call it without stale closure
 
   const startVoice = useCallback(() => {
-    if (!SR) return
+    if (!SR) {
+      setBrowserNote('Speech recognition is not supported in this browser. Use text input instead.')
+      return
+    }
     const r = new SR()
     r.lang = 'en-US'
     r.interimResults = false
@@ -104,53 +241,134 @@ export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps)
       const transcript = ev.results[0]?.[0]?.transcript ?? ''
       if (transcript) send(transcript)
     }
-    r.onerror = () => setRecording(false)
+    r.onerror = () => { setRecording(false); setBrowserNote('Microphone access failed — check browser permissions.') }
     r.onend = () => setRecording(false)
     r.start()
   }, [SR, send])
+
+  // Sync startVoice to ref so speakText's audio.onended can call it without stale closure
+  useEffect(() => {
+    startVoiceRef.current = voiceMode ? startVoice : null
+  }, [voiceMode, startVoice])
 
   const stopVoice = useCallback(() => {
     recognitionRef.current?.stop()
     setRecording(false)
   }, [])
 
+  const toggleVoiceMode = useCallback(() => {
+    if (voiceMode) {
+      stopVoice()
+      stopSpeaking()
+      setVoiceMode(false)
+    } else {
+      if (!SR) {
+        setBrowserNote('Speech recognition is not supported in this browser. Voice mode requires Chrome, Edge, or Safari.')
+        return
+      }
+      setVoiceMode(true)
+      startVoice()
+    }
+  }, [voiceMode, SR, stopVoice, stopSpeaking, startVoice])
+
+  const confirmAction = useCallback(() => {
+    if (pendingAction) {
+      onAction?.(pendingAction)
+      setPendingAction(null)
+    }
+  }, [pendingAction, onAction])
+
   if (!open) return null
+
+  const isActive = recording || speaking
 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-[#090f21]/95 backdrop-blur-xl shadow-2xl shadow-black/60 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+          <div className={`w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center transition-all ${isActive ? 'ring-2 ring-cyan-400/50 ring-offset-1 ring-offset-[#090f21]' : ''}`}>
             <Bot className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-medium text-white">AI Partner</span>
-          <span className="text-[10px] text-emerald-400 bg-emerald-400/10 rounded-full px-2 py-0.5">Online</span>
+          <span className={`text-[10px] rounded-full px-2 py-0.5 transition-colors ${speaking ? 'text-cyan-300 bg-cyan-400/10' : recording ? 'text-blue-300 bg-blue-400/10' : 'text-emerald-400 bg-emerald-400/10'}`}>
+            {speaking ? 'Speaking' : recording ? 'Listening' : 'Online'}
+          </span>
         </div>
         <div className="flex items-center gap-1">
+          {/* Voice mode toggle */}
+          <button
+            onClick={toggleVoiceMode}
+            title={voiceMode ? 'Exit voice mode' : 'Enter voice mode (continuous STT + TTS)'}
+            className={`p-1.5 rounded-lg transition-colors ${voiceMode ? 'bg-cyan-400/15 text-cyan-300 border border-cyan-400/30' : 'hover:bg-white/[0.08] text-slate-400 hover:text-white'}`}
+          >
+            {voiceMode ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
+      {/* Waveform bars — react to actual audio state */}
+      {isActive && (
+        <div className="flex items-end justify-center gap-0.5 py-2 bg-white/[0.01]">
+          {[3, 7, 5, 9, 6, 11, 4, 8, 5, 7, 3, 6].map((h, i) => (
+            <span
+              key={i}
+              className={`w-1 rounded-full transition-all ${speaking ? 'bg-cyan-400' : 'bg-blue-400'}`}
+              style={{
+                height: `${h * 2}px`,
+                animation: `pulse 0.${8 + (i % 4)}s ease-in-out ${i * 0.06}s infinite alternate`,
+                opacity: 0.7 + (i % 3) * 0.1,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Pending action confirmation */}
+      {pendingAction && (
+        <div className="mx-3 mt-2 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2">
+          <p className="text-[11px] text-amber-300 mb-2">
+            Action requires confirmation: <span className="font-mono font-medium">{pendingAction.type}</span>
+            {pendingAction.payload?.prompt && <span className="text-slate-400"> — &ldquo;{pendingAction.payload.prompt}&rdquo;</span>}
+          </p>
+          <div className="flex gap-2">
+            <button onClick={confirmAction} className="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors">
+              Confirm
+            </button>
+            <button onClick={() => setPendingAction(null)} className="text-[10px] px-2 py-1 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.08] hover:bg-white/[0.08] transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 max-h-72">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 max-h-64">
         {messages.length === 0 && (
           <div className="text-center py-6">
             <Bot className="mx-auto w-8 h-8 text-blue-400/40 mb-2" />
-            <p className="text-xs text-slate-500">Hi! I can help you navigate Workspace, explain features, and assist with AI tasks.</p>
+            <p className="text-xs text-slate-500">Hi! I can navigate the dashboard, explain features, trigger actions, and speak with you.</p>
             <div className="mt-3 space-y-1">
-              {['What can I do in Workspace?', 'How do I generate an image?', 'How do I compare models?'].map(s => (
+              {[
+                'Go to Models',
+                'Check my budget',
+                'Generate an image of a futuristic city',
+              ].map(s => (
                 <button key={s} onClick={() => send(s)}
                   className="block w-full text-left text-[11px] text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] transition-colors">
                   {s}
                 </button>
               ))}
             </div>
+            {!SR && (
+              <p className="text-[10px] text-amber-400/70 mt-3">⚠ Speech recognition not available in this browser (Chrome/Edge/Safari required). Text mode only.</p>
+            )}
           </div>
         )}
-        {messages.map((m, i) => (
+        {messages.map((m: Message, i: number) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
               m.role === 'user'
@@ -158,6 +376,11 @@ export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps)
                 : 'bg-white/[0.06] text-slate-300'
             }`}>
               {m.content}
+              {m.action && !requiresConfirmation(m.action) && (
+                <div className="mt-1.5 text-[10px] text-emerald-400/70 font-mono">
+                  ✓ {m.action.type}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -171,32 +394,66 @@ export default function AIPartnerWidget({ open, onClose }: AIPartnerWidgetProps)
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+      {/* Browser note */}
+      {browserNote && (
+        <div className="mx-3 mb-1 rounded-lg bg-amber-400/10 border border-amber-400/20 px-3 py-1.5">
+          <p className="text-[10px] text-amber-300">{browserNote}</p>
+          <button onClick={() => setBrowserNote(null)} className="text-[9px] text-slate-500 hover:text-slate-300 mt-0.5">Dismiss</button>
+        </div>
+      )}
+
+      {/* Input row */}
       <div className="px-3 py-3 border-t border-white/[0.06] flex items-center gap-2">
         <input
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
-          placeholder="Ask anything…"
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
+          placeholder={voiceMode ? 'Voice mode active…' : 'Ask anything…'}
           className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/40 transition-all"
-          disabled={sending}
+          disabled={sending || voiceMode}
         />
-        {SR && (
+        {SR && !voiceMode && (
           <button
             onClick={recording ? stopVoice : startVoice}
+            title={recording ? 'Stop recording' : 'Speak a single message'}
             className={`p-2 rounded-xl border transition-colors ${recording ? 'border-red-400/30 bg-red-400/10 text-red-300' : 'border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white'}`}
           >
             {recording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
           </button>
         )}
-        <button
-          onClick={() => send(input)}
-          disabled={sending || !input.trim()}
-          className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <Send className="w-3.5 h-3.5" />
-        </button>
+        {speaking && (
+          <button
+            onClick={stopSpeaking}
+            title="Stop speaking"
+            className="p-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300 transition-colors"
+          >
+            <VolumeX className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {!voiceMode && (
+          <button
+            onClick={() => send(input)}
+            disabled={sending || !input.trim()}
+            className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
+
+      {/* Voice mode indicator */}
+      {voiceMode && (
+        <div className="px-4 pb-2 text-[10px] text-cyan-400/60 text-center">
+          Voice mode: {recording ? '🎙 Listening…' : speaking ? '🔊 Speaking…' : '⏸ Paused'} — click volume icon to exit
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          from { transform: scaleY(0.6); }
+          to { transform: scaleY(1.4); }
+        }
+      `}</style>
     </div>
   )
 }

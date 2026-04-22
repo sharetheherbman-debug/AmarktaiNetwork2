@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
-import { FlaskConical, Rocket, ImageIcon, Mic, Film, Music, Layers, Workflow, GitBranch, Bot, HelpCircle } from 'lucide-react'
+import { FlaskConical, Rocket, ImageIcon, Mic, Film, Music, Layers, Workflow, GitBranch, Bot, HelpCircle, RefreshCw } from 'lucide-react'
+import type { AssistantAction } from '@/components/AIPartnerWidget'
 
 const TestAITab = dynamic(() => import('../build-studio/tabs/TestAITab'), { ssr: false })
 const CreateAppTab = dynamic(() => import('../build-studio/tabs/CreateAppTab'), { ssr: false })
@@ -30,25 +32,83 @@ const tabs: { key: TabKey; label: string; icon: React.ComponentType<React.SVGPro
   { key: 'onboard', label: 'Onboard App', icon: HelpCircle },
 ]
 
+interface UsageSummary {
+  totalRequests: number
+  totalCostCents: number
+  byCapability: Record<string, { requests: number; costCents: number }>
+  byProvider: Record<string, { requests: number; costCents: number }>
+}
+
+/** Maps voice command section names to workspace tab keys */
+const SECTION_TO_TAB: Record<string, TabKey> = {
+  'test-ai': 'test-ai', 'test': 'test-ai',
+  'build-app': 'build-app', 'build': 'build-app',
+  'images': 'images', 'image': 'images',
+  'voice': 'voice',
+  'video': 'video',
+  'music': 'music',
+  'compare': 'compare', 'models': 'compare',
+  'workflows': 'workflows',
+  'export': 'export',
+  'onboard': 'onboard', 'onboarding': 'onboard',
+}
+
 export default function WorkspacePage() {
+  const router = useRouter()
   const [active, setActive] = useState<TabKey>('test-ai')
-  const [usage, setUsage] = useState<{ totalRequests: number; totalCostCents: number } | null>(null)
+  const [usage, setUsage] = useState<UsageSummary | null>(null)
+  const [loadingUsage, setLoadingUsage] = useState(false)
   const [partnerOpen, setPartnerOpen] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
+  const handleAction = useCallback((action: AssistantAction) => {
+    if (action.type === 'navigate_to') {
+      const section = action.payload?.section ?? ''
+      const tabKey = SECTION_TO_TAB[section]
+      if (tabKey) {
+        setActive(tabKey)
+        setPartnerOpen(false)
+        return
+      }
+      // Navigate to dashboard section
+      const routes: Record<string, string> = {
+        apps: '/admin/dashboard/apps',
+        brain: '/admin/dashboard/brain',
+        artifacts: '/admin/dashboard/artifacts',
+        budget: '/admin/dashboard/system',
+        onboarding: '/admin/dashboard/onboarding',
+        healing: '/admin/dashboard/healing',
+        events: '/admin/dashboard/events',
+        providers: '/admin/dashboard/providers',
+      }
+      if (routes[section]) router.push(routes[section])
+    } else if (action.type === 'show_artifacts') {
+      router.push('/admin/dashboard/artifacts')
+    } else if (action.type === 'check_budget') {
+      router.push('/admin/dashboard/system')
+    } else if (action.type === 'start_onboarding') {
+      router.push('/admin/dashboard/onboarding')
+    }
+    // generate_image and run_test: handled by widget confirmation, no navigation needed here
+  }, [router, setActive, setPartnerOpen])
+
+  const loadUsage = useCallback(() => {
+    setLoadingUsage(true)
     fetch('/api/admin/usage?appSlug=workspace&days=30')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled) {
-          setUsage(d?.usage ?? null)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setUsage(null)
-      })
-    return () => { cancelled = true }
+      .then((d) => { setUsage(d?.usage ?? null) })
+      .catch(() => { setUsage(null) })
+      .finally(() => { setLoadingUsage(false) })
   }, [])
+
+  useEffect(() => { loadUsage() }, [loadUsage])
+
+  // Top capabilities by cost for the breakdown display
+  const topCapabilities = usage
+    ? Object.entries(usage.byCapability)
+        .filter(([, v]) => v.costCents > 0)
+        .sort((a, b) => b[1].costCents - a[1].costCents)
+        .slice(0, 5)
+    : []
 
   return (
     <div className="space-y-6">
@@ -58,22 +118,62 @@ export default function WorkspacePage() {
             <h1 className="text-2xl font-bold text-white">Workspace</h1>
             <p className="mt-1 text-sm text-slate-400">Central operator hub for testing AI, building apps, generating media, comparing outputs, and preparing export.</p>
           </div>
-          <button
-            onClick={() => setPartnerOpen(o => !o)}
-            title="Toggle AI Partner"
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all ${
-              partnerOpen
-                ? 'border-blue-400/40 bg-blue-400/10 text-blue-300'
-                : 'border-white/10 bg-white/5 text-slate-400 hover:text-white'
-            }`}
-          >
-            <Bot className="h-4 w-4" />
-            AI Partner
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadUsage}
+              disabled={loadingUsage}
+              title="Refresh usage stats"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-xs text-slate-400 hover:text-white disabled:opacity-40 transition-all"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingUsage ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => setPartnerOpen(o => !o)}
+              title="Toggle AI Partner"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all ${
+                partnerOpen
+                  ? 'border-blue-400/40 bg-blue-400/10 text-blue-300'
+                  : 'border-white/10 bg-white/5 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Bot className="h-4 w-4" />
+              AI Partner
+            </button>
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-300">
-          <span>Workspace requests (30d): <span className="text-white">{usage?.totalRequests ?? 0}</span></span>
-          <span>Workspace est. cost (30d): <span className="text-white">${(((usage?.totalCostCents ?? 0) / 100)).toFixed(2)}</span></span>
+
+        {/* Budget / usage summary */}
+        <div className="mt-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-6 text-xs text-slate-300">
+            <span>
+              Requests (30d):&nbsp;
+              <span className="text-white font-medium">{usage?.totalRequests ?? 0}</span>
+            </span>
+            <span>
+              Est. cost (30d):&nbsp;
+              <span className={`font-medium ${(usage?.totalCostCents ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                ${((usage?.totalCostCents ?? 0) / 100).toFixed(4)}
+              </span>
+            </span>
+          </div>
+
+          {/* Per-capability breakdown — only show when there is real data */}
+          {topCapabilities.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {topCapabilities.map(([cap, v]) => (
+                <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-slate-400">
+                  {cap.replace(/_/g, ' ')}: <span className="text-white">${(v.costCents / 100).toFixed(4)}</span>
+                  {' · '}{v.requests} req
+                </span>
+              ))}
+            </div>
+          )}
+
+          {usage && usage.totalRequests > 0 && usage.totalCostCents === 0 && (
+            <p className="text-[11px] text-amber-400">
+              Requests recorded but cost shows $0.0000 — this may mean all calls failed or ran before cost metering was active.
+            </p>
+          )}
         </div>
       </div>
 
@@ -105,7 +205,7 @@ export default function WorkspacePage() {
       </motion.div>
 
       {/* AI Partner floating widget */}
-      <AIPartnerWidget open={partnerOpen} onClose={() => setPartnerOpen(false)} />
+      <AIPartnerWidget open={partnerOpen} onClose={() => setPartnerOpen(false)} onAction={handleAction} />
     </div>
   )
 }

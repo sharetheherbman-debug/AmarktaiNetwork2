@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -8,6 +8,7 @@ import {
   ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Clock, WifiOff,
   LayoutDashboard, Brain, BarChart3, BookOpen, Target, FileText,
   Activity, Zap, Globe, Shield, Bot, Copy, Check, Loader2,
+  Send, MessageSquare,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -34,7 +35,141 @@ interface AppRecord {
   } | null
 }
 
-/* ── Config ──────────────────────────────────────────────── */
+/* ── App Health Types ─────────────────────────────────────── */
+interface AppHealthStats {
+  appSlug: string
+  lastRequestAt: string | null
+  requests7d: number
+  successRate7d: number | null
+  estimatedMonthlyCostCents: number
+  connectionStatus: 'active' | 'stale' | 'no_data'
+  trend7d: Array<{ date: string; requests: number; successRate: number | null }>
+  topCapability: string | null
+}
+
+/* ── App Health Panel Component ──────────────────────────── */
+function AppHealthPanel({ appSlug }: { appSlug: string }) {
+  const [health, setHealth] = useState<AppHealthStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/admin/app-health?slug=${encodeURIComponent(appSlug)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setHealth(d as AppHealthStats); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(e instanceof Error ? e.message : 'Failed'); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [appSlug])
+
+  const statusColor = {
+    active: 'text-emerald-400',
+    stale: 'text-amber-400',
+    no_data: 'text-slate-500',
+  }
+  const statusLabel = {
+    active: '● Active',
+    stale: '● Stale',
+    no_data: '● No data',
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 flex items-center gap-2 text-xs text-slate-500">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading health data…
+      </div>
+    )
+  }
+
+  if (error || !health) {
+    return (
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+        <p className="text-xs text-slate-500">Health data unavailable — start making API calls to populate stats.</p>
+      </div>
+    )
+  }
+
+  const costDollars = (health.estimatedMonthlyCostCents / 100).toFixed(2)
+  const maxBar = Math.max(...health.trend7d.map(d => d.requests), 1)
+
+  return (
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-5">
+      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        <Activity className="w-4 h-4 text-cyan-400" />
+        Connection Health
+      </h3>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Status</p>
+          <p className={`text-sm font-medium ${statusColor[health.connectionStatus]}`}>
+            {statusLabel[health.connectionStatus]}
+          </p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">7d Requests</p>
+          <p className="text-sm font-medium text-white">{health.requests7d.toLocaleString()}</p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Success Rate</p>
+          <p className={`text-sm font-medium ${health.successRate7d === null ? 'text-slate-500' : health.successRate7d >= 90 ? 'text-emerald-400' : health.successRate7d >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+            {health.successRate7d !== null ? `${health.successRate7d}%` : '—'}
+          </p>
+        </div>
+        <div className="bg-white/[0.02] rounded-xl p-3 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Est. Monthly</p>
+          <p className="text-sm font-medium text-white">${costDollars}</p>
+        </div>
+      </div>
+
+      {/* Last request */}
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-slate-500">Last request</span>
+        <span className="text-slate-300">
+          {health.lastRequestAt
+            ? formatDistanceToNow(new Date(health.lastRequestAt), { addSuffix: true })
+            : 'Never'}
+        </span>
+      </div>
+
+      {/* Top capability */}
+      {health.topCapability && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-500">Top capability</span>
+          <span className="font-mono text-violet-300">{health.topCapability}</span>
+        </div>
+      )}
+
+      {/* 7-day bar chart */}
+      {health.trend7d.length > 0 && (
+        <div>
+          <p id={`health-trend-label-${appSlug}`} className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-2">7-day Trend</p>
+          <div className="flex items-end gap-1 h-12" role="group" aria-labelledby={`health-trend-label-${appSlug}`}>
+            {health.trend7d.map((d, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                <div
+                  className="w-full rounded-sm bg-cyan-500/50 hover:bg-cyan-400/70 transition-colors"
+                  style={{ height: `${Math.round((d.requests / maxBar) * 40) + 2}px` }}
+                  role="presentation"
+                  aria-label={`${d.date}: ${d.requests} requests, ${d.successRate !== null ? d.successRate + '% success' : 'no data'}`}
+                />
+                <span className="text-[8px] text-slate-600" aria-hidden="true">{d.date.slice(5)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {health.requests7d === 0 && (
+        <p className="text-[11px] text-slate-600">No requests in the past 7 days. Connect your app using the Agents tab credentials.</p>
+      )}
+    </div>
+  )
+}
+
+
 const STATUS: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   live:            { label: 'Live',    dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10' },
   ready_to_deploy: { label: 'Ready',   dot: 'bg-blue-400',    text: 'text-blue-400',    bg: 'bg-blue-400/10' },
@@ -275,62 +410,67 @@ export default function AppDetailPage() {
 /* ── Tab: Overview ───────────────────────────────────────── */
 function OverviewTab({ app }: { app: AppRecord }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Configuration */}
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-white">Configuration</h3>
-        <div className="space-y-3">
-          {[
-            { label: 'Connected to Brain', value: app.connectedToBrain },
-            { label: 'Monitoring Enabled', value: app.monitoringEnabled },
-            { label: 'Integration Enabled', value: app.integrationEnabled },
-            { label: 'AI Enabled', value: app.aiEnabled },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">{item.label}</span>
-              <span
-                className={`text-xs font-medium ${
-                  item.value ? 'text-emerald-400' : 'text-slate-600'
-                }`}
-              >
-                {item.value ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Health panel */}
+      <AppHealthPanel appSlug={app.slug} />
 
-      {/* Integration */}
-      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-white">Integration</h3>
-        {app.integration ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Configuration */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-white">Configuration</h3>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Environment</span>
-              <span className="text-xs text-white capitalize">
-                {app.integration.environment}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Health</span>
-              <span
-                className={`text-xs font-medium ${
-                  (HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).color
-                }`}
-              >
-                {(HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).label}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Onboarding</span>
-              <span className="text-xs text-slate-300 capitalize">
-                {app.onboardingStatus.replace(/_/g, ' ')}
-              </span>
-            </div>
+            {[
+              { label: 'Connected to Brain', value: app.connectedToBrain },
+              { label: 'Monitoring Enabled', value: app.monitoringEnabled },
+              { label: 'Integration Enabled', value: app.integrationEnabled },
+              { label: 'AI Enabled', value: app.aiEnabled },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">{item.label}</span>
+                <span
+                  className={`text-xs font-medium ${
+                    item.value ? 'text-emerald-400' : 'text-slate-600'
+                  }`}
+                >
+                  {item.value ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <p className="text-xs text-slate-500">No integration configured.</p>
-        )}
+        </div>
+
+        {/* Integration */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-white">Integration</h3>
+          {app.integration ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Environment</span>
+                <span className="text-xs text-white capitalize">
+                  {app.integration.environment}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Health</span>
+                <span
+                  className={`text-xs font-medium ${
+                    (HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).color
+                  }`}
+                >
+                  {(HEALTH[app.integration.healthStatus] ?? HEALTH.unknown).label}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Onboarding</span>
+                <span className="text-xs text-slate-300 capitalize">
+                  {app.onboardingStatus.replace(/_/g, ' ')}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">No integration configured.</p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -694,6 +834,114 @@ function AgentsTab({ appSlug, appId, appSecret, productId, onSecretRotated }: {
           )}
         </>
       )}
+
+      {/* ── Try Agent ─────────────────────────────────────── */}
+      {localSecret && (
+        <TryAgentPanel appId={appId} appSecret={localSecret} />
+      )}
+    </div>
+  )
+}
+
+/* ── Try Agent Panel ─────────────────────────────────────── */
+interface TryAgentMessage { role: 'user' | 'assistant'; content: string; latencyMs?: number }
+
+function TryAgentPanel({ appId, appSecret }: { appId: string; appSecret: string }) {
+  const [messages, setMessages] = useState<TryAgentMessage[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    setInput('')
+    setError(null)
+    const userMsg: TryAgentMessage = { role: 'user', content: text }
+    setMessages(prev => [...prev, userMsg])
+    setSending(true)
+    const start = Date.now()
+    try {
+      const res = await fetch('/api/admin/brain/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId, appSecret, taskType: 'chat', message: text }),
+      })
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      const latencyMs = Date.now() - start
+      const content = data.output ?? data.error ?? 'No response'
+      setMessages(prev => [...prev, { role: 'assistant', content, latencyMs }])
+      if (!data.success && data.error) setError(data.error)
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: e instanceof Error ? e.message : 'Request failed', latencyMs: Date.now() - start }])
+    } finally {
+      setSending(false)
+    }
+  }, [input, sending, appId, appSecret])
+
+  return (
+    <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.01]">
+        <MessageSquare className="w-4 h-4 text-blue-400" />
+        <h4 className="text-sm font-semibold text-white">Try Agent</h4>
+        <p className="text-[10px] text-slate-500">Messages route through this app&apos;s rules, persona, safety filters, and memory — exactly as an end user would experience.</p>
+      </div>
+
+      {/* Message history */}
+      <div className="max-h-64 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 ? (
+          <p className="text-xs text-slate-600 text-center py-4">Send a message to see how your app agent responds.</p>
+        ) : (
+          messages.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                m.role === 'user'
+                  ? 'bg-blue-600/20 text-white border border-blue-500/20'
+                  : 'bg-white/[0.04] text-slate-300 border border-white/[0.06]'
+              }`}>
+                {m.content}
+                {m.role === 'assistant' && m.latencyMs != null && (
+                  <span className="block text-[9px] text-slate-600 mt-1">{m.latencyMs}ms</span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+        {sending && (
+          <div className="flex gap-2">
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-xl px-3 py-2">
+              <Loader2 className="w-3 h-3 text-slate-500 animate-spin" />
+            </div>
+          </div>
+        )}
+        {error && <p className="text-[10px] text-red-400">{error}</p>}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex items-center gap-2 px-3 py-3 border-t border-white/[0.06]">
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
+          placeholder="Send a message to test this agent…"
+          className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/40"
+          disabled={sending}
+        />
+        <button
+          onClick={send}
+          disabled={!input.trim() || sending}
+          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-500 disabled:opacity-40 transition-colors"
+        >
+          {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+        </button>
+      </div>
     </div>
   )
 }
