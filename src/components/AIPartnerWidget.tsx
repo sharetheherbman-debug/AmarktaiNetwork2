@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { Bot, X, Send, Mic, MicOff, Loader2, Volume2, VolumeX } from 'lucide-react'
 
 interface Message {
@@ -336,9 +337,38 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
     <div className="fixed bottom-6 right-6 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-[#090f21]/95 backdrop-blur-xl shadow-2xl shadow-black/60 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center transition-all ${isActive ? 'ring-2 ring-cyan-400/50 ring-offset-1 ring-offset-[#090f21]' : ''}`}>
-            <Bot className="w-3.5 h-3.5 text-white" />
+        <div className="flex items-center gap-2.5">
+          {/* Avatar — layered rings with idle/active pulse */}
+          <div className="relative flex items-center justify-center">
+            {/* Outer idle ring */}
+            <motion.div
+              className="absolute rounded-full border border-blue-400/25"
+              animate={{ scale: isActive ? [1, 1.5, 1] : [1, 1.15, 1], opacity: isActive ? [0.5, 0, 0.5] : [0.2, 0.5, 0.2] }}
+              transition={{ duration: isActive ? 1.0 : 3.5, repeat: Infinity, ease: 'easeOut' }}
+              style={{ width: 32, height: 32 }}
+            />
+            {/* Mid ring */}
+            <motion.div
+              className="absolute rounded-full border"
+              animate={{ scale: speaking ? [1, 1.35, 1] : recording ? [1, 1.2, 1] : [1, 1.06, 1], opacity: speaking ? [0.6, 0, 0.6] : recording ? [0.45, 0, 0.45] : [0.1, 0.3, 0.1] }}
+              transition={{ duration: speaking ? 0.7 : recording ? 1.0 : 4.2, repeat: Infinity, ease: 'easeOut', delay: 0.15 }}
+              style={{ width: 26, height: 26, borderColor: speaking ? 'rgba(34,211,238,0.7)' : recording ? 'rgba(96,165,250,0.6)' : 'rgba(99,102,241,0.25)' }}
+            />
+            {/* Core avatar */}
+            <motion.div
+              className="relative w-7 h-7 rounded-full flex items-center justify-center"
+              animate={{
+                background: speaking
+                  ? ['linear-gradient(135deg,#0ea5e9,#22d3ee)', 'linear-gradient(135deg,#22d3ee,#0ea5e9)', 'linear-gradient(135deg,#0ea5e9,#22d3ee)']
+                  : recording
+                  ? ['linear-gradient(135deg,#3b82f6,#6366f1)', 'linear-gradient(135deg,#6366f1,#3b82f6)', 'linear-gradient(135deg,#3b82f6,#6366f1)']
+                  : 'linear-gradient(135deg,#3b82f6,#8b5cf6)',
+                boxShadow: isActive ? ['0 0 0px rgba(34,211,238,0.3)', '0 0 12px rgba(34,211,238,0.6)', '0 0 0px rgba(34,211,238,0.3)'] : '0 0 0px rgba(0,0,0,0)',
+              }}
+              transition={{ duration: isActive ? 1.2 : 0.4, repeat: isActive ? Infinity : 0 }}
+            >
+              <Bot className="w-3.5 h-3.5 text-white" />
+            </motion.div>
           </div>
           <span className="text-sm font-medium text-white">AI Partner</span>
           <span className={`text-[10px] rounded-full px-2 py-0.5 transition-colors ${speaking ? 'text-cyan-300 bg-cyan-400/10' : recording ? 'text-blue-300 bg-blue-400/10' : 'text-emerald-400 bg-emerald-400/10'}`}>
