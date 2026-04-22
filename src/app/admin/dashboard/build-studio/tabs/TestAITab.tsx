@@ -84,6 +84,7 @@ interface TestResult {
   warnings: string[]
   error: string | null
   latencyMs: number
+  costUsdCents?: number
   imageUrl?: string | null
   audioUrl?: string | null
   videoStatus?: string | null
@@ -685,12 +686,16 @@ export default function TestAITab() {
             {result.validationUsed && <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Validated</span>}
             {result.consensusUsed && <span className="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400">Consensus</span>}
             {(result.fallbackUsed || result.fallback_used) && <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-400">Fallback</span>}
-            {/* Estimated cost chip — computed from prompt length × rough token rate */}
-            {result.routedModel && estimatedRequestCost !== null && (
+            {/* Cost chip — actual cost from server when available, otherwise estimated */}
+            {result.routedModel && (result.costUsdCents != null ? (
+              <span className={`px-2 py-1 rounded-full font-mono ${result.costUsdCents > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.04] text-slate-400'}`}>
+                Cost: ${(result.costUsdCents / 100).toFixed(4)}
+              </span>
+            ) : estimatedRequestCost !== null && (
               <span className="px-2 py-1 rounded-full bg-white/[0.04] text-slate-400">
                 Est. cost: ~${estimatedRequestCost}
               </span>
-            )}
+            ))}
           </div>
 
           {/* Artifact save feedback */}
