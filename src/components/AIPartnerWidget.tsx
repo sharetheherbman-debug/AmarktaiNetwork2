@@ -256,25 +256,29 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
     setInput('')
     setSending(true)
     try {
-      const contextMessages = [...messages, userMsg].slice(-MAX_CONTEXT_MESSAGES)
-      const history = contextMessages
-        .map((m: Message) => `${m.role === 'user' ? 'Operator' : 'Partner'}: ${m.content}`)
-        .join('\n')
+      // Build the conversation history up to the context limit.
+      // Include the just-added user message so the AI sees the full turn.
+      const contextMessages = [...messages, userMsg]
+        .slice(-MAX_CONTEXT_MESSAGES)
+        .map((m: Message) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
       const systemPrompt = buildSystemPrompt(partnerContext)
 
-      const res = await fetch('/api/admin/brain/test', {
+      // Use the dedicated AI Partner chat route which properly formats the
+      // system prompt as role:"system" and conversation history as structured
+      // messages — NOT concatenated into a single user text blob.
+      const res = await fetch('/api/admin/ai-partner/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          appId: '__admin_test__',
-          appSecret: 'admin-test-secret',
-          taskType: 'chat',
-          message: `${systemPrompt}\n\nConversation:\n${history}`,
+          systemPrompt,
+          messages: contextMessages,
         }),
       })
-      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { output?: string; text?: string; error?: string }
-      const rawReply = data.output ?? data.text ?? data.error ?? 'No response.'
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as {
+        reply?: string; error?: string; code?: string
+      }
+      const rawReply = data.reply ?? data.error ?? 'No response.'
       const { clean: reply, action } = parseAction(rawReply)
 
       const assistantMsg: Message = { role: 'assistant', content: reply, action }
