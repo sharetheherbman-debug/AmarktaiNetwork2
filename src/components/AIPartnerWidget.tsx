@@ -139,6 +139,7 @@ function buildSystemPrompt(ctx: PartnerContext | null): string {
 export interface AIPartnerWidgetProps {
   open: boolean
   onClose: () => void
+  variant?: 'floating' | 'panel'
   /** Called when the assistant dispatches a confirmed operator action */
   onAction?: (action: AssistantAction) => void
 }
@@ -146,7 +147,7 @@ export interface AIPartnerWidgetProps {
 /** Sentinel empty context used when the context fetch fails or returns nothing */
 const EMPTY_PARTNER_CONTEXT: PartnerContext = { memoryLines: [], usageLines: [], memoryCount: 0 }
 
-export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWidgetProps) {
+export default function AIPartnerWidget({ open, onClose, onAction, variant = 'floating' }: AIPartnerWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -357,9 +358,12 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
   if (!open) return null
 
   const isActive = recording || speaking
+  const rootClass = variant === 'panel'
+    ? 'flex h-full w-full flex-col rounded-2xl border border-white/10 bg-[#090f21]/95 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden'
+    : 'fixed bottom-6 right-6 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-[#090f21]/95 backdrop-blur-xl shadow-2xl shadow-black/60 overflow-hidden'
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 flex flex-col rounded-2xl border border-white/10 bg-[#090f21]/95 backdrop-blur-xl shadow-2xl shadow-black/60 overflow-hidden">
+    <div className={rootClass}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center gap-2.5">
@@ -451,7 +455,7 @@ export default function AIPartnerWidget({ open, onClose, onAction }: AIPartnerWi
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 max-h-64">
+      <div className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${variant === 'panel' ? '' : 'max-h-64'}`}>
         {messages.length === 0 && (
           <div className="text-center py-6">
             <Bot className="mx-auto w-8 h-8 text-blue-400/40 mb-2" />
