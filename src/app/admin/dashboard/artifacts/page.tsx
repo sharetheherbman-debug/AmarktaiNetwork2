@@ -78,8 +78,11 @@ export default function ArtifactsPage() {
         setCounts(data.counts ?? {})
       }
       if (storageRes.ok) {
-        const data = await storageRes.json() as { ephemeral?: boolean; warning?: string | null }
-        setStorageWarning(data.ephemeral ? (data.warning ?? null) : null)
+        interface StorageInfoResponse { ephemeral?: boolean; warning?: string | null }
+        const storageInfo = await storageRes.json() as StorageInfoResponse
+        const isEphemeral = typeof storageInfo?.ephemeral === 'boolean' ? storageInfo.ephemeral : false
+        const warningText = typeof storageInfo?.warning === 'string' ? storageInfo.warning : null
+        setStorageWarning(isEphemeral ? warningText : null)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
