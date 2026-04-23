@@ -233,7 +233,7 @@ export default function VideoDashboardPage() {
             </div>
             {planningNote && <p className="text-xs text-amber-200/70">{planningNote}</p>}
             <pre className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto bg-white/[0.02] rounded-lg p-3 border border-white/[0.06]">{planningScript}</pre>
-            <p className="text-[10px] text-slate-600">To generate real video, configure a Replicate or Together AI API key in Operations → Providers.</p>
+            <p className="text-[10px] text-slate-600">To generate real video, configure a Replicate or Together AI API key in Operations.</p>
           </div>
         )}
 

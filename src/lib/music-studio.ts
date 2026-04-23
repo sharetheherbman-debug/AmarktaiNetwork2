@@ -689,6 +689,10 @@ Vocal style: ${request.vocalStyle.replace(/_/g, ' ')}. Arrange for maximum emoti
 
 // ── Main Pipeline ─────────────────────────────────────────────────────────────
 
+// In-memory cache for artifacts created in the current server process lifetime.
+// Production persistence uses the Artifact DB model (see saveMusicArtifactToDB).
+const artifactStore = new Map<string, MusicArtifact>()
+
 /**
  * Full music creation pipeline:
  * 1. Generate lyrics + structure
@@ -769,10 +773,8 @@ export async function generateLyrics(
 }
 
 // ── Artifact Accessors ────────────────────────────────────────────────────────
-// These are now async wrappers over DB reads with an in-memory cache for
+// These are async wrappers over DB reads with an in-memory cache for
 // artifacts created in the current server process lifetime.
-
-const artifactStore = new Map<string, MusicArtifact>()
 
 export function getMusicArtifact(id: string): MusicArtifact | undefined {
   return artifactStore.get(id)
