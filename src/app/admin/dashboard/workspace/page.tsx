@@ -13,7 +13,6 @@ import {
   Music,
   Layers,
   Workflow,
-  Bot,
   RefreshCw,
   PanelRightClose,
   PanelRightOpen,
@@ -63,12 +62,14 @@ const SECTION_TO_TAB: Record<string, TabKey> = {
   workflows: 'workflows',
 }
 
+const normalizeCapabilityName = (value: string) => value.replace(/_/g, ' ')
+
 export default function WorkspacePage() {
   const router = useRouter()
   const [active, setActive] = useState<TabKey>('test-ai')
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
-  const [partnerOpen, setPartnerOpen] = useState(true)
+  const [partnerOpen, setPartnerOpen] = useState(false)
 
   const handleAction = useCallback((action: AssistantAction) => {
     if (action.type === 'navigate_to') {
@@ -160,7 +161,7 @@ export default function WorkspacePage() {
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard label="Requests (30d)" value={usage?.totalRequests ?? 0} />
           <SummaryCard label="Cost (30d)" value={`$${((usage?.totalCostCents ?? 0) / 100).toFixed(4)}`} />
-          <SummaryCard label="Top capability" value={topCapabilities[0] ? topCapabilities[0][0].replace(/_/g, ' ') : '—'} />
+          <SummaryCard label="Top capability" value={topCapabilities[0] ? normalizeCapabilityName(topCapabilities[0][0]) : '—'} />
           <SummaryCard label="Top provider" value={topProviders[0] ? topProviders[0][0] : '—'} />
         </div>
 
@@ -168,7 +169,7 @@ export default function WorkspacePage() {
           <div className="mt-4 flex flex-wrap gap-2">
             {topCapabilities.map(([cap, v]) => (
               <span key={cap} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-slate-300">
-                {cap.replace(/_/g, ' ')} · {v.requests} req
+                {normalizeCapabilityName(cap)} · {v.requests} req
               </span>
             ))}
             {topProviders.map(([provider, v]) => (

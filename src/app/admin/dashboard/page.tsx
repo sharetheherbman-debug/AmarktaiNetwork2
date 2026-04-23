@@ -69,20 +69,26 @@ export default function DashboardOverview() {
   async function load() {
     setLoading(true)
     try {
-      const [dashRes, usageRes, jobsRes, readinessRes] = await Promise.all([
+      const [dashRes, usageRes, jobsRes, readinessRes] = await Promise.allSettled([
         fetch('/api/admin/dashboard'),
         fetch('/api/admin/usage?platform=true&days=30'),
         fetch('/api/admin/jobs'),
         fetch('/api/admin/readiness'),
       ])
 
-      if (dashRes.ok) setDashboard(await dashRes.json())
-      if (usageRes.ok) {
-        const d = await usageRes.json()
+      if (dashRes.status === 'fulfilled' && dashRes.value.ok) {
+        setDashboard(await dashRes.value.json())
+      }
+      if (usageRes.status === 'fulfilled' && usageRes.value.ok) {
+        const d = await usageRes.value.json()
         setUsage(d?.usage ?? null)
       }
-      if (jobsRes.ok) setJobs(await jobsRes.json())
-      if (readinessRes.ok) setReadiness(await readinessRes.json())
+      if (jobsRes.status === 'fulfilled' && jobsRes.value.ok) {
+        setJobs(await jobsRes.value.json())
+      }
+      if (readinessRes.status === 'fulfilled' && readinessRes.value.ok) {
+        setReadiness(await readinessRes.value.json())
+      }
     } finally {
       setLoading(false)
     }
@@ -172,7 +178,7 @@ function MetricCard({ label, value, source }: { label: string; value: string | n
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-2 text-[10px] text-slate-600">Source: {source}</p>
+      <p className="mt-2 text-[10px] text-slate-500">Source: {source}</p>
     </div>
   )
 }

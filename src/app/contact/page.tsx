@@ -40,7 +40,7 @@ export default function ContactPage() {
           name: form.name,
           email: form.email,
           companyOrProject: form.org,
-          message: `[${form.type || 'ACCESS'} | ${form.role || 'Unknown Role'} | ${form.volume || 'Unknown Volume'}] ${form.message}`,
+          message: `[${form.type || 'ACCESS'} | ${form.role} | ${form.volume}] ${form.message}`,
         }),
       })
       if (!res.ok) throw new Error('request failed')
@@ -114,7 +114,7 @@ export default function ContactPage() {
                   <label className="block text-xs text-slate-400">
                     Role
                     <select aria-label="Role" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" required value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                      <option value="" disabled>Select role</option>
+                      <option value="">Select role</option>
                       <option>Founder / Executive</option>
                       <option>Product / Engineering Lead</option>
                       <option>Operator / AI Team</option>
@@ -125,7 +125,7 @@ export default function ContactPage() {
                   <label className="block text-xs text-slate-400">
                     AI volume
                     <select aria-label="AI volume" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" required value={form.volume} onChange={(e) => setForm({ ...form, volume: e.target.value })}>
-                      <option value="" disabled>Select volume</option>
+                      <option value="">Select volume</option>
                       <option>Exploring (pre-scale)</option>
                       <option>Low production</option>
                       <option>Medium production</option>
@@ -136,7 +136,7 @@ export default function ContactPage() {
                   <label className="block text-xs text-slate-400">
                     Request type
                     <select aria-label="Request type" className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm" required value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                      <option value="" disabled>Select request type</option>
+                      <option value="">Select request type</option>
                       <option>Enterprise access</option>
                       <option>Product integration</option>
                       <option>Partnership</option>

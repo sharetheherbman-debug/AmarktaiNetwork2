@@ -8,6 +8,16 @@ const arcs = [
   'M100 360C280 250 460 250 640 360',
 ]
 
+const CORE_NODE = { x: 360, y: 215 }
+const EDGE_NODES = [
+  { x: 160, y: 176 },
+  { x: 252, y: 136 },
+  { x: 460, y: 148 },
+  { x: 560, y: 198 },
+  { x: 238, y: 286 },
+  { x: 470, y: 286 },
+]
+
 function PulsePath({ d, delay = 0, color = '#22d3ee' }: { d: string; delay?: number; color?: string }) {
   return (
     <>
@@ -36,26 +46,19 @@ export default function NetworkPulseBackground({ className = '' }: { className?:
         ))}
 
         <motion.circle
-          cx="360"
-          cy="215"
+          cx={CORE_NODE.x}
+          cy={CORE_NODE.y}
           r="7"
           fill="#67e8f9"
           animate={{ opacity: [0.4, 0.95, 0.4], scale: [1, 1.22, 1] }}
           transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
         />
 
-        {[
-          { cx: 160, cy: 176 },
-          { cx: 252, cy: 136 },
-          { cx: 460, cy: 148 },
-          { cx: 560, cy: 198 },
-          { cx: 238, cy: 286 },
-          { cx: 470, cy: 286 },
-        ].map((n, i) => (
+        {EDGE_NODES.map((n, i) => (
           <motion.circle
-            key={`${n.cx}-${n.cy}`}
-            cx={n.cx}
-            cy={n.cy}
+            key={`${n.x}-${n.y}`}
+            cx={n.x}
+            cy={n.y}
             r="3.5"
             fill="#93c5fd"
             animate={{ opacity: [0.2, 0.7, 0.2] }}

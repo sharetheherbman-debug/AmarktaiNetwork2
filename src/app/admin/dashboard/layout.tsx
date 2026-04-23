@@ -40,8 +40,8 @@ const NAV_GROUPS: Array<{
   {
     label: 'Intelligence',
     items: [
-      { href: '/admin/dashboard/models', label: 'Model Registry', icon: Cpu },
       { href: '/admin/dashboard/intelligence', label: 'Memory & Routing', icon: Brain },
+      { href: '/admin/dashboard/models', label: 'Model Registry', icon: Cpu },
     ],
   },
   {
