@@ -137,36 +137,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Provider 3: Gemini embeddings (one text per request; looped for batches) ─
-    // Uses the generateContent/embedContent endpoint with the experimental model.
+    // ── Provider 3: Gemini embeddings (one text per request; parallel fetch for batches) ─
+    // Uses the embedContent endpoint with the experimental embedding model.
     const geminiKey = await getVaultApiKey('gemini');
     if (geminiKey) {
       const GEMINI_EMBED_MODEL = 'gemini-embedding-exp-03-07';
       try {
         const inputs = Array.isArray(input) ? input : [input];
-        const embeddingResults: number[][] = [];
 
-        for (const text of inputs) {
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBED_MODEL}:embedContent?key=${encodeURIComponent(geminiKey)}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                model: `models/${GEMINI_EMBED_MODEL}`,
-                content: { parts: [{ text }] },
-              }),
-              signal: AbortSignal.timeout(30_000),
-            },
-          );
-          if (!response.ok) {
-            const errBody = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-            console.warn(`[brain/embeddings] Gemini embed failed (${response.status}): ${errBody?.error?.message ?? ''}`);
+        // Issue all embedding requests in parallel to avoid sequential latency on batches.
+        const responses = await Promise.all(
+          inputs.map((text) =>
+            fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBED_MODEL}:embedContent?key=${encodeURIComponent(geminiKey)}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: `models/${GEMINI_EMBED_MODEL}`,
+                  content: { parts: [{ text }] },
+                }),
+                signal: AbortSignal.timeout(30_000),
+              },
+            ),
+          ),
+        );
+
+        const embeddingResults: number[][] = [];
+        for (const res of responses) {
+          if (!res.ok) {
+            const errBody = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+            console.warn(`[brain/embeddings] Gemini embed failed (${res.status}): ${errBody?.error?.message ?? ''}`);
+            embeddingResults.length = 0; // invalidate partial results
             break;
           }
-          const data = (await response.json()) as { embedding?: { values?: number[] } };
+          const data = (await res.json()) as { embedding?: { values?: number[] } };
           const values = data?.embedding?.values;
-          if (!values || values.length === 0) break;
+          if (!values || values.length === 0) {
+            embeddingResults.length = 0;
+            break;
+          }
           embeddingResults.push(values);
         }
 
