@@ -667,8 +667,6 @@ function AdultSection({ config, onSaved }: { config: AdultConfig; onSaved: () =>
 
   const badge = mode === 'disabled'
     ? { label: 'Disabled', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' }
-    : mode === 'genx'
-    ? { label: 'Via GenX', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' }
     : { label: 'Specialist provider', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' }
 
   return (
@@ -690,16 +688,9 @@ function AdultSection({ config, onSaved }: { config: AdultConfig; onSaved: () =>
               <Field label="Mode">
                 <select value={mode} onChange={e => setMode(e.target.value)} className={inputCls}>
                   <option value="disabled">Disabled (default)</option>
-                  <option value="genx">GenX (if GenX supports adult content)</option>
                   <option value="specialist">Specialist provider</option>
                 </select>
               </Field>
-
-              {mode === 'genx' && (
-                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3 text-xs text-violet-300">
-                  Requires <code className="text-violet-200">GENX_ADULT_CONTENT_SUPPORTED=true</code> in your environment and a GenX deployment that supports adult content.
-                </div>
-              )}
 
               {mode === 'specialist' && (
                 <>

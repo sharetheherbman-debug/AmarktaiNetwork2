@@ -158,6 +158,10 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
   const [browserNote, setBrowserNote] = useState<string | null>(null)
   const [partnerContext, setPartnerContext] = useState<PartnerContext | null>(null)
   const [greeted, setGreeted] = useState(false)
+  /** True when a voice TTS error has occurred — shows error state */
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  /** Whether TTS provider is known to be unconfigured */
+  const [ttsUnconfigured, setTtsUnconfigured] = useState(false)
 
   const recognitionRef = useRef<VoiceRecognizer | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -204,6 +208,7 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
 
   const speakText = useCallback(async (text: string) => {
     if (!text.trim()) return
+    setVoiceError(null)
     setSpeaking(true)
     try {
       const vs = voiceSettingsRef.current
@@ -216,7 +221,16 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 404) {
+          setTtsUnconfigured(true)
+          setVoiceError('Voice (TTS) provider not configured. Set up a TTS provider in Admin Settings (/admin/dashboard/settings) to enable Voice Buddy.')
+        } else {
+          setVoiceError(`Voice playback failed (HTTP ${res.status})`)
+        }
+        setSpeaking(false)
+        return
+      }
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -233,10 +247,14 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
         // Auto-restart listening in voice loop mode — use ref to avoid stale closure
         startVoiceRef.current?.()
       }
-      audio.onerror = () => setSpeaking(false)
+      audio.onerror = () => {
+        setSpeaking(false)
+        setVoiceError('Audio playback error — check browser audio permissions.')
+      }
       await audio.play()
-    } catch {
+    } catch (e) {
       setSpeaking(false)
+      setVoiceError(e instanceof Error ? e.message : 'Voice playback failed')
     }
   }, []) // voiceMode and startVoice accessed via refs — no closure issue
 
@@ -342,15 +360,21 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
       stopVoice()
       stopSpeaking()
       setVoiceMode(false)
+      setVoiceError(null)
     } else {
       if (!SR) {
         setBrowserNote('Speech recognition is not supported in this browser. Voice mode requires Chrome, Edge, or Safari.')
         return
       }
+      if (ttsUnconfigured) {
+        setBrowserNote('Voice (TTS) provider not configured. Configure a TTS-capable provider in Settings to enable Voice Buddy.')
+        return
+      }
+      setVoiceError(null)
       setVoiceMode(true)
       startVoice()
     }
-  }, [voiceMode, SR, stopVoice, stopSpeaking, startVoice])
+  }, [voiceMode, SR, ttsUnconfigured, stopVoice, stopSpeaking, startVoice])
 
   const confirmAction = useCallback(() => {
     if (pendingAction) {
@@ -404,8 +428,14 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
             </motion.div>
           </div>
           <span className="text-sm font-medium text-white">AI Partner</span>
-          <span className={`text-[10px] rounded-full px-2 py-0.5 transition-colors ${speaking ? 'text-cyan-300 bg-cyan-400/10' : recording ? 'text-blue-300 bg-blue-400/10' : 'text-emerald-400 bg-emerald-400/10'}`}>
-            {speaking ? 'Speaking' : recording ? 'Listening' : 'Online'}
+          <span className={`text-[10px] rounded-full px-2 py-0.5 transition-colors ${
+            voiceError ? 'text-red-300 bg-red-400/10' :
+            speaking ? 'text-cyan-300 bg-cyan-400/10' :
+            recording ? 'text-blue-300 bg-blue-400/10' :
+            sending ? 'text-violet-300 bg-violet-400/10' :
+            'text-emerald-400 bg-emerald-400/10'
+          }`}>
+            {voiceError ? 'Voice Error' : speaking ? 'Speaking' : recording ? 'Listening' : sending ? 'Thinking' : 'Online'}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -511,6 +541,19 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Voice error state */}
+      {voiceError && (
+        <div className="mx-3 mb-1 rounded-lg bg-red-400/10 border border-red-400/20 px-3 py-1.5">
+          <p className="text-[10px] text-red-300">{voiceError}</p>
+          {ttsUnconfigured && (
+            <a href="/admin/dashboard/settings" className="text-[10px] text-cyan-400 hover:text-cyan-300 underline">
+              Configure voice provider in Settings
+            </a>
+          )}
+          <button onClick={() => { setVoiceError(null) }} className="ml-2 text-[9px] text-slate-500 hover:text-slate-300">Dismiss</button>
+        </div>
+      )}
 
       {/* Browser note */}
       {browserNote && (
