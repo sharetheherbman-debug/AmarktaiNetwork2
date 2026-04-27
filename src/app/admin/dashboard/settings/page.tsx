@@ -219,7 +219,7 @@ function AIEngineSection({ config, onSaved }: { config: AIEngineConfig; onSaved:
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-500">
-            The primary AI execution layer. All workspace tasks, image generation, TTS, and code assistance route through the AI Engine.
+            The primary AI execution layer. Workspace tasks, image generation, TTS, and code assistance route through the AI Engine by default, with automatic fallback to configured providers when unavailable.
           </p>
 
           {config.configured && !open && (

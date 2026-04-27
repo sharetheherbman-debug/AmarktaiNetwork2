@@ -48,9 +48,12 @@ class VpsLocalStorageDriver implements StorageDriver {
   name = 'local_vps'
 
   private resolvePath(key: string): string {
-    const sanitized = key.replace(/\.\./g, '').replace(/^\/+/, '')
-    const resolved = path.resolve(VPS_STORAGE_BASE, sanitized)
-    if (!resolved.startsWith(path.resolve(VPS_STORAGE_BASE))) {
+    // Resolve the full path and verify it remains within the base directory.
+    // This is the primary protection against path traversal — path.resolve
+    // normalises all '..' components before the boundary check.
+    const resolved = path.resolve(VPS_STORAGE_BASE, key)
+    if (!resolved.startsWith(path.resolve(VPS_STORAGE_BASE) + path.sep) &&
+        resolved !== path.resolve(VPS_STORAGE_BASE)) {
       throw new Error('Path traversal detected')
     }
     return resolved

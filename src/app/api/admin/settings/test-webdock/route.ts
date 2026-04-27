@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const data = await res.json() as unknown[]
-    const serverCount = Array.isArray(data) ? data.length : 0
+    const raw = await res.json()
+    const data = Array.isArray(raw) ? raw : []
+    const serverCount = data.length
 
     return NextResponse.json({
       success: true,
