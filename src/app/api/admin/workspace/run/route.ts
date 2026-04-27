@@ -3,6 +3,15 @@ import { getSession } from '@/lib/session'
 import { routeWorkspaceTask } from '@/lib/workspace-executor'
 import type { GenXModelPolicy, GenXCapability, GenXOperationType } from '@/lib/genx-client'
 
+const VALID_POLICIES = new Set<GenXModelPolicy>(['best', 'cheap', 'balanced', 'fixed'])
+const VALID_CAPABILITIES = new Set<GenXCapability>([
+  'chat', 'code', 'reasoning', 'image_generation', 'image_editing',
+  'video_generation', 'tts', 'stt', 'embeddings', 'multimodal', 'research', 'adult',
+])
+const VALID_OPERATIONS = new Set<GenXOperationType>([
+  'chat', 'generate', 'edit', 'plan', 'code', 'summarise', 'classify', 'embed', 'tts', 'stt',
+])
+
 /**
  * POST /api/admin/workspace/run — execute a workspace AI task via GenX.
  *
@@ -25,20 +34,35 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { task, systemPrompt, fileContexts, capability, operationType, policyOverride, fixedModelOverride, maxTokens, temperature } = body
+    const {
+      task, systemPrompt, fileContexts, capability, operationType,
+      policyOverride, fixedModelOverride, maxTokens, temperature,
+    } = body
 
     if (!task || typeof task !== 'string' || !task.trim()) {
       return NextResponse.json({ error: 'task is required and must be a non-empty string' }, { status: 400 })
     }
 
+    if (capability !== undefined && !VALID_CAPABILITIES.has(capability as GenXCapability)) {
+      return NextResponse.json({ error: `Invalid capability "${capability}"` }, { status: 400 })
+    }
+
+    if (operationType !== undefined && !VALID_OPERATIONS.has(operationType as GenXOperationType)) {
+      return NextResponse.json({ error: `Invalid operationType "${operationType}"` }, { status: 400 })
+    }
+
+    if (policyOverride !== undefined && !VALID_POLICIES.has(policyOverride as GenXModelPolicy)) {
+      return NextResponse.json({ error: `Invalid policyOverride "${policyOverride}". Valid values: best, cheap, balanced, fixed` }, { status: 400 })
+    }
+
     const result = await routeWorkspaceTask({
       task,
-      systemPrompt: systemPrompt ?? undefined,
+      systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : undefined,
       fileContexts: Array.isArray(fileContexts) ? fileContexts : undefined,
       capability:    capability    as GenXCapability    | undefined,
       operationType: operationType as GenXOperationType | undefined,
       policyOverride: policyOverride as GenXModelPolicy | undefined,
-      fixedModelOverride: fixedModelOverride ?? undefined,
+      fixedModelOverride: typeof fixedModelOverride === 'string' ? fixedModelOverride : undefined,
       maxTokens: typeof maxTokens === 'number' ? maxTokens : undefined,
       temperature:   typeof temperature === 'number' ? temperature : undefined,
     })

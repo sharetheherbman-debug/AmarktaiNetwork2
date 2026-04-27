@@ -16,6 +16,44 @@
 
 import { prisma } from '@/lib/prisma'
 
+// ── Input Validation ──────────────────────────────────────────────────────────
+
+/**
+ * Validate a GitHub repo "owner/repo" identifier.
+ * Only allows alphanumeric characters, hyphens, underscores, periods, and
+ * exactly one forward slash separating owner from repo name.
+ * Throws an error if the value is invalid.
+ */
+function assertValidRepoFullName(value: string): void {
+  // owner/repo — each segment: letters, digits, -, _, .
+  if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(value)) {
+    throw new Error(`Invalid repo identifier: "${value}". Expected format: owner/repo`)
+  }
+}
+
+/**
+ * Validate a branch name.
+ * Allows alphanumeric chars, /, -, _, . but rejects .. and leading/trailing slashes.
+ */
+function assertValidBranch(value: string): void {
+  if (!value || value.includes('..') || value.startsWith('/') || value.endsWith('/')) {
+    throw new Error(`Invalid branch name: "${value}"`)
+  }
+  if (!/^[a-zA-Z0-9/_\-.*@{}#]+$/.test(value)) {
+    throw new Error(`Branch name contains invalid characters: "${value}"`)
+  }
+}
+
+/**
+ * Validate a file path used in GitHub Contents API calls.
+ * Rejects directory traversal sequences and absolute-path indicators.
+ */
+function assertValidFilePath(value: string): void {
+  if (!value) throw new Error('File path must not be empty')
+  if (value.includes('..')) throw new Error(`Path traversal sequences are not allowed in file path: "${value}"`)
+  if (value.startsWith('/')) throw new Error(`File path must be relative (no leading slash): "${value}"`)
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface GitHubConfigData {
@@ -447,8 +485,13 @@ export async function listBranches(repoFullName: string): Promise<{
   const token = await getAccessToken()
   if (!token) return { branches: [], defaultBranch: null, error: 'GitHub not configured' }
 
+  try {
+    assertValidRepoFullName(repoFullName)
+  } catch (e) {
+    return { branches: [], defaultBranch: null, error: String(e) }
+  }
+
   const [owner, repo] = repoFullName.split('/')
-  if (!owner || !repo) return { branches: [], defaultBranch: null, error: 'Invalid repo format (expected owner/repo)' }
 
   try {
     // Get default branch from repo info
@@ -498,8 +541,14 @@ export async function getFileTree(
   const token = await getAccessToken()
   if (!token) return { tree: [], truncated: false, error: 'GitHub not configured' }
 
+  try {
+    assertValidRepoFullName(repoFullName)
+    assertValidBranch(branch)
+  } catch (e) {
+    return { tree: [], truncated: false, error: String(e) }
+  }
+
   const [owner, repo] = repoFullName.split('/')
-  if (!owner || !repo) return { tree: [], truncated: false, error: 'Invalid repo format (expected owner/repo)' }
 
   try {
     // Resolve the branch to its tree SHA
@@ -565,8 +614,15 @@ export async function getFileContent(
   const token = await getAccessToken()
   if (!token) return { file: null, error: 'GitHub not configured' }
 
+  try {
+    assertValidRepoFullName(repoFullName)
+    assertValidBranch(branch)
+    assertValidFilePath(filePath)
+  } catch (e) {
+    return { file: null, error: String(e) }
+  }
+
   const [owner, repo] = repoFullName.split('/')
-  if (!owner || !repo) return { file: null, error: 'Invalid repo format (expected owner/repo)' }
 
   try {
     const { ok, body } = await githubFetch(
@@ -628,8 +684,15 @@ export async function createPullRequest(input: GitHubPRInput): Promise<GitHubPRR
   const token = await getAccessToken()
   if (!token) return { success: false, prNumber: null, prUrl: null, error: 'GitHub not configured' }
 
+  try {
+    assertValidRepoFullName(input.repoFullName)
+    assertValidBranch(input.head)
+    assertValidBranch(input.base)
+  } catch (e) {
+    return { success: false, prNumber: null, prUrl: null, error: String(e) }
+  }
+
   const [owner, repo] = input.repoFullName.split('/')
-  if (!owner || !repo) return { success: false, prNumber: null, prUrl: null, error: 'Invalid repo format (expected owner/repo)' }
 
   try {
     const { ok, body } = await githubFetch(`/repos/${owner}/${repo}/pulls`, token, {
@@ -684,10 +747,14 @@ export async function triggerDeploy(input: GitHubDeployInput): Promise<GitHubDep
     return { success: false, runUrl: null, error: 'GitHub not configured', triggeredAt }
   }
 
-  const [owner, repo] = input.repoFullName.split('/')
-  if (!owner || !repo) {
-    return { success: false, runUrl: null, error: 'Invalid repo format (expected owner/repo)', triggeredAt }
+  try {
+    assertValidRepoFullName(input.repoFullName)
+    if (input.branch) assertValidBranch(input.branch)
+  } catch (e) {
+    return { success: false, runUrl: null, error: String(e), triggeredAt }
   }
+
+  const [owner, repo] = input.repoFullName.split('/')
 
   // Resolve the target branch (use repo default if not specified)
   let targetBranch = input.branch
@@ -747,8 +814,13 @@ export async function listWorkflowRuns(
   const token = await getAccessToken()
   if (!token) return { runs: [], error: 'GitHub not configured' }
 
+  try {
+    assertValidRepoFullName(repoFullName)
+  } catch (e) {
+    return { runs: [], error: String(e) }
+  }
+
   const [owner, repo] = repoFullName.split('/')
-  if (!owner || !repo) return { runs: [], error: 'Invalid repo format' }
 
   try {
     const { ok, body } = await githubFetch(

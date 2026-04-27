@@ -83,7 +83,8 @@ const DEFAULT_CONFIG: WorkspaceConfig = {
 
 export async function getWorkspaceConfig(): Promise<WorkspaceConfig> {
   try {
-    const row = await prisma.workspaceConfig.findFirst({ orderBy: { id: 'desc' } })
+    // Use id=1 as the singleton workspace config row
+    const row = await prisma.workspaceConfig.findUnique({ where: { id: 1 } })
     if (!row) return DEFAULT_CONFIG
 
     return {
@@ -101,39 +102,31 @@ export async function getWorkspaceConfig(): Promise<WorkspaceConfig> {
 export async function saveWorkspaceConfig(
   patch: Partial<Omit<WorkspaceConfig, 'workspaceSessions'>>,
 ): Promise<WorkspaceConfig> {
-  const existing = await prisma.workspaceConfig.findFirst({ orderBy: { id: 'desc' } })
+  const current = await prisma.workspaceConfig.findUnique({ where: { id: 1 } })
 
-  const current = existing
-    ? {
-        modelPolicy:      existing.modelPolicy,
-        fixedModel:       existing.fixedModel ?? null,
-        enabledFeatures:  existing.enabledFeatures,
-        workspaceSessions: existing.workspaceSessions,
-        fileContexts:     existing.fileContexts,
-      }
-    : {
-        modelPolicy:      'best',
-        fixedModel:       null,
-        enabledFeatures:  '[]',
-        workspaceSessions: '[]',
-        fileContexts:     '[]',
-      }
-
-  const updated = {
-    modelPolicy:      patch.modelPolicy ?? current.modelPolicy,
-    fixedModel:       patch.fixedModel !== undefined ? patch.fixedModel : current.fixedModel,
-    enabledFeatures:  patch.enabledFeatures !== undefined
-      ? JSON.stringify(patch.enabledFeatures)
-      : current.enabledFeatures,
-    fileContexts: patch.fileContexts !== undefined
-      ? JSON.stringify(patch.fileContexts)
-      : current.fileContexts,
-    workspaceSessions: current.workspaceSessions,
+  const currentData = current ?? {
+    modelPolicy:       'best',
+    fixedModel:        null,
+    enabledFeatures:   '[]',
+    workspaceSessions: '[]',
+    fileContexts:      '[]',
   }
 
-  const row = existing
-    ? await prisma.workspaceConfig.update({ where: { id: existing.id }, data: updated })
-    : await prisma.workspaceConfig.create({ data: updated })
+  const updated = {
+    modelPolicy:      patch.modelPolicy      ?? currentData.modelPolicy,
+    fixedModel:       patch.fixedModel       !== undefined ? patch.fixedModel  : currentData.fixedModel,
+    enabledFeatures:  patch.enabledFeatures  !== undefined
+      ? JSON.stringify(patch.enabledFeatures)
+      : currentData.enabledFeatures,
+    fileContexts: patch.fileContexts !== undefined
+      ? JSON.stringify(patch.fileContexts)
+      : currentData.fileContexts,
+    workspaceSessions: currentData.workspaceSessions,
+  }
+
+  const row = current
+    ? await prisma.workspaceConfig.update({ where: { id: 1 }, data: updated })
+    : await prisma.workspaceConfig.create({ data: { id: 1, ...updated } })
 
   return {
     modelPolicy: (row.modelPolicy as GenXModelPolicy) ?? 'best',

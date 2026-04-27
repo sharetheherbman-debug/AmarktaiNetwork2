@@ -256,14 +256,14 @@ export async function selectGenXModel(
         const LATENCY_ORDER: GenXModel['latencyTier'][] = ['ultra_low', 'low', 'medium', 'high']
         return LATENCY_ORDER.indexOf(a.latencyTier) - LATENCY_ORDER.indexOf(b.latencyTier)
       })
-      return sorted[0]!.id
+      return sorted[0]?.id ?? resolveDefaultByOperation(operationType)
     }
 
     case 'cheap': {
       const sorted = [...capable].sort((a, b) =>
         COST_ORDER.indexOf(a.costTier) - COST_ORDER.indexOf(b.costTier),
       )
-      return sorted[0]!.id
+      return sorted[0]?.id ?? resolveDefaultByOperation(operationType)
     }
 
     case 'balanced': {
@@ -272,11 +272,11 @@ export async function selectGenXModel(
       if (medium) return medium.id
       const low = capable.find((m) => m.costTier === 'low')
       if (low) return low.id
-      return capable[0]!.id
+      return capable[0]?.id ?? resolveDefaultByOperation(operationType)
     }
 
     default:
-      return capable[0]!.id
+      return capable[0]?.id ?? resolveDefaultByOperation(operationType)
   }
 }
 
