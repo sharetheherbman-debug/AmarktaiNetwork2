@@ -140,8 +140,9 @@ export async function POST(req: NextRequest) {
     maskedUrl = baseUrl
   }
 
-  const catalogUrl = `${baseUrl}/api/v1/models`
-  const chatUrl    = `${baseUrl}/v1/chat/completions`
+  const catalogUrl  = `${baseUrl}/api/v1/models`
+  const chatUrl     = `${baseUrl}/v1/chat/completions`
+  const generateUrl = `${baseUrl}/api/v1/generate`
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
@@ -197,6 +198,36 @@ export async function POST(req: NextRequest) {
     chatError = err instanceof Error ? err.message : 'chat request failed'
   }
 
+  // ── Test 3: Media generate endpoint ──────────────────────────────────────
+  // Use a minimal dry-run probe (no actual generation). If the endpoint responds
+  // (even with 400/422 for a missing required field), it is reachable.
+  let generateOk = false
+  let generateNotTested = false
+  let generateError: string | undefined
+
+  try {
+    // lgtm[js/request-forgery] — URL validated above; admin-only endpoint
+    const res = await fetch(generateUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model: '__probe__', type: 'image', prompt: 'probe' }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    // 200/202 → ok; 400/422/415 → endpoint exists but rejected the probe request (expected)
+    if (res.ok || res.status === 400 || res.status === 422 || res.status === 415) {
+      generateOk = true
+    } else if (res.status === 404) {
+      generateNotTested = true
+      generateError = 'generate endpoint not found at tested path'
+    } else {
+      generateError = httpStatusToError(res.status)
+    }
+  } catch (err) {
+    // Network error — mark as not tested rather than failing the whole test
+    generateNotTested = true
+    generateError = err instanceof Error ? err.message : 'generate request failed'
+  }
+
   const latencyMs = Date.now() - start
   const success = catalogOk && chatOk
 
@@ -204,12 +235,15 @@ export async function POST(req: NextRequest) {
     success,
     catalogOk,
     chatOk,
+    generateOk,
+    generateNotTested,
     modelCount,
     latencyMs,
     apiUrl: maskedUrl,
-    testedUrls: { catalog: catalogUrl, chat: chatUrl },
-    ...(catalogError ? { catalogError } : {}),
-    ...(chatError    ? { chatError }    : {}),
+    testedUrls: { catalog: catalogUrl, chat: chatUrl, generate: generateUrl },
+    ...(catalogError  ? { catalogError }  : {}),
+    ...(chatError     ? { chatError }     : {}),
+    ...(generateError ? { generateError } : {}),
     ...(!success && !catalogError && !chatError
       ? { error: 'AI Engine connection failed' }
       : {}),
