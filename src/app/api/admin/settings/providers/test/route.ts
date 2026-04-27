@@ -47,14 +47,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'No API key configured for this provider' })
   }
 
-  // Validate URL to prevent SSRF — parse, validate protocol and host, then use the normalised URL
+  // Validate URL to prevent SSRF:
+  // 1. Parse, validate protocol
+  // 2. Block private IP ranges and localhost
+  // 3. Reconstruct from parsed components to strip any encoding tricks
   let normalizedBaseUrl: string
   try {
     const parsed = new URL(apiUrl)
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       return NextResponse.json({ success: false, error: 'API URL must use http or https' })
     }
-    // Reconstruct from parsed to avoid any bypass via encoding tricks
+
+    const hostname = parsed.hostname.toLowerCase()
+
+    // Block localhost and common internal hostnames
+    const blockedHosts = ['localhost', '0.0.0.0', '::1', '127.0.0.1']
+    if (blockedHosts.includes(hostname)) {
+      return NextResponse.json({ success: false, error: 'Private/internal URLs are not allowed' })
+    }
+
+    // Block private IP ranges (IPv4)
+    const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+    if (ipv4) {
+      const [, a, b] = ipv4.map(Number)
+      const isPrivate =
+        a === 10 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 169 && b === 254) ||
+        a === 127
+      if (isPrivate) {
+        return NextResponse.json({ success: false, error: 'Private/internal URLs are not allowed' })
+      }
+    }
+
+    // Block link-local IPv6
+    if (hostname.startsWith('fe80:') || hostname.startsWith('[fe80:')) {
+      return NextResponse.json({ success: false, error: 'Private/internal URLs are not allowed' })
+    }
+
+    // Reconstruct from parsed components to strip encoding tricks
     normalizedBaseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/+$/, '')
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid API URL' })

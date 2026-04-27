@@ -57,11 +57,12 @@ class LocalStorageDriver implements StorageDriver {
   name = 'local'
 
   private resolvePath(key: string): string {
-    // Sanitize key: strip any path traversal attempts, then validate resolved path
-    const sanitized = key.replace(/\.\./g, '').replace(/^\/+/, '')
-    const resolved = path.resolve(LOCAL_BASE_DIR, sanitized)
+    // Normalize and resolve the path to prevent traversal attacks
+    const normalized = path.normalize(key).replace(/^(\.\.[/\\])+/, '')
+    const resolved = path.resolve(LOCAL_BASE_DIR, normalized)
     // Ensure the resolved path is still within the base directory
-    if (!resolved.startsWith(path.resolve(LOCAL_BASE_DIR))) {
+    if (!resolved.startsWith(path.resolve(LOCAL_BASE_DIR) + path.sep) &&
+        resolved !== path.resolve(LOCAL_BASE_DIR)) {
       throw new Error('Path traversal detected')
     }
     return resolved
@@ -127,9 +128,12 @@ class LocalVpsStorageDriver implements StorageDriver {
   }
 
   private resolvePath(key: string): string {
-    const sanitized = key.replace(/\.\./g, '').replace(/^\/+/, '')
-    const resolved = path.resolve(this.baseDir, sanitized)
-    if (!resolved.startsWith(path.resolve(this.baseDir))) {
+    // Normalize and resolve the path to prevent traversal attacks
+    const normalized = path.normalize(key).replace(/^(\.\.[/\\])+/, '')
+    const resolved = path.resolve(this.baseDir, normalized)
+    // Ensure the resolved path is still within the base directory
+    if (!resolved.startsWith(path.resolve(this.baseDir) + path.sep) &&
+        resolved !== path.resolve(this.baseDir)) {
       throw new Error('Path traversal detected')
     }
     return resolved
