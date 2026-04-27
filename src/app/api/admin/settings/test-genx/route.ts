@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
   let modelCount = 0
 
   try {
+    // lgtm[js/request-forgery] — URL is validated above (protocol + private-IP checks); admin-only endpoint
     const res = await fetch(catalogUrl, {
       headers,
       signal: AbortSignal.timeout(15_000),
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
   let chatError: string | undefined
 
   try {
+    // lgtm[js/request-forgery] — URL is validated above (protocol + private-IP checks); admin-only endpoint
     const res = await fetch(chatUrl, {
       method: 'POST',
       headers,
@@ -185,11 +187,9 @@ export async function POST(req: NextRequest) {
       }),
       signal: AbortSignal.timeout(15_000),
     })
-    // 200 or 400/422 (model not found / bad request) both mean the endpoint exists
-    if (res.ok || res.status === 400 || res.status === 422 || res.status === 401 || res.status === 403) {
-      chatOk = res.ok || res.status === 400 || res.status === 422
-      if (!chatOk) chatError = httpStatusToError(res.status)
-      if (res.ok) chatOk = true
+    // 200 OK or 400/422 (bad model id / bad request) both confirm the endpoint exists
+    if (res.ok || res.status === 400 || res.status === 422) {
+      chatOk = true
     } else {
       chatError = httpStatusToError(res.status)
     }
