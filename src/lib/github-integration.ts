@@ -427,3 +427,362 @@ export async function getGitHubPushLog(limit = 20): Promise<{
     return []
   }
 }
+
+// ── Branch Operations ────────────────────────────────────────────────────────
+
+export interface GitHubBranch {
+  name: string
+  sha: string
+  isDefault: boolean
+}
+
+/**
+ * List all branches for a repo.
+ */
+export async function listBranches(repoFullName: string): Promise<{
+  branches: GitHubBranch[]
+  defaultBranch: string | null
+  error: string | null
+}> {
+  const token = await getAccessToken()
+  if (!token) return { branches: [], defaultBranch: null, error: 'GitHub not configured' }
+
+  const [owner, repo] = repoFullName.split('/')
+  if (!owner || !repo) return { branches: [], defaultBranch: null, error: 'Invalid repo format (expected owner/repo)' }
+
+  try {
+    // Get default branch from repo info
+    const repoInfo = await githubFetch(`/repos/${owner}/${repo}`, token)
+    const defaultBranch = repoInfo.ok
+      ? (repoInfo.body as { default_branch?: string }).default_branch ?? null
+      : null
+
+    // Fetch branches
+    const { ok, body } = await githubFetch(
+      `/repos/${owner}/${repo}/branches?per_page=100`,
+      token,
+    )
+    if (!ok) return { branches: [], defaultBranch, error: 'Failed to list branches' }
+
+    const raw = body as Array<{ name: string; commit: { sha: string } }>
+    const branches: GitHubBranch[] = raw.map((b) => ({
+      name: b.name,
+      sha: b.commit.sha,
+      isDefault: b.name === defaultBranch,
+    }))
+    return { branches, defaultBranch, error: null }
+  } catch (e) {
+    return { branches: [], defaultBranch: null, error: String(e) }
+  }
+}
+
+// ── File Tree ────────────────────────────────────────────────────────────────
+
+export interface GitHubTreeEntry {
+  path: string
+  type: 'blob' | 'tree'
+  sha: string
+  size?: number
+  url: string
+}
+
+/**
+ * Fetch the file tree for a repo/branch.
+ * Uses the Git Trees API (recursive) so the full tree is returned in one call.
+ */
+export async function getFileTree(
+  repoFullName: string,
+  branch: string,
+  recursive = true,
+): Promise<{ tree: GitHubTreeEntry[]; truncated: boolean; error: string | null }> {
+  const token = await getAccessToken()
+  if (!token) return { tree: [], truncated: false, error: 'GitHub not configured' }
+
+  const [owner, repo] = repoFullName.split('/')
+  if (!owner || !repo) return { tree: [], truncated: false, error: 'Invalid repo format (expected owner/repo)' }
+
+  try {
+    // Resolve the branch to its tree SHA
+    const refRes = await githubFetch(
+      `/repos/${owner}/${repo}/git/refs/heads/${branch}`,
+      token,
+    )
+    if (!refRes.ok) return { tree: [], truncated: false, error: `Branch "${branch}" not found` }
+    const commitSha = (refRes.body as { object: { sha: string } }).object.sha
+
+    const commitRes = await githubFetch(
+      `/repos/${owner}/${repo}/git/commits/${commitSha}`,
+      token,
+    )
+    if (!commitRes.ok) return { tree: [], truncated: false, error: 'Failed to resolve commit' }
+    const treeSha = (commitRes.body as { tree: { sha: string } }).tree.sha
+
+    const treeRes = await githubFetch(
+      `/repos/${owner}/${repo}/git/trees/${treeSha}${recursive ? '?recursive=1' : ''}`,
+      token,
+    )
+    if (!treeRes.ok) return { tree: [], truncated: false, error: 'Failed to fetch file tree' }
+
+    const data = treeRes.body as {
+      tree: Array<{ path?: string; type?: string; sha?: string; size?: number; url?: string }>
+      truncated?: boolean
+    }
+
+    const tree: GitHubTreeEntry[] = (data.tree ?? [])
+      .filter((e) => e.path && e.type && e.sha)
+      .map((e) => ({
+        path: e.path!,
+        type: e.type as 'blob' | 'tree',
+        sha: e.sha!,
+        size: e.size,
+        url: e.url ?? `https://github.com/${owner}/${repo}/blob/${branch}/${e.path}`,
+      }))
+
+    return { tree, truncated: data.truncated ?? false, error: null }
+  } catch (e) {
+    return { tree: [], truncated: false, error: String(e) }
+  }
+}
+
+// ── File Content ─────────────────────────────────────────────────────────────
+
+export interface GitHubFileContent {
+  path: string
+  content: string
+  sha: string
+  encoding: 'utf-8' | 'base64'
+  size: number
+}
+
+/**
+ * Fetch the decoded content of a single file in a repo.
+ */
+export async function getFileContent(
+  repoFullName: string,
+  branch: string,
+  filePath: string,
+): Promise<{ file: GitHubFileContent | null; error: string | null }> {
+  const token = await getAccessToken()
+  if (!token) return { file: null, error: 'GitHub not configured' }
+
+  const [owner, repo] = repoFullName.split('/')
+  if (!owner || !repo) return { file: null, error: 'Invalid repo format (expected owner/repo)' }
+
+  try {
+    const { ok, body } = await githubFetch(
+      `/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}?ref=${encodeURIComponent(branch)}`,
+      token,
+    )
+    if (!ok) return { file: null, error: `File "${filePath}" not found on branch "${branch}"` }
+
+    const raw = body as {
+      path?: string
+      content?: string
+      sha?: string
+      size?: number
+      encoding?: string
+    }
+
+    if (!raw.content || !raw.sha) return { file: null, error: 'Unexpected response from GitHub contents API' }
+
+    // GitHub returns content base64-encoded with newlines; decode to UTF-8
+    const decoded = Buffer.from(raw.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+
+    return {
+      file: {
+        path: raw.path ?? filePath,
+        content: decoded,
+        sha: raw.sha,
+        encoding: 'utf-8',
+        size: raw.size ?? decoded.length,
+      },
+      error: null,
+    }
+  } catch (e) {
+    return { file: null, error: String(e) }
+  }
+}
+
+// ── Pull Request ─────────────────────────────────────────────────────────────
+
+export interface GitHubPRInput {
+  repoFullName: string
+  head: string          // source branch
+  base: string          // target branch (e.g. 'main')
+  title: string
+  body?: string
+  draft?: boolean
+}
+
+export interface GitHubPRResult {
+  success: boolean
+  prNumber: number | null
+  prUrl: string | null
+  error: string | null
+}
+
+/**
+ * Create a pull request in a GitHub repo.
+ */
+export async function createPullRequest(input: GitHubPRInput): Promise<GitHubPRResult> {
+  const token = await getAccessToken()
+  if (!token) return { success: false, prNumber: null, prUrl: null, error: 'GitHub not configured' }
+
+  const [owner, repo] = input.repoFullName.split('/')
+  if (!owner || !repo) return { success: false, prNumber: null, prUrl: null, error: 'Invalid repo format (expected owner/repo)' }
+
+  try {
+    const { ok, body } = await githubFetch(`/repos/${owner}/${repo}/pulls`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: input.title,
+        head: input.head,
+        base: input.base,
+        body: input.body ?? '',
+        draft: input.draft ?? false,
+      }),
+    })
+
+    if (!ok) {
+      const err = (body as { message?: string }).message ?? 'Failed to create pull request'
+      return { success: false, prNumber: null, prUrl: null, error: err }
+    }
+
+    const pr = body as { number: number; html_url: string }
+    return { success: true, prNumber: pr.number, prUrl: pr.html_url, error: null }
+  } catch (e) {
+    return { success: false, prNumber: null, prUrl: null, error: String(e) }
+  }
+}
+
+// ── Deploy via GitHub Actions ────────────────────────────────────────────────
+
+export interface GitHubDeployInput {
+  repoFullName: string
+  workflowId: string      // workflow file name, e.g. 'deploy.yml'
+  branch?: string         // default: repo default branch
+  inputs?: Record<string, string>  // workflow_dispatch inputs
+}
+
+export interface GitHubDeployResult {
+  success: boolean
+  runUrl: string | null
+  error: string | null
+  triggeredAt: string
+}
+
+/**
+ * Trigger a GitHub Actions workflow via workflow_dispatch event.
+ * This fires the deploy pipeline and returns immediately.
+ * Callers can poll /api/admin/github/deploy/status for run results.
+ */
+export async function triggerDeploy(input: GitHubDeployInput): Promise<GitHubDeployResult> {
+  const token = await getAccessToken()
+  const triggeredAt = new Date().toISOString()
+
+  if (!token) {
+    return { success: false, runUrl: null, error: 'GitHub not configured', triggeredAt }
+  }
+
+  const [owner, repo] = input.repoFullName.split('/')
+  if (!owner || !repo) {
+    return { success: false, runUrl: null, error: 'Invalid repo format (expected owner/repo)', triggeredAt }
+  }
+
+  // Resolve the target branch (use repo default if not specified)
+  let targetBranch = input.branch
+  if (!targetBranch) {
+    const repoInfo = await githubFetch(`/repos/${owner}/${repo}`, token)
+    targetBranch = repoInfo.ok
+      ? (repoInfo.body as { default_branch?: string }).default_branch ?? 'main'
+      : 'main'
+  }
+
+  try {
+    const { ok, status, body } = await githubFetch(
+      `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(input.workflowId)}/dispatches`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ref: targetBranch,
+          inputs: input.inputs ?? {},
+        }),
+      },
+    )
+
+    if (!ok) {
+      const msg = (body as { message?: string }).message
+      return { success: false, runUrl: null, error: msg ?? `GitHub Actions dispatch failed (HTTP ${status})`, triggeredAt }
+    }
+
+    // workflow_dispatch returns 204 No Content on success
+    const runListUrl = `https://github.com/${owner}/${repo}/actions`
+    return { success: true, runUrl: runListUrl, error: null, triggeredAt }
+  } catch (e) {
+    return { success: false, runUrl: null, error: String(e), triggeredAt }
+  }
+}
+
+/**
+ * List recent workflow runs for a workflow file.
+ */
+export async function listWorkflowRuns(
+  repoFullName: string,
+  workflowId: string,
+  limit = 10,
+): Promise<{
+  runs: Array<{
+    id: number
+    status: string
+    conclusion: string | null
+    headBranch: string
+    runNumber: number
+    htmlUrl: string
+    createdAt: string
+    updatedAt: string
+  }>
+  error: string | null
+}> {
+  const token = await getAccessToken()
+  if (!token) return { runs: [], error: 'GitHub not configured' }
+
+  const [owner, repo] = repoFullName.split('/')
+  if (!owner || !repo) return { runs: [], error: 'Invalid repo format' }
+
+  try {
+    const { ok, body } = await githubFetch(
+      `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?per_page=${limit}`,
+      token,
+    )
+    if (!ok) return { runs: [], error: 'Failed to list workflow runs' }
+
+    const data = body as {
+      workflow_runs?: Array<{
+        id: number
+        status: string
+        conclusion: string | null
+        head_branch: string
+        run_number: number
+        html_url: string
+        created_at: string
+        updated_at: string
+      }>
+    }
+
+    const runs = (data.workflow_runs ?? []).map((r) => ({
+      id: r.id,
+      status: r.status,
+      conclusion: r.conclusion,
+      headBranch: r.head_branch,
+      runNumber: r.run_number,
+      htmlUrl: r.html_url,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }))
+
+    return { runs, error: null }
+  } catch (e) {
+    return { runs: [], error: String(e) }
+  }
+}
