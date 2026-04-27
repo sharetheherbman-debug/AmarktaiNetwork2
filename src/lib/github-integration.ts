@@ -110,12 +110,28 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
+const GITHUB_API_BASE = 'https://api.github.com'
+
 async function githubFetch(
   path: string,
   token: string,
   options: RequestInit = {},
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const url = `https://api.github.com${path}`
+  // Validate the path: must start with '/', must not contain '..' sequences,
+  // and the resulting URL must still point to api.github.com after parsing.
+  if (!path.startsWith('/') || path.includes('..')) {
+    return { ok: false, status: 400, body: { message: 'Invalid GitHub API path' } }
+  }
+  const url = `${GITHUB_API_BASE}${path}`
+  // Double-check the constructed URL stays within the expected host
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== 'api.github.com') {
+      return { ok: false, status: 400, body: { message: 'Resolved URL is outside GitHub API domain' } }
+    }
+  } catch {
+    return { ok: false, status: 400, body: { message: 'Failed to parse GitHub API URL' } }
+  }
   const res = await fetch(url, {
     ...options,
     headers: {
