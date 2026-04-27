@@ -960,3 +960,54 @@ model ManagerAgentLog {
   @@index([createdAt])
   @@map("manager_agent_logs")
 }
+
+// ── GenX Workspace Configuration ─────────────────────────────────────────────
+
+/// Global workspace AI configuration.
+/// Controls which GenX model policy applies to workspace-level tasks (admin run-tasks,
+/// builder operations, etc.).  Apps define their own policy via AppAiProfile.costMode.
+model WorkspaceConfig {
+  id Int @id @default(autoincrement())
+
+  /// GenX model selection policy for workspace tasks.
+  /// Values: best | cheap | balanced | fixed
+  /// 'best' is the default — workspace always uses the highest-capability model.
+  modelPolicy String @default("best") @map("model_policy")
+
+  /// When modelPolicy = 'fixed', this holds the explicit GenX model ID to use.
+  fixedModel String? @map("fixed_model")
+
+  /// JSON array of enabled workspace features, e.g. ["github", "deploy", "file_edit"]
+  enabledFeatures String @default("[]") @map("enabled_features")
+
+  /// JSON array of recent workspace session summaries (last N sessions).
+  workspaceSessions String @default("[]") @map("workspace_sessions")
+
+  /// JSON array of file context entries currently loaded in the workspace editor.
+  fileContexts String @default("[]") @map("file_contexts")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("workspace_configs")
+}
+
+/// Workspace AI execution session log — one row per task run.
+model WorkspaceSession {
+  id           String   @id @default(uuid())
+  traceId      String   @map("trace_id")
+  modelPolicy  String   @default("best") @map("model_policy")
+  resolvedModel String  @default("") @map("resolved_model")
+  taskType     String   @default("chat") @map("task_type")
+  input        String   @default("")
+  output       String?
+  fileContexts String   @default("[]") @map("file_contexts") // JSON FileContext[]
+  success      Boolean  @default(false)
+  latencyMs    Int?     @map("latency_ms")
+  error        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([traceId])
+  @@map("workspace_sessions")
+}

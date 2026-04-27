@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
   RefreshCw, AlertCircle, Brain, Layers, Bell, FileText, Shield, DollarSign,
   CheckCircle, XCircle, Clock, WifiOff, Key, Plus, Save, Activity,
-  Eye, EyeOff, ToggleLeft, ToggleRight,
+  Eye, EyeOff, ToggleLeft, ToggleRight, Zap,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -202,8 +202,23 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
   const [newProviderApiKey, setNewProviderApiKey] = useState('')
   const [addingProvider, setAddingProvider] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [genxStatus, setGenxStatus] = useState<{
+    configured: boolean
+    available: boolean
+    modelCount: number
+    error: string | null
+    adultCapability: { supported: boolean; route: string; reason: string }
+  } | null>(null)
 
   useEffect(() => { setLocalProviders(providers) }, [providers])
+
+  // Load GenX execution layer status
+  useEffect(() => {
+    fetch('/api/admin/genx/status')
+      .then(r => r.ok ? r.json() : null)
+      .then((data) => { if (data) setGenxStatus(data) })
+      .catch(() => { /* best-effort */ })
+  }, [])
 
   // Load catalog for dropdown when add form opens
   useEffect(() => {
@@ -318,6 +333,43 @@ function ProvidersView({ providers, onRefresh }: { providers: Provider[]; onRefr
 
   return (
     <div className="space-y-6">
+      {/* GenX execution layer status */}
+      <div className={`flex items-center justify-between px-5 py-4 rounded-2xl border ${
+        genxStatus === null ? 'bg-white/[0.02] border-white/[0.06]' :
+        genxStatus.available ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'
+      }`}>
+        <div className="flex items-start gap-3">
+          <Zap className={`w-5 h-5 mt-0.5 shrink-0 ${genxStatus?.available ? 'text-emerald-400' : 'text-slate-500'}`} />
+          <div>
+            <p className="text-sm font-semibold text-white">GenX — Primary Execution Layer</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {genxStatus === null && 'Checking…'}
+              {genxStatus?.available && `Connected · ${genxStatus.modelCount > 0 ? `${genxStatus.modelCount} models available` : 'model catalog not loaded'}`}
+              {genxStatus && !genxStatus.available && (genxStatus.error ?? 'Not configured — set GENX_API_URL + GENX_API_KEY')}
+            </p>
+            {genxStatus?.available && (
+              <p className="text-[11px] text-slate-500 mt-1">
+                Adult content: <span className={genxStatus.adultCapability.supported ? 'text-emerald-400' : 'text-amber-400'}>
+                  {genxStatus.adultCapability.supported ? 'Routed through GenX' : `${genxStatus.adultCapability.route} — ${genxStatus.adultCapability.reason}`}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+        <span className={`text-xs font-mono px-2 py-1 rounded-lg border ${
+          genxStatus?.available
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+            : 'bg-slate-800 border-white/[0.06] text-slate-500'
+        }`}>
+          {genxStatus === null ? '…' : genxStatus.available ? '● ACTIVE' : '○ INACTIVE'}
+        </span>
+      </div>
+
+      {/* Fallback providers note */}
+      <p className="text-xs text-slate-500 -mt-3 px-1">
+        Providers below are <span className="text-amber-400">fallback-only</span>. They are used only when GenX is unavailable or returns an error.
+      </p>
+
       {/* Add new provider */}
       <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
