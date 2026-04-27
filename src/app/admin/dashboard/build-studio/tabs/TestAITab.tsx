@@ -116,6 +116,9 @@ export default function TestAITab() {
   const [streaming, setStreaming] = useState(false)
   const [streamMeta, setStreamMeta] = useState<{ provider: string | null; tokensPerSec: number | null; elapsedMs: number | null } | null>(null)
   const [costMode, setCostMode] = useState<'free_first' | 'balanced' | 'quality_first'>('balanced')
+  // GenX policy for workspace-mode requests
+  const [genxPolicy, setGenxPolicy] = useState<'best' | 'cheap' | 'balanced' | 'fixed'>('best')
+  const [genxStatus, setGenxStatus] = useState<{ configured: boolean; available: boolean; modelCount: number; error: string | null } | null>(null)
   const sttFileRef = useRef<HTMLInputElement>(null)
   const [sttFile, setSttFile] = useState<File | null>(null)
   const [videoJobId, setVideoJobId] = useState<string | null>(null)
@@ -164,7 +167,17 @@ export default function TestAITab() {
     } catch { /* best-effort */ } finally { setLoadingCaps(false) }
   }, [])
 
-  useEffect(() => { loadProviders(); loadModels(); loadCapabilities() }, [loadProviders, loadModels, loadCapabilities])
+  const loadGenxStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/genx/status')
+      if (res.ok) {
+        const data = await res.json().catch(() => null)
+        if (data) setGenxStatus(data)
+      }
+    } catch { /* best-effort */ }
+  }, [])
+
+  useEffect(() => { loadProviders(); loadModels(); loadCapabilities(); loadGenxStatus() }, [loadProviders, loadModels, loadCapabilities, loadGenxStatus])
 
   const visibleModels = useMemo(() => {
     const capFlag = CAPABILITY_TO_MODEL_FLAG[capability] ?? null
@@ -196,7 +209,7 @@ export default function TestAITab() {
         const res = await fetch('/api/brain/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt, costMode }),
+          body: JSON.stringify({ appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt, costMode, genxPolicy }),
         })
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ error: `Stream failed: HTTP ${res.status}` }))
@@ -294,7 +307,7 @@ export default function TestAITab() {
 
     // General brain test
     try {
-      const body: Record<string, unknown> = { appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt }
+      const body: Record<string, unknown> = { appId: appProfile, appSecret: 'admin-test-secret', taskType: capability, message: prompt, genxPolicy }
       const modelParts = forceModel !== 'auto' ? forceModel.split(':', 2) : []
       const forcedModelProvider = modelParts.length === 2 ? modelParts[0] : null
       const forcedModelId = modelParts.length === 2 ? modelParts[1] : (forceModel !== 'auto' ? forceModel : null)
@@ -390,6 +403,30 @@ export default function TestAITab() {
 
   return (
     <div className="space-y-6">
+      {/* GenX execution layer status banner */}
+      {genxStatus !== null && (
+        <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs ${
+          genxStatus.available
+            ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+            : 'bg-amber-500/5 border-amber-500/20 text-amber-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-medium">
+              {genxStatus.available
+                ? `GenX · Primary Execution Layer · ${genxStatus.modelCount > 0 ? `${genxStatus.modelCount} models` : 'connected'}`
+                : 'GenX not configured — using fallback providers'}
+            </span>
+          </div>
+          {genxStatus.available && (
+            <span className="text-emerald-400/70 font-mono">● ACTIVE</span>
+          )}
+          {!genxStatus.available && genxStatus.error && (
+            <span className="text-amber-400/70 truncate max-w-[220px]">{genxStatus.error}</span>
+          )}
+        </div>
+      )}
+
       {/* Loading indicator */}
       {(loadingProviders || loadingCaps) && (
         <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -439,10 +476,40 @@ export default function TestAITab() {
           )}
         </div>
         <div className="space-y-2">
+          {/* GenX model policy — shown when GenX is active */}
+          <div className="space-y-1">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Zap className="w-2.5 h-2.5" /> GenX Policy
+            </p>
+            <div className="grid grid-cols-2 gap-1">
+              {([
+                { key: 'best',     label: 'Best',     title: 'Highest-capability GenX model (workspace default)' },
+                { key: 'balanced', label: 'Balanced', title: 'Medium cost/quality tradeoff GenX model' },
+                { key: 'cheap',    label: 'Cheap',    title: 'Lowest-cost GenX model for the capability' },
+                { key: 'fixed',    label: 'Fixed',    title: 'Use a specific fixed model ID' },
+              ] as const).map(m => (
+                <button
+                  key={m.key}
+                  title={m.title}
+                  onClick={() => setGenxPolicy(m.key)}
+                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-colors ${
+                    genxPolicy === m.key
+                      ? m.key === 'best'     ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                      : m.key === 'cheap'    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : m.key === 'fixed'    ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                      : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      : 'bg-white/[0.02] text-slate-500 border border-white/[0.06] hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <select value={forceProvider} onChange={e => setForceProvider(e.target.value)}
             className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white">
-            <option value="auto">Auto-route provider</option>
-            {providers.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+            <option value="auto">Fallback provider: auto</option>
+            {providers.map(p => <option key={p.key} value={p.key}>{p.label} (fallback)</option>)}
           </select>
           <select value={forceModel} onChange={e => setForceModel(e.target.value)}
             className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-white">
@@ -471,14 +538,14 @@ export default function TestAITab() {
                   className="rounded border-slate-600 bg-transparent" />
                 <Radio className="w-3 h-3" /> Stream mode
               </label>
-              {/* Cost routing mode selector */}
+              {/* Legacy cost routing mode — used by fallback provider path */}
               <div className="space-y-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cost Mode</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Fallback Cost Mode</p>
                 <div className="flex gap-1">
                   {([
-                    { key: 'free_first', label: 'Free First', title: 'Prefers free/cheap providers: groq → deepseek → huggingface' },
-                    { key: 'balanced', label: 'Balanced', title: 'Balances quality and cost: openai → groq → anthropic' },
-                    { key: 'quality_first', label: 'Quality', title: 'Prefers highest-quality: openai → anthropic → gemini' },
+                    { key: 'free_first',    label: 'Cheap',   title: 'Fallback: prefer lowest-cost provider' },
+                    { key: 'balanced',      label: 'Balanced',title: 'Fallback: balance cost and quality' },
+                    { key: 'quality_first', label: 'Quality', title: 'Fallback: prefer highest-quality provider' },
                   ] as const).map(m => (
                     <button
                       key={m.key}
@@ -683,6 +750,12 @@ export default function TestAITab() {
 
           {/* Metadata chips */}
           <div className="flex flex-wrap gap-2 text-[11px]">
+            {/* GenX indicator — shown whenever routedProvider contains 'genx' */}
+            {result.routedProvider && result.routedProvider.toLowerCase().includes('genx') && (
+              <span className="px-2 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20 flex items-center gap-1">
+                <Zap className="w-2.5 h-2.5" /> GenX
+              </span>
+            )}
             {result.executionMode && <span className="px-2 py-1 rounded-full bg-white/[0.04] text-slate-400">Mode: {result.executionMode}</span>}
             {result.validationUsed && <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Validated</span>}
             {result.consensusUsed && <span className="px-2 py-1 rounded-full bg-violet-500/10 text-violet-400">Consensus</span>}
