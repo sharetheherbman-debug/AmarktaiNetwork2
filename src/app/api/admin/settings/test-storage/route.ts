@@ -15,7 +15,7 @@ export async function POST() {
     // Resolve effective driver and config: DB row takes priority over env vars
     let driver = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase() as 'local' | 's3' | 'r2'
     let bucket = process.env.S3_BUCKET ?? ''
-    let accessKey = process.env.AWS_ACCESS_KEY_ID ?? ''
+    let hasCredentials = !!(process.env.AWS_ACCESS_KEY_ID)
     let publicUrl = process.env.R2_PUBLIC_URL ?? ''
 
     const row = await prisma.integrationConfig.findUnique({ where: { key: 'storage_config' } })
@@ -28,8 +28,7 @@ export async function POST() {
           if (parsed.publicUrl) publicUrl = parsed.publicUrl
         } catch { /* ignore */ }
       }
-      // Note: keys are encrypted, we just check presence for config validation
-      if (row.apiKey) accessKey = 'configured'
+      if (row.apiKey) hasCredentials = true
     }
 
     if (driver === 'local') {
@@ -43,7 +42,7 @@ export async function POST() {
     }
 
     if (driver === 's3') {
-      const configured = !!(bucket && accessKey)
+      const configured = !!(bucket && hasCredentials)
       if (!configured) {
         return NextResponse.json({
           success: false,
@@ -62,7 +61,7 @@ export async function POST() {
     }
 
     if (driver === 'r2') {
-      const configured = !!(publicUrl && accessKey)
+      const configured = !!(publicUrl && hasCredentials)
       if (!configured) {
         return NextResponse.json({
           success: false,

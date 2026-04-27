@@ -79,13 +79,13 @@ export async function GET() {
     if (storageRow?.apiUrl) {
       storageData.driver = (storageRow.apiUrl as 'local' | 's3' | 'r2') ?? storageData.driver
     }
-    // Decrypt access/secret keys from apiKey field
+    // Decrypt access/secret keys from apiKey field (stored as encrypted JSON)
     if (storageRow?.apiKey) {
       try {
         const rawJson = decryptVaultKey(storageRow.apiKey) ?? storageRow.apiKey
         const keys = JSON.parse(rawJson)
-        if (keys.accessKey) storageData.accessKey = decryptVaultKey(keys.accessKey) ?? keys.accessKey
-        if (keys.secretKey) storageData.secretKey = decryptVaultKey(keys.secretKey) ?? keys.secretKey
+        if (keys.accessKey) storageData.accessKey = keys.accessKey
+        if (keys.secretKey) storageData.secretKey = keys.secretKey
       } catch { /* keep env defaults */ }
     }
 
@@ -213,9 +213,12 @@ export async function PATCH(req: NextRequest) {
       }
       let encKeys = existing?.apiKey ?? ''
       if (s.accessKey || s.secretKey) {
-        const encAccess = s.accessKey ? encryptVaultKey(s.accessKey) : ''
-        const encSecret = s.secretKey ? encryptVaultKey(s.secretKey) : ''
-        encKeys = encryptVaultKey(JSON.stringify({ accessKey: encAccess, secretKey: encSecret }))
+        // Store access/secret keys as an encrypted JSON blob (single encryption level)
+        const keysJson = JSON.stringify({
+          accessKey: s.accessKey ?? '',
+          secretKey: s.secretKey ?? '',
+        })
+        encKeys = encryptVaultKey(keysJson)
       }
       await upsertRow('storage_config', 'Artifact Storage', {
         apiKey: encKeys,

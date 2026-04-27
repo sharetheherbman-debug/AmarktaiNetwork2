@@ -293,7 +293,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/admin/settings/test-github', { method: 'POST' })
       const d = await res.json()
       setGhTestResult(d.success
-        ? { success: true, message: `Connected as @${d.username}${d.repoCount != null ? ` · ${d.repoCount} repos` : ''}` }
+        ? { success: true, message: `Connected as @${d.username}${d.repoCount !== null ? ` · ${d.repoCount} repos` : ''}` }
         : { success: false, message: d.error ?? 'Validation failed' })
     } finally {
       setGhTesting(false)
