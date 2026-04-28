@@ -98,6 +98,9 @@ const IMAGE_CAPABILITY_CLASSES = new Set([
 /** Capability classes that indicate a voice/TTS request. */
 const TTS_CAPABILITY_CLASSES = new Set(['tts', 'voice', 'voice_output'])
 
+/** Task types that indicate an adult content generation request. */
+const ADULT_TASK_TYPES = new Set(['adult_image', 'adult_18plus_image', 'adult_image_generation'])
+
 /** Capability classes that indicate a STT request. */
 const STT_CAPABILITY_CLASSES = new Set(['stt', 'voice_input'])
 
@@ -220,6 +223,17 @@ export async function POST(request: NextRequest) {
   // unavailable — causing a false 503 before the request reaches orchestrate().
   await syncProviderHealthFromDB()
 
+  // Check GenX availability — GenX is configured via IntegrationConfig, not AiProvider,
+  // so it does not appear in the model-registry that syncProviderHealthFromDB() reads.
+  // When AiProvider rows are empty but GenX is configured, resolveCapabilityRoutes()
+  // incorrectly returns all capabilities as unavailable. We bypass that 503 below.
+  let genxAvailable = false
+  try {
+    const { getGenXStatusAsync } = await import('@/lib/genx-client')
+    const gs = await getGenXStatusAsync()
+    genxAvailable = gs.available
+  } catch { genxAvailable = false }
+
   let body: z.infer<typeof testSchema>
   try {
     body = testSchema.parse(await request.json())
@@ -230,43 +244,61 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // For adult task types: check IntegrationConfig adult_mode to allow adultMode flag.
+  const isAdultTaskType = ADULT_TASK_TYPES.has(body.taskType)
+  let adultModeOverride = false
+  if (isAdultTaskType) {
+    try {
+      const { prisma: db } = await import('@/lib/prisma')
+      const row = await db.integrationConfig.findUnique({ where: { key: 'adult_mode' } })
+      if (row) {
+        let notes: Record<string, string> = {}
+        try { notes = JSON.parse(row.notes) } catch { /* ignore */ }
+        adultModeOverride = notes.mode === 'specialist'
+      }
+    } catch { adultModeOverride = false }
+  }
+
   const safetyConfig = body.appSlug ? getAppSafetyConfig(body.appSlug) : undefined
   const capabilityResolution = resolveCapability(body.taskType, body.message, {
-    adultMode: safetyConfig?.adultMode,
+    adultMode: adultModeOverride || safetyConfig?.adultMode,
     safeMode: safetyConfig?.safeMode,
     suggestiveMode: safetyConfig?.suggestiveMode,
   })
   const capabilities = capabilityResolution.capabilities
   const capabilityRoutes = capabilityResolution.routeResult
 
-  if (!capabilityRoutes.allSatisfied) {
-    const reason = capabilityRoutes.missingCapabilities[0] ?? 'Capability unavailable'
-    return NextResponse.json(
-      {
-        success: false,
-        executed: false,
-        traceId,
-        capability: capabilities,
-        routedProvider: null,
-        routedModel: null,
-        executionMode: 'specialist',
-        fallback_used: false,
-        error: reason,
-        latencyMs: Date.now() - start,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503 },
-    )
-  }
-
-  // Resolve specialist type from BOTH taskType AND detected capabilities.
-  // This prevents the critical bug where taskType="chat" + message="create an image"
-  // detects image_generation capability but no specialist handler matches, causing
-  // fallthrough to orchestrate() which routes to gpt-4o-mini for a text response.
+  // Resolve specialist type early so we can distinguish GenX-capable text tasks
+  // from specialist tasks (image, TTS, STT, etc.) before the 503 guard.
   const specialistType = isRoutingExcludedTask(body.taskType)
     ? null
     : resolveSpecialistType(capabilityResolution.primaryCapability, capabilities)
   const isSpecialist = specialistType !== null
+
+  if (!capabilityRoutes.allSatisfied) {
+    const reason = capabilityRoutes.missingCapabilities[0] ?? 'Capability unavailable'
+    // When GenX is configured and the task is a text/chat capability (non-specialist),
+    // don't return 503 — GenX can handle it even though the AiProvider rows are empty.
+    const genxCanHandle = genxAvailable && !isSpecialist
+    if (!genxCanHandle) {
+      return NextResponse.json(
+        {
+          success: false,
+          executed: false,
+          traceId,
+          capability: capabilities,
+          routedProvider: null,
+          routedModel: null,
+          executionMode: 'specialist',
+          fallback_used: false,
+          error: reason,
+          latencyMs: Date.now() - start,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 503 },
+      )
+    }
+  }
 
   // Specialist tasks (image, TTS, STT, research, video, …) ALWAYS use the
   // correct specialist executor — even when the caller forces a providerKey.
@@ -633,6 +665,10 @@ export async function POST(request: NextRequest) {
 
   const unavailable = capabilityRoutes.routes.filter(r => !r.available)
   if (unavailable.length > 0 && !body.providerKey) {
+    // When GenX is configured and this is a non-specialist text task,
+    // skip this 503 — GenX handles it directly without going through the model-registry.
+    const genxCanHandle = genxAvailable && !isSpecialist
+    if (!genxCanHandle) {
     const latencyMs = Date.now() - start
     const reasons = unavailable.map(r => r.missingMessage ?? 'Capability unavailable').filter(Boolean)
     return NextResponse.json(
@@ -647,6 +683,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 503 },
     )
+    }
   }
 
   // Direct provider call — only for non-specialist (text) tasks.

@@ -62,11 +62,7 @@ interface QuickAction {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-/**
- * Internal app ID used for Aiva requests that go through the admin brain-test
- * handler. This bypasses normal app-auth and requires an active admin session.
- */
-const AIVA_INTERNAL_APP_ID = '__admin_test__'
+// (AIVA_INTERNAL_APP_ID was removed — voice STT now uses /api/brain/stt directly)
 
 // ── Avatar Asset Config ────────────────────────────────────────────────────────
 /**
@@ -144,7 +140,7 @@ function AivaAvatarDisplay({
   state: OrbState
   size?: number
   onClick?: () => void
-  avatarAssets?: Record<OrbState, string>
+  avatarAssets?: Partial<Record<OrbState, string>>
 }) {
   const [imgFailed, setImgFailed] = useState(false)
   const colors = ORB_COLORS[state]
@@ -154,7 +150,8 @@ function AivaAvatarDisplay({
   // Reset failure state when state changes (different state may have its asset)
   useEffect(() => { setImgFailed(false) }, [state])
 
-  const src = (avatarAssets ?? AIVA_AVATAR_ASSETS)[state]
+  // Only use DB-backed URLs — never attempt to load /aiva/avatar-*.png static paths
+  const src = avatarAssets?.[state]
   const showOrb = imgFailed || !src
 
   return (
@@ -308,11 +305,12 @@ const QUICK_ACTIONS: QuickAction[] = [
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function AivaAssistant() {
-  const [mode, setMode] = useState<'chat' | 'orb'>('chat')
-  const [minimized, setMinimized] = useState(false)
+  const [mode, setMode] = useState<'chat' | 'orb'>('orb')
+  const [minimized, setMinimized] = useState(true)
 
-  // Dynamic avatar URLs loaded from DB (falls back to static paths if unavailable)
-  const [avatarAssets, setAvatarAssets] = useState<Record<OrbState, string> | undefined>(undefined)
+  // Dynamic avatar URLs loaded from DB (starts empty — orb renders until DB config loads).
+  // Static fallback paths (/aiva/avatar-*.png) are NOT used; they do not exist on a fresh deploy.
+  const [avatarAssets, setAvatarAssets] = useState<Partial<Record<OrbState, string>>>({})
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -478,97 +476,106 @@ export default function AivaAssistant() {
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        setOrbState('thinking')
 
-        // Convert to base64
-        const reader = new FileReader()
-        reader.readAsDataURL(blob)
-        reader.onloadend = async () => {
-          const base64 = (reader.result as string).split(',')[1]
-          setOrbState('thinking')
-          try {
-            // STT
-            const sttRes = await fetch('/api/brain/execute', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                app_id: AIVA_INTERNAL_APP_ID,
-                task: 'stt',
-                input: base64,
-                metadata: { mimeType: 'audio/webm' },
-              }),
-            })
-            const sttData = await sttRes.json()
-            const transcript = sttData.output ?? sttData.result ?? ''
-            if (!transcript) {
-              setOrbState('error')
-              setTimeout(() => setOrbState('idle'), 2000)
-              return
+        try {
+          // ── STT — multipart FormData to /api/brain/stt ─────────────────
+          const sttForm = new FormData()
+          sttForm.append('file', blob, 'audio.webm')
+          const sttRes = await fetch('/api/brain/stt', {
+            method: 'POST',
+            body: sttForm,
+          })
+          const sttData = await sttRes.json() as { transcript?: string; error?: string; executed?: boolean }
+          const sttError = !sttRes.ok
+            ? (sttData.error ?? `STT request failed (HTTP ${sttRes.status})`)
+            : (!sttData.transcript ? (sttData.error ?? 'STT returned no transcript') : null)
+          const transcript = sttData.transcript ?? ''
+          if (!transcript) {
+            console.error('[Aiva] STT error:', sttError)
+            const errMsg: Message = {
+              id: `stt-err-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              error: sttError ?? 'STT failed',
             }
+            setMessages(prev => [...prev, errMsg])
+            setOrbState('error')
+            setTimeout(() => setOrbState('idle'), 3000)
+            return
+          }
 
-            // Chat
-            const chatRes = await fetch('/api/admin/aiva/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: transcript, conversationId }),
-            })
-            const chatData = await chatRes.json()
-            if (chatData.conversationId) setConversationId(chatData.conversationId)
-            const responseText = typeof chatData.output === 'string' ? chatData.output : ''
+          // ── Chat ──────────────────────────────────────────────────────
+          const chatRes = await fetch('/api/admin/aiva/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: transcript, conversationId }),
+          })
+          const chatData = await chatRes.json() as {
+            conversationId?: string; output?: string; capability?: string;
+            provider?: string; model?: string; error?: string
+          }
+          if (chatData.conversationId) setConversationId(chatData.conversationId)
+          const responseText = typeof chatData.output === 'string' ? chatData.output : ''
 
-            if (responseText) {
-              setOrbState('speaking')
-              // TTS
-              try {
-                const ttsRes = await fetch('/api/brain/execute', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    app_id: AIVA_INTERNAL_APP_ID,
-                    task: 'tts',
-                    input: responseText,
-                  }),
-                })
-                const ttsData = await ttsRes.json()
-                if (ttsData.output && typeof ttsData.output === 'string') {
-                  const audio = new Audio(`data:audio/mpeg;base64,${ttsData.output}`)
-                  audio.onended = () => setOrbState('idle')
-                  audio.onerror = () => {
-                    console.error('[Aiva] TTS audio playback failed')
-                    setOrbState('idle')
-                  }
-                  audio.play().catch(err => {
-                    console.error('[Aiva] TTS play() rejected:', err)
-                    setOrbState('idle')
-                  })
-                } else {
+          // Add user + assistant messages to chat
+          const userMsg: Message = {
+            id: `voice-user-${Date.now()}`,
+            role: 'user',
+            content: transcript,
+          }
+          const assistantMsg: Message = {
+            id: `voice-${Date.now()}`,
+            role: 'assistant',
+            content: responseText,
+            capability: chatData.capability,
+            provider: chatData.provider,
+            model: chatData.model,
+            error: chatData.error,
+          }
+          setMessages(prev => [...prev, userMsg, assistantMsg])
+
+          if (responseText) {
+            setOrbState('speaking')
+            // ── TTS — binary audio from /api/brain/tts ────────────────
+            try {
+              const ttsRes = await fetch('/api/brain/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: responseText }),
+              })
+              if (ttsRes.ok) {
+                const audioBlob = await ttsRes.blob()
+                const audioUrl = URL.createObjectURL(audioBlob)
+                const audio = new Audio(audioUrl)
+                audio.onended = () => {
+                  URL.revokeObjectURL(audioUrl)
                   setOrbState('idle')
                 }
-              } catch {
+                audio.onerror = () => {
+                  URL.revokeObjectURL(audioUrl)
+                  console.error('[Aiva] TTS audio playback failed')
+                  setOrbState('idle')
+                }
+                audio.play().catch(err => {
+                  console.error('[Aiva] TTS play() rejected:', err)
+                  URL.revokeObjectURL(audioUrl)
+                  setOrbState('idle')
+                })
+              } else {
+                const ttsErr = await ttsRes.json().catch(() => ({}) as { error?: string })
+                console.warn('[Aiva] TTS failed:', ttsErr.error)
                 setOrbState('idle')
               }
-            } else {
+            } catch {
               setOrbState('idle')
             }
-
-            // Add to chat messages
-            const assistantMsg: Message = {
-              id: `voice-${Date.now()}`,
-              role: 'assistant',
-              content: responseText,
-              capability: chatData.capability,
-              provider: chatData.provider,
-              model: chatData.model,
-            }
-            const userMsg: Message = {
-              id: `voice-user-${Date.now()}`,
-              role: 'user',
-              content: transcript,
-            }
-            setMessages(prev => [...prev, userMsg, assistantMsg])
-          } catch {
-            setOrbState('error')
-            setTimeout(() => setOrbState('idle'), 2000)
+          } else {
+            setOrbState('idle')
           }
+        } catch {
+          setOrbState('error')
+          setTimeout(() => setOrbState('idle'), 2000)
         }
       }
 

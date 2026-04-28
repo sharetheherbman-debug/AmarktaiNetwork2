@@ -8,17 +8,18 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { getGenXStatusAsync } from '@/lib/genx-client'
+import { getGenXStatusAsync, GENX_STT_MODELS, GENX_TTS_MODELS } from '@/lib/genx-client'
 import { getStorageStatus } from '@/lib/storage-driver'
 import { getVaultApiKey } from '@/lib/brain'
+import { getServiceKey } from '@/lib/service-vault'
 
+// Provider keys resolved via AiProvider vault (Admin → AI Providers).
+// GenX and Firecrawl are NOT in this list — they use their own resolvers.
 const PROVIDER_KEYS: Record<string, string> = {
-  genx: 'GENX_API_KEY',
   gemini: 'GEMINI_API_KEY',
   groq: 'GROQ_API_KEY',
   openrouter: 'OPENROUTER_API_KEY',
   grok: 'GROK_API_KEY',
-  firecrawl: 'FIRECRAWL_API_KEY',
 }
 
 export async function GET() {
@@ -53,6 +54,21 @@ export async function GET() {
 
     // ── Missing provider keys ─────────────────────────────────────────────────
     const missingKeys: string[] = []
+
+    // GenX: resolved via IntegrationConfig (not AiProvider). Use live status.
+    if (!genxStatus.available) missingKeys.push('genx')
+
+    // Firecrawl: resolved via IntegrationConfig (not AiProvider).
+    let firecrawlConfigured = false
+    try {
+      const firecrawlKey = await getServiceKey('firecrawl', 'FIRECRAWL_API_KEY')
+      firecrawlConfigured = !!firecrawlKey
+    } catch {
+      firecrawlConfigured = false
+    }
+    if (!firecrawlConfigured) missingKeys.push('firecrawl')
+
+    // Standard AI providers resolved via AiProvider vault
     for (const [provider, envKey] of Object.entries(PROVIDER_KEYS)) {
       try {
         const val = process.env[envKey] ?? (await getVaultApiKey(provider))
@@ -72,7 +88,41 @@ export async function GET() {
     }
 
     // ── Firecrawl status ──────────────────────────────────────────────────────
-    const firecrawlStatus = !missingKeys.includes('firecrawl')
+    const firecrawlStatus = firecrawlConfigured
+
+    // ── STT / TTS / Voice readiness ───────────────────────────────────────────
+    // STT: GenX has STT models OR any audio-transcription provider is configured
+    const sttViaGenX = genxStatus.available && GENX_STT_MODELS.length > 0
+    let sttViaProvider = false
+    try {
+      const groqKey  = await getVaultApiKey('groq')
+      const openaiKey = await getVaultApiKey('openai')
+      const geminiKey = await getVaultApiKey('gemini')
+      const hfKey    = await getVaultApiKey('huggingface')
+      sttViaProvider = !!(groqKey || openaiKey || geminiKey || hfKey)
+    } catch { sttViaProvider = false }
+
+    const sttReady = sttViaGenX || sttViaProvider
+    const sttReadinessDetail = sttReady
+      ? (sttViaGenX ? 'via GenX' : 'via provider key')
+      : 'No STT provider configured (needs GenX, Groq, OpenAI, Gemini, or HuggingFace key)'
+
+    // TTS: GenX has TTS models OR any audio-synthesis provider is configured
+    const ttsViaGenX = genxStatus.available && GENX_TTS_MODELS.length > 0
+    let ttsViaProvider = false
+    try {
+      const groqKey  = await getVaultApiKey('groq')
+      const openaiKey = await getVaultApiKey('openai')
+      const geminiKey = await getVaultApiKey('gemini')
+      ttsViaProvider = !!(groqKey || openaiKey || geminiKey)
+    } catch { ttsViaProvider = false }
+
+    const ttsReady = ttsViaGenX || ttsViaProvider
+    const ttsReadinessDetail = ttsReady
+      ? (ttsViaGenX ? 'via GenX' : 'via provider key')
+      : 'No TTS provider configured (needs GenX, Groq, OpenAI, or Gemini key)'
+
+    const voiceReady = sttReady && ttsReady
 
     // ── Artifact count ────────────────────────────────────────────────────────
     let artifactCount = 0
@@ -148,12 +198,25 @@ export async function GET() {
       fallbackUsage,
       firecrawlStatus,
       storagePersistent,
-      // Emotion state is managed by the in-memory emotion engine (src/lib/emotion-engine.ts).
-      // When REDIS_URL is configured, emotion state can survive restarts via Redis.
-      // Without it, all emotion memory resets on server restart.
-      emotionPersistence: process.env.REDIS_URL ? 'redis' : 'in_memory',
+      // Voice readiness — truthful breakdown of STT and TTS capability
+      sttReady,
+      sttReadinessDetail,
+      ttsReady,
+      ttsReadinessDetail,
+      // Voice is only ready when BOTH STT and TTS can run
       aivaChatReady: true,
-      aivaVoiceReady: genxStatus.available,
+      aivaVoiceReady: voiceReady,
+      // Emotion persistence — truthful status
+      // Emotion state lives in-memory (src/lib/emotion-engine.ts).
+      // It survives restarts ONLY when REDIS_URL is configured.
+      // Without Redis (or a DB-backed EmotionHistory model), all emotion
+      // history resets on server restart. This is a known P1 before go-live.
+      emotionPersistence: process.env.REDIS_URL ? 'redis' : 'in_memory',
+      emotionSurvivesRestart: !!process.env.REDIS_URL,
+      emotionPersistenceWarning: process.env.REDIS_URL
+        ? null
+        : 'Emotion state is in-memory only — history resets on server restart. ' +
+          'Configure REDIS_URL or a DB-backed EmotionHistory model before go-live.',
       lastCapabilityUsed,
       lastArtifact,
     })

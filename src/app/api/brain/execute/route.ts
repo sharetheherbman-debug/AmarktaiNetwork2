@@ -31,7 +31,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { POST as handleRequest } from '@/app/api/brain/request/route'
 import { POST as handleAdminTest } from '@/app/api/admin/brain/test/route'
 import { resolveCapability } from '@/lib/capability-engine'
-import { executeCapability } from '@/lib/capability-router'
+import { executeCapability, type CapabilityResponse } from '@/lib/capability-router'
+
+/**
+ * Map a CapabilityResponse failure to the appropriate HTTP status code.
+ *
+ *   200 — success
+ *   400 — bad input / missing required file
+ *   403 — guardrail block / adult block
+ *   422 — request validation / schema error (handled before this function)
+ *   502 — provider runtime failure / bad gateway
+ *   503 — missing provider / key / model (service unavailable)
+ */
+function httpStatusForCapabilityResult(result: CapabilityResponse): number {
+  if (result.success) return 200
+  const cat = result.error_category
+  if (cat === 'guardrail_block') return 403
+  if (cat === 'missing_key') return 503
+  if (cat === 'model_not_supported') return 503
+  if (cat === 'endpoint_error') return 502
+  if (cat === 'provider_policy_block') return 403
+  // Missing provider / no provider at all → 503
+  if (!result.provider) return 503
+  // Provider returned an error response → 502
+  return 502
+}
 
 /** Convert execute-route body to the admin/brain/test schema. */
 function toAdminTestBody(raw: Record<string, unknown>): Record<string, unknown> {
@@ -156,7 +180,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ? raw.metadata as Record<string, unknown>
           : undefined,
       })
-      return NextResponse.json(result, { status: result.success ? 200 : 422 })
+      return NextResponse.json(result, { status: httpStatusForCapabilityResult(result) })
     } catch (err) {
       return NextResponse.json(
         { success: false, error: err instanceof Error ? err.message : 'Internal server error' },
