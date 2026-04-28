@@ -1233,13 +1233,24 @@ function WebdockSection() {
 // ── Providers Section ─────────────────────────────────────────────────────────
 
 const PROVIDER_DEFS = [
-  { key: 'openai',       label: 'OpenAI',            placeholder: 'sk-…',    caps: ['chat', 'code', 'images', 'embeddings', 'tts'] },
-  { key: 'gemini',       label: 'Google Gemini',      placeholder: 'AIza…',  caps: ['chat', 'reasoning', 'vision'] },
-  { key: 'qwen',         label: 'Qwen / DashScope',   placeholder: 'sk-…',   caps: ['chat', 'reasoning', 'images', 'video', 'stt'] },
-  { key: 'groq',         label: 'Groq',               placeholder: 'gsk_…',  caps: ['chat', 'code'] },
-  { key: 'huggingface',  label: 'HuggingFace',        placeholder: 'hf_…',   caps: ['chat', 'embeddings', 'images', 'tts'] },
-  { key: 'together',     label: 'Together AI',        placeholder: 'tg_…',   caps: ['chat', 'code', 'images'] },
-  { key: 'grok',         label: 'xAI / Grok',         placeholder: 'xai-…',  caps: ['chat', 'reasoning', 'vision'] },
+  // ── Chat / reasoning ──────────────────────────────────────────────────────
+  { key: 'openai',       label: 'OpenAI',            placeholder: 'sk-…',       caps: ['chat', 'code', 'images', 'embeddings', 'tts', 'stt'] },
+  { key: 'gemini',       label: 'Google Gemini',     placeholder: 'AIza…',      caps: ['chat', 'reasoning', 'vision'] },
+  { key: 'groq',         label: 'Groq',              placeholder: 'gsk_…',      caps: ['chat', 'code', 'stt'] },
+  { key: 'anthropic',    label: 'Anthropic',         placeholder: 'sk-ant-…',   caps: ['chat', 'code', 'reasoning', 'vision'] },
+  { key: 'mistral',      label: 'Mistral AI',        placeholder: 'XXXX…',      caps: ['chat', 'code', 'embeddings'] },
+  { key: 'cohere',       label: 'Cohere',            placeholder: 'XXXX…',      caps: ['chat', 'embeddings', 'reranking'] },
+  { key: 'grok',         label: 'xAI / Grok',        placeholder: 'xai-…',      caps: ['chat', 'reasoning', 'vision'] },
+  { key: 'qwen',         label: 'Qwen / DashScope',  placeholder: 'sk-…',       caps: ['chat', 'reasoning', 'images', 'video', 'stt'] },
+  { key: 'openrouter',   label: 'OpenRouter',        placeholder: 'sk-or-…',    caps: ['chat', 'code', 'reasoning'] },
+  // ── Images / video ────────────────────────────────────────────────────────
+  { key: 'together',     label: 'Together AI',       placeholder: 'tg_…',       caps: ['chat', 'code', 'images'] },
+  { key: 'replicate',    label: 'Replicate',         placeholder: 'r8_…',       caps: ['images', 'video'] },
+  { key: 'huggingface',  label: 'HuggingFace',       placeholder: 'hf_…',       caps: ['chat', 'embeddings', 'images', 'tts'] },
+  // ── Voice (TTS / STT) ──────────────────────────────────────────────────────
+  { key: 'elevenlabs',   label: 'ElevenLabs',        placeholder: 'XXXX…',      caps: ['tts', 'voice'] },
+  { key: 'deepgram',     label: 'Deepgram',          placeholder: 'XXXX…',      caps: ['stt', 'tts', 'voice'] },
+  { key: 'assemblyai',   label: 'AssemblyAI',        placeholder: 'XXXX…',      caps: ['stt', 'transcription'] },
 ]
 
 function ProvidersSection() {
