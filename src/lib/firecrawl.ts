@@ -55,22 +55,25 @@ export interface CrawlStatus {
 const FIRECRAWL_API_URL = process.env.FIRECRAWL_API_URL || 'https://api.firecrawl.dev/v1'
 const FIRECRAWL_TIMEOUT = 60_000
 
-function getFirecrawlApiKey(): string | null {
-  return process.env.FIRECRAWL_API_KEY || null
+import { getServiceKey } from './service-vault'
+
+async function getFirecrawlApiKey(): Promise<string | null> {
+  return getServiceKey('firecrawl', 'FIRECRAWL_API_KEY')
 }
 
 // ── Status Check ────────────────────────────────────────────────────────────
 
 /**
  * Check if Firecrawl is available and configured.
+ * Checks DB vault first, then env var.
  */
-export function getFirecrawlStatus(): CrawlStatus {
-  const apiKey = getFirecrawlApiKey()
+export async function getFirecrawlStatus(): Promise<CrawlStatus> {
+  const apiKey = await getFirecrawlApiKey()
   return {
     available: !!apiKey,
     apiKeyConfigured: !!apiKey,
     lastCrawl: null,
-    error: apiKey ? null : 'FIRECRAWL_API_KEY not configured',
+    error: apiKey ? null : 'Firecrawl API key not configured. Set it via Admin → Settings → Service Integrations.',
   }
 }
 
@@ -82,7 +85,7 @@ export function getFirecrawlStatus(): CrawlStatus {
  * Never throws — returns error in result.
  */
 export async function crawlAppWebsite(url: string): Promise<CrawlResult> {
-  const apiKey = getFirecrawlApiKey()
+  const apiKey = await getFirecrawlApiKey()
   if (!apiKey) {
     return {
       success: false,

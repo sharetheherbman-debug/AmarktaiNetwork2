@@ -15,6 +15,7 @@
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest'
+import { getServiceKey, getServiceConfigField } from './service-vault'
 
 // ── Singleton ────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,21 @@ let _client: QdrantClient | null = null
 
 /**
  * Returns the shared Qdrant client, or `null` if QDRANT_URL is not set.
+ * Resolves URL/key from the DB vault first, then env var fallback.
+ */
+export async function getQdrantClientAsync(): Promise<QdrantClient | null> {
+  const url = await getServiceConfigField('qdrant', 'url', 'QDRANT_URL')
+  if (!url) return null
+  const apiKey = await getServiceKey('qdrant', 'QDRANT_API_KEY')
+  // Recreate client if config has changed
+  _client = new QdrantClient({ url, apiKey: apiKey ?? undefined })
+  return _client
+}
+
+/**
+ * Returns the shared Qdrant client, or `null` if QDRANT_URL is not set.
+ * Sync version — reads env var only (used for sync callers).
+ * Prefer getQdrantClientAsync() in async contexts.
  */
 export function getQdrantClient(): QdrantClient | null {
   if (_client) return _client
@@ -47,7 +63,7 @@ export async function ensureCollection(
   name = DEFAULT_COLLECTION,
   vectorSize = VECTOR_SIZE,
 ): Promise<boolean> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return false
   try {
     const collections = await client.getCollections()
@@ -67,7 +83,7 @@ export async function ensureCollection(
  * Ensure the per-app knowledge collection exists with payload indexing for app isolation.
  */
 export async function ensureAppKnowledgeCollection(): Promise<boolean> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return false
   try {
     const collections = await client.getCollections()
@@ -103,7 +119,7 @@ export async function upsertVectors(
   points: VectorPoint[],
   collection = DEFAULT_COLLECTION,
 ): Promise<boolean> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return false
   try {
     await client.upsert(collection, {
@@ -135,7 +151,7 @@ export async function searchVectors(
   collection = DEFAULT_COLLECTION,
   filter?: Record<string, unknown>,
 ): Promise<SearchResult[]> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return []
   try {
     const results = await client.search(collection, {
@@ -192,7 +208,7 @@ export async function searchAppKnowledge(
  * Delete all knowledge vectors for a specific app.
  */
 export async function deleteAppKnowledge(appSlug: string): Promise<boolean> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return false
   try {
     await client.delete(APP_KNOWLEDGE_COLLECTION, {
@@ -210,7 +226,7 @@ export async function deleteAppKnowledge(appSlug: string): Promise<boolean> {
  * Returns true when Qdrant is connected and responding.
  */
 export async function isQdrantHealthy(): Promise<boolean> {
-  const client = getQdrantClient()
+  const client = await getQdrantClientAsync()
   if (!client) return false
   try {
     await client.getCollections()

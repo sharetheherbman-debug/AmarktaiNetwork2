@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { decryptVaultKey } from '@/lib/crypto-vault'
+import { getVaultApiKey } from '@/lib/brain'
 
 type ProviderType = 'together' | 'huggingface' | 'xai' | 'custom'
 
@@ -85,6 +86,24 @@ export async function POST(req: NextRequest) {
 
   if (!mode) mode = 'disabled'
 
+  // ── Vault key fallback ──────────────────────────────────────────────────────
+  // When no inline key and no key in the adult_mode integration config, check
+  // the provider vault (aiProvider table — shared key store for all features).
+  // This lets users reuse the same Together/HuggingFace/xAI key they already
+  // saved in Admin → AI Providers, without entering it a second time.
+  if (!apiKey && mode === 'specialist') {
+    if (!providerType) providerType = 'together'
+    const vaultKeyMap: Record<string, string> = {
+      xai: 'grok',  // xAI/Grok uses the 'grok' vault key; all other provider types share their own key name
+    }
+    // 'custom' has no corresponding vault key — skip vault lookup for it
+    if (providerType !== 'custom') {
+      const vaultKey = vaultKeyMap[providerType] ?? providerType
+      const resolved = await getVaultApiKey(vaultKey).catch(() => null)
+      if (resolved) apiKey = resolved
+    }
+  }
+
   // ── Disabled ──
   if (mode === 'disabled') {
     return NextResponse.json({
@@ -113,7 +132,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         mode: 'specialist', providerType: 'together',
         supported: false, status: 'not_configured',
-        message: 'Together AI API key is required.',
+        message: 'Together AI API key is required. Enter it here or save it via Admin → AI Providers → Together AI.',
       })
     }
 
@@ -222,7 +241,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         mode: 'specialist', providerType: 'xai',
         supported: false, status: 'not_configured',
-        message: 'xAI API key is required.',
+        message: 'xAI API key is required. Enter it here or save it via Admin → AI Providers → xAI / Grok.',
       })
     }
 

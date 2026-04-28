@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { getVaultApiKey } from '@/lib/brain'
+import { getGenXStatusAsync, callGenXChat, type GenXChatMessage } from '@/lib/genx-client'
 
 /**
  * POST /api/admin/ai-partner/chat
@@ -143,8 +144,53 @@ export async function POST(request: NextRequest) {
   const systemPrompt = typeof body.systemPrompt === 'string' ? body.systemPrompt : ''
   const requestedProvider = typeof body.provider === 'string' ? body.provider : 'auto'
 
-  // If a specific provider is requested, try only that one
+  // Auto-select: try GenX (AI Engine) first, then each vault provider in priority order
+  const errors: string[] = []
+
+  // ── GenX primary ────────────────────────────────────────────────────────────
+  if (requestedProvider === 'auto' || requestedProvider === 'genx') {
+    try {
+      const genxStatus = await getGenXStatusAsync()
+      if (genxStatus.available) {
+        const genxMessages: GenXChatMessage[] = []
+        if (systemPrompt.trim()) genxMessages.push({ role: 'system', content: systemPrompt })
+        for (const m of messages) genxMessages.push({ role: m.role, content: m.content })
+
+        const genxResult = await callGenXChat({
+          model: 'genx/default-chat',
+          messages: genxMessages,
+          max_tokens: 1024,
+          metadata: { source: 'ai-partner' },
+        })
+        if (genxResult.success && genxResult.output) {
+          return NextResponse.json({ reply: genxResult.output, provider: 'genx', model: genxResult.model })
+        }
+        if (requestedProvider === 'genx') {
+          return NextResponse.json(
+            { error: genxResult.error ?? 'GenX call returned empty output', code: 'provider_error' },
+            { status: 502 },
+          )
+        }
+        errors.push(`genx: ${genxResult.error ?? 'empty reply'}`)
+      } else if (requestedProvider === 'genx') {
+        return NextResponse.json(
+          { error: `GenX not configured: ${genxStatus.error ?? 'unknown'}`, code: 'provider_not_configured' },
+          { status: 503 },
+        )
+      }
+    } catch (genxErr) {
+      if (requestedProvider === 'genx') {
+        return NextResponse.json(
+          { error: `GenX error: ${genxErr instanceof Error ? genxErr.message : 'unknown'}`, code: 'provider_error' },
+          { status: 502 },
+        )
+      }
+      errors.push(`genx: ${genxErr instanceof Error ? genxErr.message : 'error'}`)
+    }
+  }
+
   if (requestedProvider !== 'auto') {
+    // Non-auto explicit provider (genx was already handled above).
     const providerDef = CHAT_PROVIDER_PRIORITY.find(p => p.key === requestedProvider)
     if (!providerDef) {
       return NextResponse.json(
@@ -179,8 +225,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ reply, provider: requestedProvider, model: providerDef.defaultModel })
   }
 
-  // Auto-select: try each provider in priority order until one succeeds
-  const errors: string[] = []
+  // ── Vault provider fallback loop ────────────────────────────────────────────
   for (const providerDef of CHAT_PROVIDER_PRIORITY) {
     const key = await getVaultApiKey(providerDef.key)
     if (!key) continue // not configured — skip silently

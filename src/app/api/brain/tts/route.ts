@@ -59,6 +59,16 @@ const VOICE_BY_GENDER: Record<string, { male: string; female: string; default: s
     female:  'facebook/mms-tts-eng',
     default: 'facebook/mms-tts-eng',
   },
+  elevenlabs: {
+    male:    'pNInz6obpgDQGcFmaJgB', // Adam
+    female:  'EXAVITQu4vr4xnSDxMaL', // Bella
+    default: 'EXAVITQu4vr4xnSDxMaL',
+  },
+  deepgram: {
+    male:    'aura-2-zeus-en',
+    female:  'aura-2-luna-en',
+    default: 'aura-2-luna-en',
+  },
 }
 
 export async function POST(request: NextRequest) {
@@ -149,13 +159,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve API keys from DB vault (with env fallback)
-    const groqKey  = await getVaultApiKey('groq');
-    const openaiKey = await getVaultApiKey('openai');
-    const geminiKey = await getVaultApiKey('gemini');
-    const hfKey    = await getVaultApiKey('huggingface');
+    const groqKey       = await getVaultApiKey('groq');
+    const openaiKey     = await getVaultApiKey('openai');
+    const geminiKey     = await getVaultApiKey('gemini');
+    const hfKey         = await getVaultApiKey('huggingface');
+    // ElevenLabs and Deepgram use the service vault (integrationConfig)
+    const { getServiceKey } = await import('@/lib/service-vault');
+    const elevenLabsKey = await getServiceKey('elevenlabs', 'ELEVENLABS_API_KEY');
+    const deepgramKey   = await getServiceKey('deepgram', 'DEEPGRAM_API_KEY');
 
     // Determine provider
-    let provider: 'groq' | 'openai' | 'gemini' | 'huggingface';
+    let provider: 'groq' | 'openai' | 'gemini' | 'huggingface' | 'elevenlabs' | 'deepgram';
     if (requestedProvider === 'groq') {
       if (!groqKey) {
         return NextResponse.json(
@@ -188,14 +202,32 @@ export async function POST(request: NextRequest) {
         );
       }
       provider = 'huggingface';
+    } else if (requestedProvider === 'elevenlabs') {
+      if (!elevenLabsKey) {
+        return NextResponse.json(
+          { error: 'ElevenLabs TTS requested but no ElevenLabs API key is configured. Add it via Admin → Settings → Service Integrations.', executed: false, provider: 'elevenlabs', capability: 'voice_output' },
+          { status: 503 },
+        );
+      }
+      provider = 'elevenlabs';
+    } else if (requestedProvider === 'deepgram') {
+      if (!deepgramKey) {
+        return NextResponse.json(
+          { error: 'Deepgram TTS requested but no Deepgram API key is configured. Add it via Admin → Settings → Service Integrations.', executed: false, provider: 'deepgram', capability: 'voice_output' },
+          { status: 503 },
+        );
+      }
+      provider = 'deepgram';
     } else {
-      // Auto: OpenAI is the golden-path baseline. Groq is used as fallback when
-      // Auto-select: prefer OpenAI (highest quality), then Groq (fastest/cheapest),
-      // then Gemini (multimodal), then HuggingFace (free fallback).
-      if (openaiKey) {
+      // Auto-select: try providers in priority order: ElevenLabs → OpenAI → Groq → Deepgram → Gemini → HuggingFace
+      if (elevenLabsKey) {
+        provider = 'elevenlabs';
+      } else if (openaiKey) {
         provider = 'openai';
       } else if (groqKey) {
         provider = 'groq';
+      } else if (deepgramKey) {
+        provider = 'deepgram';
       } else if (geminiKey) {
         provider = 'gemini';
       } else if (hfKey) {
@@ -203,7 +235,7 @@ export async function POST(request: NextRequest) {
       } else {
         return NextResponse.json(
           {
-            error: 'No TTS provider configured. Add an API key via Admin → AI Providers. Supported providers: OpenAI (premium), Groq (low cost), Gemini (multimodal), HuggingFace (free fallback).',
+            error: 'No TTS provider configured. Add an API key via Admin → AI Providers (OpenAI, Groq, Gemini) or Admin → Settings → Service Integrations (ElevenLabs, Deepgram).',
             executed: false,
             capability: 'voice_output',
           },
@@ -379,6 +411,88 @@ export async function POST(request: NextRequest) {
           'Content-Length': String(audioBuffer.byteLength),
           'X-Provider': 'huggingface',
           'X-Model': hfModel,
+        },
+      });
+    }
+
+    // ── ElevenLabs TTS ────────────────────────────────────────────────────────
+    if (provider === 'elevenlabs') {
+      const voice = resolveVoice('elevenlabs');
+      const model = requestedModel ?? 'eleven_multilingual_v2';
+
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenLabsKey!,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: model,
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        return NextResponse.json(
+          { error: 'ElevenLabs TTS generation failed', detail: err, executed: false, provider: 'elevenlabs', model },
+          { status: response.status },
+        );
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      meterCall('elevenlabs', model, text, true);
+      if (meterAppSlug) {
+        void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via elevenlabs/${model}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+      }
+      return new NextResponse(audioBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': String(audioBuffer.byteLength),
+          'X-Provider': 'elevenlabs',
+          'X-Model': model,
+          'X-Voice': voice,
+        },
+      });
+    }
+
+    // ── Deepgram TTS ──────────────────────────────────────────────────────────
+    if (provider === 'deepgram') {
+      const voice = resolveVoice('deepgram');
+      const model = requestedModel ?? voice;
+
+      const response = await fetch(`https://api.deepgram.com/v1/speak?model=${encodeURIComponent(model)}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Token ${deepgramKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        return NextResponse.json(
+          { error: 'Deepgram TTS generation failed', detail: err, executed: false, provider: 'deepgram', model },
+          { status: response.status },
+        );
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      meterCall('deepgram', model, text, true);
+      if (meterAppSlug) {
+        void saveMemory({ appSlug: meterAppSlug, memoryType: 'event', key: 'tts', content: `TTS generated via deepgram/${model}: "${text.slice(0, 100)}"`, importance: 0.3, ttlDays: 30 });
+      }
+      return new NextResponse(audioBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': String(audioBuffer.byteLength),
+          'X-Provider': 'deepgram',
+          'X-Model': model,
         },
       });
     }

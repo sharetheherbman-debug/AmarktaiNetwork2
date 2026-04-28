@@ -53,6 +53,12 @@ import { recordPerformance, loadSmartRouterState } from '@/lib/smart-router'
 import { lookupCache, storeInCache } from '@/lib/semantic-cache'
 import { alertNoEligibleModel } from '@/lib/alert-engine'
 import type { ModelEntry } from '@/lib/model-registry'
+import {
+  getGenXStatusAsync,
+  selectGenXModel,
+  callGenXChat,
+  type GenXChatMessage,
+} from '@/lib/genx-client'
 
 /**
  * Check whether a model supports the given modality.
@@ -670,6 +676,74 @@ export async function orchestrate(opts: {
     requiresMultimodal: isMultimodal,
     ...(detectedModality !== 'text' ? { requiredModality: detectedModality } : {}),
     ...(resolvedMaxCostTier ? { maxCostTier: resolvedMaxCostTier } : {}),
+  }
+
+  // ── GenX-first routing (text tasks only) ───────────────────────────────────
+  //
+  // When GenX (the primary AI execution layer) is configured and reachable,
+  // all text/chat requests are routed to it BEFORE consulting the model-registry
+  // routing engine.  Non-text modalities (image, video, voice, embeddings,
+  // moderation) are NEVER routed through this path — they use their own
+  // specialist routes.
+  //
+  // Fallback reason is always logged when GenX is skipped so it is visible in
+  // Brain routing logs and the Monitor dashboard.
+  if (detectedModality === 'text' && !providerOverride) {
+    try {
+      const genxStatus = await getGenXStatusAsync()
+      if (genxStatus.available) {
+        const genxModel = await selectGenXModel(
+          'best',
+          'chat',       // capability
+          'chat',       // operationType — both 'chat' for general conversation
+        )
+        const genxMessages: GenXChatMessage[] = []
+        if (agentSystemPrompt) genxMessages.push({ role: 'system', content: agentSystemPrompt })
+        genxMessages.push({ role: 'user', content: message })
+
+        const genxResult = await callGenXChat({
+          model: genxModel,
+          messages: genxMessages,
+          max_tokens: 2048,
+          metadata: { source: 'orchestrator', taskType, appSlug, appCategory },
+        })
+
+        if (genxResult.success && genxResult.output) {
+          console.info(
+            `[orchestrator] GenX primary: model=${genxResult.model} task=${taskType} app=${appSlug ?? 'unknown'} latency=${genxResult.latencyMs}ms`,
+          )
+          return {
+            output: genxResult.output,
+            executionMode: 'specialist',
+            routedProvider: 'genx',
+            routedModel: genxResult.model,
+            confidenceScore: 0.90,
+            validationUsed: false,
+            consensusUsed: false,
+            fallbackUsed: false,
+            memoryUsed: false,
+            warnings: [],
+            errors: [],
+            latencyMs: genxResult.latencyMs,
+            classification,
+            routingReason: `GenX primary — capability: text/${taskType} app=${appSlug ?? 'unknown'}`,
+          }
+        }
+
+        // GenX reachable but call failed — log and fall through to provider routing
+        console.warn(
+          `[orchestrator] GenX primary failed (${genxResult.error ?? 'empty output'}) — falling back to provider routing. task=${taskType} app=${appSlug ?? 'unknown'}`,
+        )
+      } else {
+        console.info(
+          `[orchestrator] GenX not available (${genxStatus.error ?? 'not configured'}) — routing via provider vault. task=${taskType}`,
+        )
+      }
+    } catch (genxErr) {
+      console.warn(
+        `[orchestrator] GenX check threw: ${genxErr instanceof Error ? genxErr.message : String(genxErr)} — falling back to provider routing.`,
+      )
+    }
   }
 
   // 4. Route via the routing-engine (now health-aware — only configured providers considered)

@@ -19,12 +19,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ slug: 
   const { slug } = await params
 
   // Check Firecrawl availability
-  const status = getFirecrawlStatus()
+  const status = await getFirecrawlStatus()
   if (!status.available) {
     return NextResponse.json({
       error: 'Firecrawl is not configured',
       details: status.error,
-      hint: 'Set FIRECRAWL_API_KEY in your environment variables.',
+      hint: 'Set FIRECRAWL_API_KEY in your environment variables or configure it via Admin → Settings → Service Integrations.',
     }, { status: 503 })
   }
 

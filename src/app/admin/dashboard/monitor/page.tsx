@@ -54,6 +54,13 @@ interface DbStats {
   brainEventCount: number
   workspaceSessionCount: number
   alertCount: number
+  genxHealth?: {
+    available: boolean
+    error: string | null
+    requestsThisMonth: number
+    fallbackRequestsThisMonth: number
+    fallbackPct: number
+  }
   aiUsage?: {
     totalRequestsThisMonth: number
     recentWorkspaceSessions: number
@@ -72,11 +79,30 @@ interface DbStats {
     failureCount: number
     allProviders: Array<{ key: string; name: string; status: string }>
   }
+  missingKeys?: {
+    required: string[]
+    optional: string[]
+    requiredCount: number
+    optionalCount: number
+  }
+  aiva?: {
+    typedEnabled: boolean
+    voiceEnabled: boolean
+    sttProvider: string
+    ttsProvider: string
+    configured: boolean
+  }
 }
 
 interface Recommendation {
   level: 'ok' | 'warning' | 'critical'
   message: string
+}
+
+function fallbackPctColor(pct: number): string {
+  if (pct > 50) return 'text-red-400'
+  if (pct > 10) return 'text-amber-400'
+  return 'text-emerald-400'
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -276,6 +302,111 @@ export default function MonitorPage() {
             <StatCard icon={Zap} label="AI Requests (all)" value={dbStats.brainEventCount.toLocaleString()} />
             <StatCard icon={Activity} label="Workspace Sessions" value={dbStats.workspaceSessionCount.toLocaleString()} />
             <StatCard icon={AlertTriangle} label="Active Alerts" value={dbStats.alertCount.toLocaleString()} highlight={dbStats.alertCount > 0} />
+          </div>
+        </motion.div>
+      )}
+
+      {/* AI Engine (GenX) Status */}
+      {dbStats?.genxHealth && (
+        <motion.div variants={fadeUp}>
+          <h2 className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-3">AI Engine (GenX) — Brain Routing</h2>
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-4">
+            <div className="flex items-center gap-3">
+              {dbStats.genxHealth.available
+                ? <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
+                : <XCircle className="h-5 w-5 text-red-400 shrink-0" />}
+              <div>
+                <p className={`text-sm font-semibold ${dbStats.genxHealth.available ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {dbStats.genxHealth.available ? 'AI Engine reachable — primary routing active' : 'AI Engine not reachable — fallback routing in use'}
+                </p>
+                {dbStats.genxHealth.error && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">{dbStats.genxHealth.error}</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">GenX Requests (30d)</p>
+                <p className="text-lg font-semibold text-cyan-300 mt-0.5">{dbStats.genxHealth.requestsThisMonth.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">Fallback Requests (30d)</p>
+                <p className={`text-lg font-semibold mt-0.5 ${dbStats.genxHealth.fallbackRequestsThisMonth > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {dbStats.genxHealth.fallbackRequestsThisMonth.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">Fallback %</p>
+                <p className={`text-lg font-semibold mt-0.5 ${fallbackPctColor(dbStats.genxHealth.fallbackPct)}`}>
+                  {dbStats.genxHealth.fallbackPct}%
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">Primary</p>
+                <p className="text-lg font-semibold mt-0.5 text-white">{dbStats.genxHealth.available ? 'GenX' : 'Fallback'}</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Aiva Status */}
+      {dbStats?.aiva && (
+        <motion.div variants={fadeUp}>
+          <h2 className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-3">Aiva Status</h2>
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">Typed Mode</p>
+                <p className={`text-sm font-semibold mt-0.5 ${dbStats.aiva.typedEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {dbStats.aiva.typedEnabled ? 'Enabled' : 'Disabled'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">Voice Mode</p>
+                <p className={`text-sm font-semibold mt-0.5 ${dbStats.aiva.voiceEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  {dbStats.aiva.voiceEnabled ? 'Enabled' : 'Disabled'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">STT Provider</p>
+                <p className="text-sm font-semibold text-white mt-0.5 capitalize">{dbStats.aiva.sttProvider || 'auto'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 uppercase tracking-[0.1em]">TTS Provider</p>
+                <p className="text-sm font-semibold text-white mt-0.5 capitalize">{dbStats.aiva.ttsProvider || 'auto'}</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Missing Keys */}
+      {dbStats?.missingKeys && (dbStats.missingKeys.requiredCount > 0 || dbStats.missingKeys.optionalCount > 0) && (
+        <motion.div variants={fadeUp}>
+          <h2 className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-3">Provider Key Status</h2>
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+            {dbStats.missingKeys.requiredCount > 0 && (
+              <div>
+                <p className="text-[11px] text-red-400 uppercase tracking-[0.1em] mb-2">Missing Required Keys ({dbStats.missingKeys.requiredCount})</p>
+                <div className="flex flex-wrap gap-2">
+                  {dbStats.missingKeys.required.map((k) => (
+                    <span key={k} className="text-[11px] px-2 py-0.5 rounded-full bg-red-400/10 border border-red-500/20 text-red-300">{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {dbStats.missingKeys.optionalCount > 0 && (
+              <div>
+                <p className="text-[11px] text-amber-400 uppercase tracking-[0.1em] mb-2">Missing Optional Keys ({dbStats.missingKeys.optionalCount})</p>
+                <div className="flex flex-wrap gap-2">
+                  {dbStats.missingKeys.optional.map((k) => (
+                    <span key={k} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-500/20 text-amber-300">{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] text-slate-600">Add missing keys in <a href="/admin/dashboard/settings" className="text-cyan-400 hover:underline">Admin → Settings → Providers</a></p>
           </div>
         </motion.div>
       )}

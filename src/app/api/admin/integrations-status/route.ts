@@ -22,18 +22,24 @@ export async function GET() {
   const qdrantUrl = process.env.QDRANT_URL || ''
   const redisUrl = process.env.REDIS_URL || ''
 
+  const [firecrawlStatus, mem0Status, posthogStatus] = await Promise.all([
+    getFirecrawlStatus(),
+    getMem0Status(),
+    getPostHogStatus(),
+  ])
+
   return NextResponse.json({
     integrations: {
-      firecrawl: getFirecrawlStatus(),
+      firecrawl: firecrawlStatus,
       qdrant: {
         available: !!qdrantUrl,
         url: qdrantUrl || null,
         error: qdrantUrl ? null : 'QDRANT_URL not configured',
       },
-      mem0: getMem0Status(),
+      mem0: mem0Status,
       graphiti: getGraphitiStatus(),
       litellm: getLiteLLMStatus(),
-      posthog: getPostHogStatus(),
+      posthog: posthogStatus,
       langgraph: getLangGraphStatus(),
       redis: {
         available: !!redisUrl,

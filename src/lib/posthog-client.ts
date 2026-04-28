@@ -44,15 +44,21 @@ export interface AppUsageMetrics {
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
-const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || ''
 const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com'
 const POSTHOG_TIMEOUT = 5_000
 
+import { getServiceKey } from './service-vault'
+
+async function getPostHogApiKey(): Promise<string> {
+  return (await getServiceKey('posthog', 'POSTHOG_API_KEY')) ?? process.env.POSTHOG_API_KEY ?? ''
+}
+
 // ── Status ──────────────────────────────────────────────────────────────────
 
-export function getPostHogStatus(): PostHogStatus {
-  if (!POSTHOG_API_KEY) {
-    return { available: false, apiKeyConfigured: false, host: null, error: 'POSTHOG_API_KEY not configured' }
+export async function getPostHogStatus(): Promise<PostHogStatus> {
+  const apiKey = await getPostHogApiKey()
+  if (!apiKey) {
+    return { available: false, apiKeyConfigured: false, host: null, error: 'PostHog API key not configured. Set it via Admin → Settings → Service Integrations.' }
   }
   return { available: true, apiKeyConfigured: true, host: POSTHOG_HOST, error: null }
 }
@@ -64,14 +70,15 @@ export function getPostHogStatus(): PostHogStatus {
  * Never throws — analytics failures must not affect production.
  */
 export async function captureEvent(event: PostHogEvent): Promise<boolean> {
-  if (!POSTHOG_API_KEY) return false
+  const apiKey = await getPostHogApiKey()
+  if (!apiKey) return false
 
   try {
     const res = await fetch(`${POSTHOG_HOST}/capture/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        api_key: POSTHOG_API_KEY,
+        api_key: apiKey,
         event: event.event,
         distinct_id: event.distinctId,
         properties: {
@@ -92,14 +99,15 @@ export async function captureEvent(event: PostHogEvent): Promise<boolean> {
  * Capture a batch of events. Non-blocking, best-effort.
  */
 export async function captureBatch(events: PostHogEvent[]): Promise<boolean> {
-  if (!POSTHOG_API_KEY || events.length === 0) return false
+  const apiKey = await getPostHogApiKey()
+  if (!apiKey || events.length === 0) return false
 
   try {
     const res = await fetch(`${POSTHOG_HOST}/batch/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        api_key: POSTHOG_API_KEY,
+        api_key: apiKey,
         batch: events.map(e => ({
           event: e.event,
           distinct_id: e.distinctId,
