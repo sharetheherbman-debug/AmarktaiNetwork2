@@ -541,6 +541,17 @@ function AivaSection({ config, onSaved }: { config: AivaConfig; onSaved: () => v
             ) : (
               <p className="text-xs text-slate-500">Status unavailable</p>
             )}
+            {/* Avatar helper link */}
+            <div className="mt-3 pt-3 border-t border-white/[0.06]">
+              <a
+                href="/admin/dashboard/settings/aiva-avatar"
+                className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition"
+              >
+                <span>🎨</span>
+                Generate Aiva avatar images →
+              </a>
+              <p className="text-[10px] text-slate-600 mt-0.5">Create state-aware avatar assets using GenX image generation.</p>
+            </div>
           </div>
 
           {open && (

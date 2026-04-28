@@ -149,8 +149,9 @@ export async function GET() {
       firecrawlStatus,
       storagePersistent,
       // Emotion state is managed by the in-memory emotion engine (src/lib/emotion-engine.ts).
-      // Redis integration would allow persistence across restarts, but is not currently configured.
-      emotionPersistence: 'in_memory' as const,
+      // When REDIS_URL is configured, emotion state can survive restarts via Redis.
+      // Without it, all emotion memory resets on server restart.
+      emotionPersistence: process.env.REDIS_URL ? 'redis' : 'in_memory',
       aivaChatReady: true,
       aivaVoiceReady: genxStatus.available,
       lastCapabilityUsed,

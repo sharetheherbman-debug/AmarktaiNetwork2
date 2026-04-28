@@ -4,14 +4,17 @@
  * AivaAssistant — Floating system assistant widget for the admin dashboard.
  *
  * Mode A: Full conversation panel (chat)
- * Mode B: Compact animated voice orb
+ * Mode B: Avatar orb (compact animated avatar with state-aware glow)
+ *
+ * Avatar images are loaded from /public/aiva/ (see AIVA_AVATAR_ASSETS).
+ * If an image is missing or fails to load, the component falls back to the
+ * animated SVG gradient orb automatically — no crash.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   MessageSquare,
   Mic,
-  MicOff,
   X,
   Minimize2,
   Maximize2,
@@ -60,20 +63,169 @@ interface QuickAction {
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 /**
- * App ID used for internal Aiva requests to the brain execute endpoint.
- * This bypasses normal app-auth and is forwarded to the admin brain-test handler,
- * which requires an active admin session.
+ * Internal app ID used for Aiva requests that go through the admin brain-test
+ * handler. This bypasses normal app-auth and requires an active admin session.
  */
-const AIVA_APP_ID = '__admin_test__'
+const AIVA_INTERNAL_APP_ID = '__admin_test__'
 
-// ── Capability Detection ───────────────────────────────────────────────────────
+// ── Avatar Asset Config ────────────────────────────────────────────────────────
+/**
+ * AIVA_AVATAR_ASSETS maps each orb/avatar state to an image path in /public/aiva/.
+ *
+ * To add avatar images: place files in /public/aiva/ matching the paths below.
+ * Recommended generation prompt (use GenX image_generation capability):
+ *
+ *   "Semi-realistic futuristic female AI assistant avatar, [STATE] expression,
+ *    soft cyan-blue holographic glow, glass-panel aesthetic, dark dashboard
+ *    background, clean SaaS control center look, soft studio lighting,
+ *    neutral professional appearance, slight transparency, not cartoon,
+ *    not hyper-realistic, not sexualized. Square 512×512."
+ *
+ * Replace [STATE] with: calm neutral (idle) | attentive (listening) |
+ *   thoughtful eyes-up (thinking) | mouth slightly open (speaking) |
+ *   subtle frown (error)
+ *
+ * If an image is missing or fails to load, the component falls back to the
+ * animated SVG orb automatically.
+ */
+export const AIVA_AVATAR_ASSETS: Record<OrbState, string> = {
+  idle:      '/aiva/avatar-idle.png',
+  listening: '/aiva/avatar-listening.png',
+  thinking:  '/aiva/avatar-thinking.png',
+  speaking:  '/aiva/avatar-speaking.png',
+  error:     '/aiva/avatar-error.png',
+}
 
-const ORB_COLORS: Record<OrbState, { ring: string; glow: string; pulse: string }> = {
-  idle:      { ring: 'stroke-cyan-400',   glow: '#22d3ee',  pulse: 'bg-cyan-400/20' },
-  listening: { ring: 'stroke-green-400',  glow: '#4ade80',  pulse: 'bg-green-400/20' },
-  thinking:  { ring: 'stroke-amber-400',  glow: '#fbbf24',  pulse: 'bg-amber-400/20' },
-  speaking:  { ring: 'stroke-blue-400',   glow: '#60a5fa',  pulse: 'bg-blue-400/20' },
-  error:     { ring: 'stroke-red-400',    glow: '#f87171',  pulse: 'bg-red-400/20' },
+const ORB_COLORS: Record<OrbState, { ring: string; glow: string; pulse: string; glowHex: string }> = {
+  idle:      { ring: 'stroke-cyan-400',   glow: '#22d3ee',  pulse: 'bg-cyan-400/20',   glowHex: '#22d3ee' },
+  listening: { ring: 'stroke-green-400',  glow: '#4ade80',  pulse: 'bg-green-400/20',  glowHex: '#4ade80' },
+  thinking:  { ring: 'stroke-amber-400',  glow: '#fbbf24',  pulse: 'bg-amber-400/20',  glowHex: '#fbbf24' },
+  speaking:  { ring: 'stroke-blue-400',   glow: '#60a5fa',  pulse: 'bg-blue-400/20',   glowHex: '#60a5fa' },
+  error:     { ring: 'stroke-red-400',    glow: '#f87171',  pulse: 'bg-red-400/20',    glowHex: '#f87171' },
+}
+
+// ── Avatar Component ───────────────────────────────────────────────────────────
+/**
+ * Shows avatar image for the given state.
+ * Falls back to a gradient-orb SVG if the image is absent or fails to load.
+ */
+function AivaAvatarDisplay({
+  state,
+  size = 96,
+  onClick,
+}: {
+  state: OrbState
+  size?: number
+  onClick?: () => void
+}) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const colors = ORB_COLORS[state]
+  const isSpeaking = state === 'speaking'
+  const isActive = state !== 'idle'
+
+  // Reset failure state when state changes (different state may have its asset)
+  useEffect(() => { setImgFailed(false) }, [state])
+
+  const src = AIVA_AVATAR_ASSETS[state]
+  const showOrb = imgFailed || !src
+
+  return (
+    <button
+      onClick={onClick}
+      className="relative focus:outline-none"
+      style={{ width: size, height: size }}
+      title={state}
+    >
+      {/* Outer pulse ring */}
+      <div
+        className={`absolute inset-0 rounded-full ${colors.pulse} ${isActive ? 'animate-ping' : ''} opacity-25`}
+        style={{ borderRadius: '50%' }}
+      />
+
+      {/* SVG ring always rendered behind content */}
+      <svg
+        className="absolute inset-0 w-full h-full -rotate-90"
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ borderRadius: '50%' }}
+      >
+        <circle
+          cx={size / 2} cy={size / 2} r={size / 2 - 3}
+          fill="none" strokeWidth="2"
+          className={`${colors.ring} opacity-25`}
+        />
+        <circle
+          cx={size / 2} cy={size / 2} r={size / 2 - 3}
+          fill="none" strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={Math.PI * (size - 6)}
+          strokeDashoffset={state === 'idle' ? Math.PI * (size - 6) / 2 : 0}
+          className={`${colors.ring} transition-all duration-700`}
+          style={{ filter: `drop-shadow(0 0 5px ${colors.glow})` }}
+        />
+      </svg>
+
+      {/* Avatar image or orb fallback */}
+      <div
+        className="absolute"
+        style={{
+          inset: 6,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          boxShadow: `0 0 18px ${colors.glow}33`,
+        }}
+      >
+        {showOrb ? (
+          /* Gradient orb fallback */
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{
+              background: `radial-gradient(circle at 40% 35%, ${colors.glow}44, #030712 70%)`,
+              borderRadius: '50%',
+            }}
+          >
+            {state === 'thinking' ? (
+              <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+            ) : state === 'speaking' ? (
+              <Radio className="h-6 w-6 text-blue-400 animate-pulse" />
+            ) : state === 'listening' ? (
+              <Mic className="h-6 w-6 text-green-400" />
+            ) : state === 'error' ? (
+              <AlertTriangle className="h-6 w-6 text-red-400" />
+            ) : (
+              <Mic className="h-6 w-6 text-cyan-400" />
+            )}
+          </div>
+        ) : (
+          /* Avatar image with speaking animation */
+          <div
+            className="w-full h-full relative"
+            style={{
+              animation: isSpeaking ? 'aivaSpeakingPulse 1.4s ease-in-out infinite' : undefined,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={`Aiva ${state}`}
+              className="w-full h-full object-cover"
+              style={{ borderRadius: '50%' }}
+              onError={() => setImgFailed(true)}
+            />
+            {/* Speaking glow overlay */}
+            {isSpeaking && (
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `radial-gradient(circle, ${colors.glow}22 0%, transparent 70%)`,
+                  animation: 'aivaSpeakingGlow 1.4s ease-in-out infinite',
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </button>
+  )
 }
 
 // ── Quick Action Definitions ───────────────────────────────────────────────────
@@ -301,7 +453,7 @@ export default function AivaAssistant() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                app_id: AIVA_APP_ID,
+                app_id: AIVA_INTERNAL_APP_ID,
                 task: 'stt',
                 input: base64,
                 metadata: { mimeType: 'audio/webm' },
@@ -333,7 +485,7 @@ export default function AivaAssistant() {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    app_id: AIVA_APP_ID,
+                    app_id: AIVA_INTERNAL_APP_ID,
                     task: 'tts',
                     input: responseText,
                   }),
@@ -406,24 +558,38 @@ export default function AivaAssistant() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  /* Inject speaking keyframe animations once into the document */
+  const speakingStyles = `
+    @keyframes aivaSpeakingPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    @keyframes aivaSpeakingGlow {
+      0%, 100% { opacity: 0.15; }
+      50% { opacity: 0.45; }
+    }
+  `
+
   if (minimized) {
     return (
       <div className="fixed bottom-6 right-6 z-50">
-        <button
-          onClick={() => setMinimized(false)}
-          className="flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-[#030712]/95 px-4 py-2.5 text-xs text-cyan-400 shadow-2xl backdrop-blur-xl transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
-        >
-          <Radio className="h-4 w-4 animate-pulse" />
-          Aiva
-        </button>
+        <style>{speakingStyles}</style>
+        {/* Compact avatar bubble — click to restore */}
+        <div className="flex flex-col items-center gap-1">
+          <AivaAvatarDisplay
+            state={orbState}
+            size={56}
+            onClick={() => setMinimized(false)}
+          />
+          <span className="text-[9px] uppercase tracking-widest text-cyan-400/70">Aiva</span>
+        </div>
       </div>
     )
   }
 
-  const orbColors = ORB_COLORS[orbState]
-
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      <style>{speakingStyles}</style>
       {/* Mode toggle */}
       <div className="flex items-center gap-1.5">
         <button
@@ -444,7 +610,7 @@ export default function AivaAssistant() {
               : 'text-slate-500 hover:text-slate-300'
           }`}
         >
-          Voice
+          Avatar
         </button>
         <button
           onClick={() => setMinimized(true)}
@@ -617,68 +783,23 @@ export default function AivaAssistant() {
         </div>
       )}
 
-      {/* ── Mode B: Voice Orb ──────────────────────────────────────────────── */}
+      {/* ── Mode B: Avatar / Voice Orb ────────────────────────────────────── */}
       {mode === 'orb' && (
         <div className="flex flex-col items-center gap-3">
-          {/* Orb */}
-          <button
+          {/* Avatar with state-aware glow — falls back to orb if image missing */}
+          <AivaAvatarDisplay
+            state={isRecording ? 'listening' : orbState}
+            size={104}
             onClick={toggleRecording}
-            className="relative flex h-24 w-24 items-center justify-center rounded-full focus:outline-none"
-            title={isRecording ? 'Stop' : 'Start voice'}
-          >
-            {/* Pulse ring */}
-            <div
-              className={`absolute inset-0 rounded-full ${orbColors.pulse} ${
-                orbState === 'idle' ? '' : 'animate-ping'
-              } opacity-30`}
-            />
-            {/* SVG ring */}
-            <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 96 96">
-              <circle
-                cx="48"
-                cy="48"
-                r="44"
-                fill="none"
-                strokeWidth="2"
-                className={`${orbColors.ring} opacity-30`}
-              />
-              <circle
-                cx="48"
-                cy="48"
-                r="44"
-                fill="none"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray="276"
-                strokeDashoffset={orbState === 'idle' ? 138 : 0}
-                className={`${orbColors.ring} transition-all duration-700`}
-                style={{ filter: `drop-shadow(0 0 6px ${orbColors.glow})` }}
-              />
-            </svg>
-            {/* Inner circle */}
-            <div
-              className="relative flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-[#030712]"
-              style={{ boxShadow: `0 0 20px ${orbColors.glow}22` }}
-            >
-              {isRecording ? (
-                <MicOff className="h-6 w-6 text-red-400" />
-              ) : orbState === 'thinking' ? (
-                <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
-              ) : orbState === 'speaking' ? (
-                <Radio className="h-6 w-6 text-blue-400 animate-pulse" />
-              ) : (
-                <Mic className="h-6 w-6 text-cyan-400" />
-              )}
-            </div>
-          </button>
+          />
 
           {/* State label */}
           <span className="text-[11px] uppercase tracking-widest text-slate-500">
-            {orbState === 'idle' && 'Tap to speak'}
-            {orbState === 'listening' && 'Listening…'}
-            {orbState === 'thinking' && 'Processing…'}
-            {orbState === 'speaking' && 'Speaking…'}
-            {orbState === 'error' && 'Error — try again'}
+            {orbState === 'idle' && !isRecording && 'Tap to speak'}
+            {isRecording && 'Listening…'}
+            {!isRecording && orbState === 'thinking' && 'Processing…'}
+            {!isRecording && orbState === 'speaking' && 'Speaking…'}
+            {!isRecording && orbState === 'error' && 'Error — try again'}
           </span>
 
           {/* Expand to chat */}
