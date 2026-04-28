@@ -155,7 +155,6 @@ export default function AivaAssistant() {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('aiva-conversation-id') ?? undefined
     }
-    return undefined
   })
 
   useEffect(() => {

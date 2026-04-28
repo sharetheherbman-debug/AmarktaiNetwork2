@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
     // ── Save user message ─────────────────────────────────────────────────────
     let userMsgId: string | undefined
     try {
+      if (!conversationId) throw new Error('No conversationId')
       const userMsg = await prisma.aivaMessage.create({
         data: {
-          conversationId: conversationId!,
+          conversationId,
           role: 'user',
           content: message,
           capability,
@@ -114,9 +115,10 @@ export async function POST(req: NextRequest) {
     // ── Save assistant message ────────────────────────────────────────────────
     let assistantMsgId: string | undefined
     try {
+      if (!conversationId) throw new Error('No conversationId')
       const assistantMsg = await prisma.aivaMessage.create({
         data: {
-          conversationId: conversationId!,
+          conversationId,
           role: 'assistant',
           content: typeof result.output === 'string' ? result.output : JSON.stringify(result.output),
           capability: result.capability ?? capability,
