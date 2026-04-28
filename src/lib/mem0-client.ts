@@ -36,18 +36,20 @@ export interface Mem0Status {
 const MEM0_API_URL = process.env.MEM0_API_URL || 'https://api.mem0.ai/v1'
 const MEM0_TIMEOUT = 10_000
 
-function getMem0ApiKey(): string | null {
-  return process.env.MEM0_API_KEY || null
+import { getServiceKey } from './service-vault'
+
+async function getMem0ApiKey(): Promise<string | null> {
+  return getServiceKey('mem0', 'MEM0_API_KEY')
 }
 
 // ── Status ──────────────────────────────────────────────────────────────────
 
-export function getMem0Status(): Mem0Status {
-  const apiKey = getMem0ApiKey()
+export async function getMem0Status(): Promise<Mem0Status> {
+  const apiKey = await getMem0ApiKey()
   return {
     available: !!apiKey,
     apiKeyConfigured: !!apiKey,
-    error: apiKey ? null : 'MEM0_API_KEY not configured',
+    error: apiKey ? null : 'Mem0 API key not configured. Set it via Admin → Settings → Service Integrations.',
   }
 }
 
@@ -61,7 +63,7 @@ export async function addMemory(
   content: string,
   options?: { userId?: string; category?: string; metadata?: Record<string, unknown> },
 ): Promise<Mem0Memory | null> {
-  const apiKey = getMem0ApiKey()
+  const apiKey = await getMem0ApiKey()
   if (!apiKey) return null
 
   try {
@@ -111,7 +113,7 @@ export async function searchMemories(
   query: string,
   options?: { userId?: string; limit?: number },
 ): Promise<Mem0Memory[]> {
-  const apiKey = getMem0ApiKey()
+  const apiKey = await getMem0ApiKey()
   if (!apiKey) return []
 
   try {
@@ -149,7 +151,7 @@ export async function searchMemories(
  * Get all memories for an app.
  */
 export async function getAppMemories(appSlug: string): Promise<Mem0Memory[]> {
-  const apiKey = getMem0ApiKey()
+  const apiKey = await getMem0ApiKey()
   if (!apiKey) return []
 
   try {

@@ -178,10 +178,19 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
 
   // Load voice settings once so we can pass them to TTS
   const voiceSettingsRef = useRef<{ voiceId: string; accent: string } | null>(null)
+  const ttsProviderRef = useRef<string>('auto')
   useEffect(() => {
     fetch('/api/admin/voice-access-settings')
       .then(r => r.json())
       .then(d => { if (d?.settings) voiceSettingsRef.current = d.settings })
+      .catch(() => {})
+    // Load Aiva config to get the configured TTS provider
+    fetch('/api/admin/settings/integrations')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { aiva?: { ttsProvider?: string } } | null) => {
+        const tp = d?.aiva?.ttsProvider
+        if (tp && tp !== 'auto') ttsProviderRef.current = tp
+      })
       .catch(() => {})
   }, [])
 
@@ -212,7 +221,7 @@ export default function AIPartnerWidget({ open, onClose, onAction, variant = 'fl
     setSpeaking(true)
     try {
       const vs = voiceSettingsRef.current
-      const body: Record<string, unknown> = { text, provider: 'auto' }
+      const body: Record<string, unknown> = { text, provider: ttsProviderRef.current || 'auto' }
       if (vs?.voiceId) body.voiceId = vs.voiceId
       if (vs?.accent) body.accent = vs.accent
 

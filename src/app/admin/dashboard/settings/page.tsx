@@ -74,6 +74,11 @@ interface IntegrationsData {
   storage: StorageConfig
   adult: AdultConfig
   aiva: AivaConfig
+  webdock?: { configured: boolean; source: string }
+  firecrawl?: { configured: boolean; source: string }
+  qdrant?: { configured: boolean; url: string; hasApiKey: boolean; source: string }
+  mem0?: { configured: boolean; source: string }
+  posthog?: { configured: boolean; source: string }
 }
 
 interface TestResult {
@@ -159,6 +164,7 @@ export default function SettingsPage() {
           <AivaSection config={data.aiva} onSaved={load} />
           <GitHubSection config={data.github} onSaved={load} />
           <WebdockSection />
+          <ServiceIntegrationsSection data={data} onSaved={load} />
           <StorageSection config={data.storage} onSaved={load} />
           <AdultSection config={data.adult} onSaved={load} />
           <ProvidersSection />
@@ -693,7 +699,7 @@ function GitHubSection({ config, onSaved }: { config: GitHubConfig; onSaved: () 
 
 function StorageSection({ config, onSaved }: { config: StorageConfig; onSaved: () => void }) {
   const [open, setOpen] = useState(false)
-  const [driver, setDriver] = useState(config.driver || 'local')
+  const [driver, setDriver] = useState(config.driver || 'local_vps')
   const [bucket, setBucket] = useState(config.bucket)
   const [region, setRegion] = useState(config.region)
   const [endpoint, setEndpoint] = useState(config.endpoint)
@@ -1119,6 +1125,192 @@ function AdultSection({ config, onSaved }: { config: AdultConfig; onSaved: () =>
     </motion.div>
   )
 }
+// ── Service Integrations Section ──────────────────────────────────────────────
+
+function ServiceIntegrationsSection({ data, onSaved }: { data: IntegrationsData; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [keys, setKeys] = useState({ firecrawl: '', mem0: '', posthog: '', qdrantApiKey: '', qdrantUrl: '' })
+  const [showKey, setShowKey] = useState<Record<string, boolean>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [msgs, setMsgs] = useState<Record<string, string>>({})
+
+  function setMsg(service: string, msg: string) {
+    setMsgs(prev => ({ ...prev, [service]: msg }))
+    setTimeout(() => setMsgs(prev => { const n = { ...prev }; delete n[service]; return n }), 3000)
+  }
+
+  async function save(service: string, payload: Record<string, unknown>) {
+    setSaving(service)
+    try {
+      const res = await fetch('/api/admin/settings/integrations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [service]: payload }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setMsg(service, `Error: ${d.error ?? 'Save failed'}`)
+      } else {
+        setMsg(service, 'Saved')
+        setKeys(prev => ({ ...prev, [service]: '', [`${service}ApiKey`]: '' }))
+        onSaved()
+      }
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const configured = (svc?: { configured: boolean }) => svc?.configured ?? false
+
+  const badge = [
+    configured(data.firecrawl) && 'Firecrawl',
+    configured(data.mem0) && 'Mem0',
+    configured(data.posthog) && 'PostHog',
+    configured(data.qdrant) && 'Qdrant',
+  ].filter(Boolean)
+
+  const badgeColor = badge.length === 4
+    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+    : badge.length > 0
+    ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    : 'text-slate-500 bg-slate-500/10 border-slate-500/20'
+  const badgeLabel = badge.length > 0 ? `${badge.join(' · ')} configured` : 'not configured'
+
+  function keyField(
+    label: string,
+    svcKey: string,
+    stateKey: keyof typeof keys,
+    placeholder: string,
+    isConfigured: boolean,
+    onSave: () => void,
+  ) {
+    return (
+      <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-slate-300">{label}</p>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${isConfigured ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-500 bg-slate-500/10 border-slate-500/20'}`}>
+            {isConfigured ? 'configured' : 'not set'}
+          </span>
+        </div>
+        <div className="relative">
+          <input
+            type={showKey[svcKey] ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={keys[stateKey]}
+            onChange={e => setKeys(prev => ({ ...prev, [stateKey]: e.target.value }))}
+            placeholder={placeholder}
+            className={inputCls + ' pr-10'}
+          />
+          <button type="button" onClick={() => setShowKey(prev => ({ ...prev, [svcKey]: !prev[svcKey] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+            {showKey[svcKey] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={onSave} disabled={saving === svcKey || !keys[stateKey]} className={btnPrimary}>
+            {saving === svcKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Save
+          </button>
+          {msgs[svcKey] && (
+            <span className={`text-xs ${msgs[svcKey].startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{msgs[svcKey]}</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <motion.div variants={fadeUp}>
+      <SectionCard
+        icon={<Key className="h-5 w-5 text-violet-400" />}
+        title="Service Integrations"
+        badge={{ label: badgeLabel, color: badgeColor }}
+        open={open}
+        onToggle={() => setOpen(v => !v)}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Third-party service keys for web crawling, vector memory, analytics, and observability. All keys are encrypted in the vault.
+          </p>
+
+          {open && (
+            <div className="space-y-1">
+              {/* Firecrawl */}
+              {keyField(
+                'Firecrawl — Web crawling & document extraction',
+                'firecrawl', 'firecrawl',
+                'fc-…',
+                configured(data.firecrawl),
+                () => save('firecrawl', { apiKey: keys.firecrawl }),
+              )}
+
+              {/* Mem0 */}
+              {keyField(
+                'Mem0 — Persistent AI memory',
+                'mem0', 'mem0',
+                'mem0-…',
+                configured(data.mem0),
+                () => save('mem0', { apiKey: keys.mem0 }),
+              )}
+
+              {/* PostHog */}
+              {keyField(
+                'PostHog — Usage analytics',
+                'posthog', 'posthog',
+                'phc_…',
+                configured(data.posthog),
+                () => save('posthog', { apiKey: keys.posthog }),
+              )}
+
+              {/* Qdrant — URL + optional API key */}
+              <div className="space-y-2 pt-2 border-t border-white/[0.04]">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-300">Qdrant — Vector database</p>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${configured(data.qdrant) ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-500 bg-slate-500/10 border-slate-500/20'}`}>
+                    {configured(data.qdrant) ? (data.qdrant?.url || 'configured') : 'not set'}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={keys.qdrantUrl}
+                  onChange={e => setKeys(prev => ({ ...prev, qdrantUrl: e.target.value }))}
+                  placeholder={data.qdrant?.url || 'https://your-qdrant.example.com:6333'}
+                  className={inputCls}
+                />
+                <div className="relative">
+                  <input
+                    type={showKey.qdrantApiKey ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={keys.qdrantApiKey}
+                    onChange={e => setKeys(prev => ({ ...prev, qdrantApiKey: e.target.value }))}
+                    placeholder="API key (leave blank if no auth)"
+                    className={inputCls + ' pr-10'}
+                  />
+                  <button type="button" onClick={() => setShowKey(prev => ({ ...prev, qdrantApiKey: !prev.qdrantApiKey }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    {showKey.qdrantApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => save('qdrant', { url: keys.qdrantUrl || undefined, apiKey: keys.qdrantApiKey || undefined })}
+                    disabled={saving === 'qdrant' || (!keys.qdrantUrl && !keys.qdrantApiKey)}
+                    className={btnPrimary}
+                  >
+                    {saving === 'qdrant' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Save
+                  </button>
+                  {msgs.qdrant && (
+                    <span className={`text-xs ${msgs.qdrant.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{msgs.qdrant}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+    </motion.div>
+  )
+}
+
 // ── Webdock Section ───────────────────────────────────────────────────────────
 
 function WebdockSection() {

@@ -87,11 +87,16 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [genxRow, storageRow, adultRow, githubRow] = await Promise.all([
+  const [genxRow, storageRow, adultRow, githubRow, webdockRow, firecrawlRow, qdrantRow, mem0Row, posthogRow] = await Promise.all([
     getIntegrationConfig(GENX_KEY),
     getIntegrationConfig(STORAGE_KEY),
     getIntegrationConfig(ADULT_KEY),
     prisma.gitHubConfig.findFirst({ orderBy: { id: 'desc' } }).catch(() => null),
+    getIntegrationConfig('webdock'),
+    getIntegrationConfig('firecrawl'),
+    getIntegrationConfig('qdrant'),
+    getIntegrationConfig('mem0'),
+    getIntegrationConfig('posthog'),
   ])
 
   // ── GenX ──
@@ -106,7 +111,7 @@ export async function GET() {
   // ── Storage ──
   let storageNotes: Record<string, string> = {}
   try { storageNotes = JSON.parse(storageRow?.notes ?? '{}') } catch { /* ignore */ }
-  const storageDriver = storageNotes.driver || process.env.STORAGE_DRIVER || 'local'
+  const storageDriver = storageNotes.driver || process.env.STORAGE_DRIVER || 'local_vps'
 
   // ── Adult mode ──
   let adultNotes: Record<string, string> = {}
@@ -118,6 +123,10 @@ export async function GET() {
   const aivaRow = await getIntegrationConfig(AIVA_KEY).catch(() => null)
   let aivaNotes: Record<string, unknown> = {}
   try { aivaNotes = JSON.parse(aivaRow?.notes ?? '{}') } catch { /* ignore */ }
+
+  // ── Qdrant URL stored in notes ──
+  let qdrantNotes: Record<string, string> = {}
+  try { qdrantNotes = JSON.parse(qdrantRow?.notes ?? '{}') } catch { /* ignore */ }
 
   return NextResponse.json({
     genx: {
@@ -141,7 +150,7 @@ export async function GET() {
       endpoint: storageNotes.endpoint || process.env.S3_ENDPOINT || '',
       accessKey: storageNotes.accessKey ? maskKey(storageNotes.accessKey) : (process.env.AWS_ACCESS_KEY_ID ? maskKey(process.env.AWS_ACCESS_KEY_ID) : ''),
       r2PublicUrl: storageNotes.r2PublicUrl || process.env.R2_PUBLIC_URL || '',
-      configured: storageDriver !== 'local' ? !!(storageNotes.bucket || process.env.S3_BUCKET) : true,
+      configured: storageDriver === 'local_vps' || storageDriver === 'local' ? true : !!(storageNotes.bucket || process.env.S3_BUCKET),
       source: storageRow ? 'database' : 'env',
     },
     adult: {
@@ -160,6 +169,29 @@ export async function GET() {
       ttsProvider:           String(aivaNotes.ttsProvider    || 'auto'),
       preferredVoiceModel:   String(aivaNotes.preferredVoiceModel || ''),
       continuousConversation: aivaNotes.continuousConversation !== undefined ? Boolean(aivaNotes.continuousConversation) : false,
+    },
+    // ── Service integrations ────────────────────────────────────────────────
+    webdock: {
+      configured: !!(webdockRow?.apiKey || process.env.WEBDOCK_API_KEY),
+      source: webdockRow?.apiKey ? 'database' : (process.env.WEBDOCK_API_KEY ? 'env' : 'none'),
+    },
+    firecrawl: {
+      configured: !!(firecrawlRow?.apiKey || process.env.FIRECRAWL_API_KEY),
+      source: firecrawlRow?.apiKey ? 'database' : (process.env.FIRECRAWL_API_KEY ? 'env' : 'none'),
+    },
+    qdrant: {
+      configured: !!(qdrantNotes.url || process.env.QDRANT_URL),
+      url: qdrantNotes.url || process.env.QDRANT_URL || '',
+      hasApiKey: !!(qdrantRow?.apiKey || process.env.QDRANT_API_KEY),
+      source: qdrantRow ? 'database' : (process.env.QDRANT_URL ? 'env' : 'none'),
+    },
+    mem0: {
+      configured: !!(mem0Row?.apiKey || process.env.MEM0_API_KEY),
+      source: mem0Row?.apiKey ? 'database' : (process.env.MEM0_API_KEY ? 'env' : 'none'),
+    },
+    posthog: {
+      configured: !!(posthogRow?.apiKey || process.env.POSTHOG_API_KEY),
+      source: posthogRow?.apiKey ? 'database' : (process.env.POSTHOG_API_KEY ? 'env' : 'none'),
     },
   })
 }
@@ -201,6 +233,14 @@ const patchSchema = z.object({
     ttsProvider: z.string().optional(),
     preferredVoiceModel: z.string().optional(),
     continuousConversation: z.boolean().optional(),
+  }).optional(),
+  // ── Service integrations ──────────────────────────────────────────────────
+  firecrawl: z.object({ apiKey: z.string().optional() }).optional(),
+  mem0:      z.object({ apiKey: z.string().optional() }).optional(),
+  posthog:   z.object({ apiKey: z.string().optional() }).optional(),
+  qdrant:    z.object({
+    apiKey: z.string().optional(),
+    url: z.string().optional(),
   }).optional(),
 })
 
@@ -372,6 +412,35 @@ export async function PATCH(req: NextRequest) {
         notes: JSON.stringify(notes),
       }),
     )
+  }
+
+  // ── Save Firecrawl ──
+  if (data.firecrawl?.apiKey) {
+    ops.push(upsertIntegrationConfig({ key: 'firecrawl', displayName: 'Firecrawl', apiKey: data.firecrawl.apiKey }))
+  }
+
+  // ── Save Mem0 ──
+  if (data.mem0?.apiKey) {
+    ops.push(upsertIntegrationConfig({ key: 'mem0', displayName: 'Mem0', apiKey: data.mem0.apiKey }))
+  }
+
+  // ── Save PostHog ──
+  if (data.posthog?.apiKey) {
+    ops.push(upsertIntegrationConfig({ key: 'posthog', displayName: 'PostHog', apiKey: data.posthog.apiKey }))
+  }
+
+  // ── Save Qdrant ──
+  if (data.qdrant) {
+    const existing = await getIntegrationConfig('qdrant')
+    let notes: Record<string, string> = {}
+    try { notes = JSON.parse(existing?.notes ?? '{}') } catch { /* ignore */ }
+    if (data.qdrant.url !== undefined) notes.url = data.qdrant.url
+    ops.push(upsertIntegrationConfig({
+      key: 'qdrant',
+      displayName: 'Qdrant',
+      ...(data.qdrant.apiKey ? { apiKey: data.qdrant.apiKey } : {}),
+      notes: JSON.stringify(notes),
+    }))
   }
 
   try {
