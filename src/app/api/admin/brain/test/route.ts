@@ -98,6 +98,9 @@ const IMAGE_CAPABILITY_CLASSES = new Set([
 /** Capability classes that indicate a voice/TTS request. */
 const TTS_CAPABILITY_CLASSES = new Set(['tts', 'voice', 'voice_output'])
 
+/** Task types that indicate an adult content generation request. */
+const ADULT_TASK_TYPES = new Set(['adult_image', 'adult_18plus_image', 'adult_image_generation'])
+
 /** Capability classes that indicate a STT request. */
 const STT_CAPABILITY_CLASSES = new Set(['stt', 'voice_input'])
 
@@ -242,7 +245,7 @@ export async function POST(request: NextRequest) {
   }
 
   // For adult task types: check IntegrationConfig adult_mode to allow adultMode flag.
-  const isAdultTaskType = ['adult_image', 'adult_18plus_image', 'adult_image_generation'].includes(body.taskType)
+  const isAdultTaskType = ADULT_TASK_TYPES.has(body.taskType)
   let adultModeOverride = false
   if (isAdultTaskType) {
     try {

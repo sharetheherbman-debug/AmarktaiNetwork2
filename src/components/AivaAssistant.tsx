@@ -487,15 +487,17 @@ export default function AivaAssistant() {
             body: sttForm,
           })
           const sttData = await sttRes.json() as { transcript?: string; error?: string; executed?: boolean }
+          const sttError = !sttRes.ok
+            ? (sttData.error ?? `STT request failed (HTTP ${sttRes.status})`)
+            : (!sttData.transcript ? (sttData.error ?? 'STT returned no transcript') : null)
           const transcript = sttData.transcript ?? ''
           if (!transcript) {
-            const sttError = sttData.error ?? 'STT failed: no transcript returned'
             console.error('[Aiva] STT error:', sttError)
             const errMsg: Message = {
               id: `stt-err-${Date.now()}`,
               role: 'assistant',
               content: '',
-              error: sttError,
+              error: sttError ?? 'STT failed',
             }
             setMessages(prev => [...prev, errMsg])
             setOrbState('error')
@@ -561,7 +563,7 @@ export default function AivaAssistant() {
                   setOrbState('idle')
                 })
               } else {
-                const ttsErr = await ttsRes.json().catch(() => ({} as { error?: string })) as { error?: string }
+                const ttsErr = await ttsRes.json().catch(() => ({}) as { error?: string })
                 console.warn('[Aiva] TTS failed:', ttsErr.error)
                 setOrbState('idle')
               }
