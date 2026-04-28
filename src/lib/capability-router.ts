@@ -149,78 +149,79 @@ function detectCapability(input: string, explicit?: string): Capability {
     return explicit as Capability
   }
   const lower = input.toLowerCase()
-  const has = (term: string) => lower.includes(term)
+  // Simple string inclusion — no RegEx to prevent ReDoS on user-controlled input.
+  const includesTerm = (term: string) => lower.includes(term)
 
   // Image
   if (
-    (has('generate') || has('create') || has('draw') || has('paint') || has('make')) &&
-    (has('image') || has('picture') || has('photo') || has('artwork') || has('illustration'))
+    (includesTerm('generate') || includesTerm('create') || includesTerm('draw') || includesTerm('paint') || includesTerm('make')) &&
+    (includesTerm('image') || includesTerm('picture') || includesTerm('photo') || includesTerm('artwork') || includesTerm('illustration'))
   ) return 'image_generation'
 
   // Video
   if (
-    (has('generate') || has('create') || has('make') || has('produce')) &&
-    has('video')
+    (includesTerm('generate') || includesTerm('create') || includesTerm('make') || includesTerm('produce')) &&
+    includesTerm('video')
   ) return 'video_generation'
 
   // Image-to-video
-  if (has('image') && has('video') && (has('i2v') || has(' to '))) return 'image_to_video'
+  if (includesTerm('image') && includesTerm('video') && (includesTerm('i2v') || includesTerm(' to '))) return 'image_to_video'
 
   // Music — must be before lyrics so "generate music with lyrics" routes to music
   if (
-    (has('generate') || has('create') || has('make') || has('compose') || has('produce')) &&
-    (has('music') || has('song') || has('track') || has('beat'))
+    (includesTerm('generate') || includesTerm('create') || includesTerm('make') || includesTerm('compose') || includesTerm('produce')) &&
+    (includesTerm('music') || includesTerm('song') || includesTerm('track') || includesTerm('beat'))
   ) return 'music_generation'
 
   // Lyrics
   if (
-    (has('write') || has('generate')) && has('lyrics')
+    (includesTerm('write') || includesTerm('generate')) && includesTerm('lyrics')
   ) return 'lyrics_generation'
-  if ((has('song') && has('lyrics')) || has('songwriting')) return 'lyrics_generation'
+  if ((includesTerm('song') && includesTerm('lyrics')) || includesTerm('songwriting')) return 'lyrics_generation'
 
   // Voice output (TTS)
   if (
-    has('speak') || has('tts') ||
-    (has('read') && has('aloud')) ||
-    (has('text') && has('speech') && !has('speech to text'))
+    includesTerm('speak') || includesTerm('tts') ||
+    (includesTerm('read') && includesTerm('aloud')) ||
+    (includesTerm('text') && includesTerm('speech') && !includesTerm('speech to text'))
   ) return 'tts'
 
   // Voice input (STT)
   if (
-    has('transcribe') || has('stt') ||
-    (has('speech') && has('to') && has('text')) ||
-    (has('audio') && has('to') && has('text'))
+    includesTerm('transcribe') || includesTerm('stt') ||
+    (includesTerm('speech') && includesTerm('to') && includesTerm('text')) ||
+    (includesTerm('audio') && includesTerm('to') && includesTerm('text'))
   ) return 'stt'
 
   // Website scraping
   if (
-    (has('scrape') || has('crawl') || has('extract') || has('fetch')) &&
-    has('website')
+    (includesTerm('scrape') || includesTerm('crawl') || includesTerm('extract') || includesTerm('fetch')) &&
+    includesTerm('website')
   ) return 'scrape_website'
 
   // Research
-  if (has('research') || (has('search') && has('web')) || has('look up')) return 'research'
+  if (includesTerm('research') || (includesTerm('search') && includesTerm('web')) || includesTerm('look up')) return 'research'
 
   // Code
   if (
-    (has('write') || has('generate') || has('implement') || has('create')) &&
-    (has('code') || has('function') || has('class') || has('typescript') || has('javascript') || has('python'))
+    (includesTerm('write') || includesTerm('generate') || includesTerm('implement') || includesTerm('create')) &&
+    (includesTerm('code') || includesTerm('function') || includesTerm('class') || includesTerm('typescript') || includesTerm('javascript') || includesTerm('python'))
   ) return 'code'
 
   // File analysis
   if (
-    (has('analyze') || has('analyse') || has('read') || has('summarize')) &&
-    has('file')
+    (includesTerm('analyze') || includesTerm('analyse') || includesTerm('read') || includesTerm('summarize')) &&
+    includesTerm('file')
   ) return 'file_analysis'
 
   // Deploy plan
-  if (has('deploy') || has('deployment') || has('infrastructure')) return 'deploy_plan'
+  if (includesTerm('deploy') || includesTerm('deployment') || includesTerm('infrastructure')) return 'deploy_plan'
 
   // App build
-  if ((has('build') || has('create')) && has('app')) return 'app_build'
+  if ((includesTerm('build') || includesTerm('create')) && includesTerm('app')) return 'app_build'
 
   // Repo edit
-  if ((has('edit') || has('modify') || has('fix')) && (has('repo') || has('codebase'))) return 'repo_edit'
+  if ((includesTerm('edit') || includesTerm('modify') || includesTerm('fix')) && (includesTerm('repo') || includesTerm('codebase'))) return 'repo_edit'
 
   return 'chat'
 }
@@ -290,12 +291,24 @@ async function tryFallbackText(
       if (result.output) {
         return { success: true, output: result.output, provider: key, model, error: null }
       }
-    } catch { /* try next */ }
+    } catch (err) {
+      console.warn(`[capability-router] Fallback provider ${key} failed:`, err instanceof Error ? err.message : err)
+    }
   }
   return { success: false, output: null, provider: null, model: null, error: 'All fallback text providers failed' }
 }
 
 // ── Artifact saving ───────────────────────────────────────────────────────────
+
+// ── Artifact type mapping ─────────────────────────────────────────────────────
+
+const ARTIFACT_TYPE_MAP: Record<string, 'image' | 'audio' | 'video' | 'code' | 'document'> = {
+  image_generation: 'image', image_edit: 'image', adult_image: 'image',
+  video_generation: 'video', image_to_video: 'video', adult_video: 'video',
+  video_plan: 'document',
+  music_generation: 'audio', tts: 'audio', voice_response: 'audio',
+  code: 'code', repo_edit: 'code',
+}
 
 async function maybeSaveArtifact(
   cap: string,
@@ -307,14 +320,7 @@ async function maybeSaveArtifact(
 ): Promise<string | undefined> {
   if (!output) return undefined
   try {
-    const typeMap: Record<string, 'image' | 'audio' | 'video' | 'code' | 'document'> = {
-      image_generation: 'image', image_edit: 'image', adult_image: 'image',
-      video_generation: 'video', image_to_video: 'video', adult_video: 'video',
-      video_plan: 'document',
-      music_generation: 'audio', tts: 'audio', voice_response: 'audio',
-      code: 'code', repo_edit: 'code',
-    }
-    const artifactType = typeMap[cap] ?? 'document'
+    const artifactType = ARTIFACT_TYPE_MAP[cap] ?? 'document'
     const isUrl = output.startsWith('http://') || output.startsWith('https://')
     const artifact = await createArtifact({
       appSlug,
@@ -326,7 +332,8 @@ async function maybeSaveArtifact(
       ...(isUrl ? { contentUrl: output } : { content: output }),
     })
     return artifact.id
-  } catch {
+  } catch (err) {
+    console.warn('[capability-router] Artifact save failed:', err instanceof Error ? err.message : err)
     return undefined
   }
 }
@@ -382,8 +389,12 @@ export async function executeCapability(
   // ── Scrape website ────────────────────────────────────────────────────────
   if (cap === 'scrape_website') {
     try {
-      const urlMatch = request.input.match(/https?:\/\/[^\s]+/)
-      const url = urlMatch ? urlMatch[0] : request.input
+      // Prefer a valid URL extracted from input; fall back to the raw input as-is
+      let url = request.input.trim()
+      const urlMatch = request.input.match(/https?:\/\/\S+/)
+      if (urlMatch) {
+        try { new URL(urlMatch[0]); url = urlMatch[0] } catch { /* keep raw input */ }
+      }
       const result = await crawlAppWebsite(url)
       const output = result.success
         ? JSON.stringify({
@@ -453,7 +464,7 @@ export async function executeCapability(
             return { success: true, capability: cap, provider: 'openai', model: 'dall-e-3', outputType: 'image', output, artifactId, fallbackUsed: true, fallbackReason: 'GenX image unavailable' }
           }
         }
-      } catch { /* try next */ }
+      } catch (err) { console.warn('[capability-router] OpenAI image failed:', err instanceof Error ? err.message : err) }
     }
 
     // Fallback: Together AI FLUX
@@ -476,7 +487,7 @@ export async function executeCapability(
             return { success: true, capability: cap, provider: 'together', model: 'FLUX.1-schnell-Free', outputType: 'image', output: url, artifactId, fallbackUsed: true, fallbackReason: 'GenX image unavailable' }
           }
         }
-      } catch { /* try next */ }
+      } catch (err) { console.warn('[capability-router] Together AI image failed:', err instanceof Error ? err.message : err) }
     }
 
     logExecution(cap, null, null, true, false, 'No image provider available')
