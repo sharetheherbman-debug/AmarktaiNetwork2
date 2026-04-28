@@ -106,6 +106,9 @@ const ADULT_BLOCKED_TERMS: readonly string[] = [
   'non-consensual', 'rape', 'forced sex', 'forced intercourse',
 ]
 
+/** Style prefix injected into suggestive image prompts to enforce non-explicit output */
+const SUGGESTIVE_STYLE_PREFIX = 'Tasteful professional photograph, artistic lighting, no explicit sexual content, no genitalia:'
+
 /**
  * Check adult content guardrails.
  * Returns a human-readable block reason, or null if the request is allowed.
@@ -659,8 +662,7 @@ export async function executeCapability(
         error: 'safeMode is active — suggestive image generation blocked',
       }
     }
-    const stylePrefix = 'Tasteful professional photograph, artistic lighting, no explicit sexual content, no genitalia:'
-    const finalPrompt = `${stylePrefix} ${request.input}`
+    const finalPrompt = `${SUGGESTIVE_STYLE_PREFIX} ${request.input}`
 
     // Try OpenAI DALL-E 3 first (has built-in content policy for suggestive-but-not-explicit)
     const openaiKeySug = await getVaultApiKey('openai')

@@ -248,6 +248,9 @@ export async function POST(request: NextRequest) {
               steps: model.steps,
               width,
               height,
+              // Required to bypass Together AI's built-in safety checker for adult content.
+              // Hard guardrails (CSAM, minors, non-consensual, violence) are enforced
+              // upstream in content-filter.ts and checkAdultGuardrails() before reaching here.
               disable_safety_checker: true,
             }),
             signal: AbortSignal.timeout(60_000),

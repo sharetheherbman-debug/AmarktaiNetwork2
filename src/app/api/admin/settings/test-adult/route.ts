@@ -47,6 +47,9 @@ function classifyHttpError(status: number, body: string): ErrorCategory {
   return 'unknown'
 }
 
+/** Safe test prompt used for all adult generation tests — not stored after test */
+const ADULT_TEST_PROMPT = 'a tasteful artistic portrait of a woman in soft studio lighting'
+
 /** Block SSRF: only allow http/https and block private/loopback in production */
 function validateUrl(raw: string): { url: URL; error: string | null } {
   let url: URL
@@ -172,7 +175,7 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: testModel,
-          prompt: 'a tasteful artistic portrait of a woman in a studio',
+          prompt: ADULT_TEST_PROMPT,
           n: 1,
           steps: 4,
           width: 512,
@@ -284,7 +287,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(hfUrl.href, {
         method: 'POST',
         headers: hHeaders,
-        body: JSON.stringify({ inputs: 'a tasteful artistic portrait of a woman', parameters: { num_inference_steps: 4 } }),
+        body: JSON.stringify({ inputs: ADULT_TEST_PROMPT, parameters: { num_inference_steps: 4 } }),
         signal: AbortSignal.timeout(60_000),
       })
       const latencyMs = Date.now() - start
@@ -367,7 +370,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch('https://api.x.ai/v1/images/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: testModel, prompt: 'a tasteful artistic portrait of a woman in soft studio lighting', n: 1 }),
+        body: JSON.stringify({ model: testModel, prompt: ADULT_TEST_PROMPT, n: 1 }),
         signal: AbortSignal.timeout(30_000),
       })
       const latencyMs = Date.now() - start
@@ -472,7 +475,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(customUrl.href, {
         method: 'POST',
         headers: cHeaders,
-        body: JSON.stringify({ prompt: 'a tasteful artistic portrait of a woman', model: testModel, n: 1 }),
+        body: JSON.stringify({ prompt: ADULT_TEST_PROMPT, model: testModel, n: 1 }),
         signal: AbortSignal.timeout(30_000),
       })
       const latencyMs = Date.now() - start

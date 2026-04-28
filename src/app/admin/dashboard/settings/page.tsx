@@ -1210,7 +1210,7 @@ function AdultSection({ config, onSaved }: { config: AdultConfig; onSaved: () =>
                     {(providerType === 'xai' || providerType === 'together') && !config.hasSpecialistKey && (
                       <p className="text-[10px] text-blue-400 mt-1">
                         ℹ Leave blank to use existing {providerType === 'xai' ? 'xAI/Grok' : 'Together AI'} vault key from AI Providers.
-                        {' '}Key status: {providerType === 'xai' ? 'using existing provider vault key' : 'using existing provider vault key'}
+                        {' '}Key status: using existing provider vault key
                       </p>
                     )}
                   </Field>
@@ -1590,10 +1590,10 @@ const PROVIDER_DEFS_CORE = [
   { key: 'gemini',       label: 'Google Gemini',     placeholder: 'AIza…',      caps: ['chat', 'reasoning', 'vision'] },
   { key: 'qwen',         label: 'Qwen / DashScope',  placeholder: 'sk-…',       caps: ['chat', 'reasoning', 'images', 'video', 'stt'] },
   { key: 'groq',         label: 'Groq',              placeholder: 'gsk_…',      caps: ['chat', 'code', 'stt'] },
-  { key: 'grok',         label: 'xAI / Grok',        placeholder: 'xai-…',      caps: ['chat', 'reasoning', 'vision', 'adult-image'] },
+  { key: 'grok',         label: 'xAI / Grok',        placeholder: 'xai-…',      caps: ['chat', 'reasoning', 'vision', 'adult_image'] },
   { key: 'openrouter',   label: 'OpenRouter',        placeholder: 'sk-or-…',    caps: ['chat', 'code', 'reasoning'] },
-  { key: 'together',     label: 'Together AI',       placeholder: 'tg_…',       caps: ['chat', 'code', 'images', 'adult-image'] },
-  { key: 'huggingface',  label: 'HuggingFace',       placeholder: 'hf_…',       caps: ['chat', 'embeddings', 'images', 'tts', 'adult-image'] },
+  { key: 'together',     label: 'Together AI',       placeholder: 'tg_…',       caps: ['chat', 'code', 'images', 'adult_image'] },
+  { key: 'huggingface',  label: 'HuggingFace',       placeholder: 'hf_…',       caps: ['chat', 'embeddings', 'images', 'tts', 'adult_image'] },
 ]
 
 const PROVIDER_DEFS_ADVANCED = [
