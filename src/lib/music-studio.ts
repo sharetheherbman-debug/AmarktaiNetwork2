@@ -84,22 +84,69 @@ export interface MusicCreationRequest {
   title?: string
   /** Theme or mood of the song (e.g. "hope and redemption"). */
   theme: string
-  /** Target genre. */
+  /**
+   * Primary genre (legacy single-genre field — still supported).
+   * When `genres` is provided and non-empty, `genre` is ignored; `genres[0]` is used.
+   */
   genre: MusicGenre
+  /**
+   * Multi-genre selection (max 5). If provided, overrides `genre`.
+   * The first entry is treated as the primary genre.
+   */
+  genres?: MusicGenre[]
+  /** Mood tags (max 5). E.g. ["uplifting", "intense", "nostalgic"]. */
+  moods?: string[]
   /** Vocal style. */
   vocalStyle: VocalStyle
   /** Approximate duration in seconds. */
   durationSeconds?: number
   /** BPM (beats per minute). 0 = auto. */
   bpm?: number
+  /** Song language (ISO 639-1 or display name, e.g. "en" / "English"). Defaults to "English". */
+  language?: string
+  /**
+   * true = instrumental-only track (overrides vocalStyle to instrumental_only).
+   * Defaults to false unless vocalStyle = 'instrumental_only'.
+   */
+  instrumental?: boolean
+  /**
+   * Cover art generation preference:
+   *   "auto"   — generate cover art if image provider is configured (default)
+   *   "custom" — skip AI generation; admin will supply art manually
+   *   "none"   — do not generate cover art
+   */
+  coverArtChoice?: 'auto' | 'custom' | 'none'
   /** Existing lyrics to use (skips lyrics generation step). */
   existingLyrics?: string
   /** Extra creative direction. */
   productionNotes?: string
-  /** Whether to also generate a cover art image. */
+  /**
+   * Whether to also generate a cover art image.
+   * @deprecated Use coverArtChoice. Kept for backward compatibility.
+   */
   generateCoverArt?: boolean
   /** Quality tier for model selection. */
   qualityTier?: 'standard' | 'high' | 'premium'
+}
+
+/** Resolve the primary genre from a request (handles both legacy and new multi-genre field). */
+export function resolveGenre(request: MusicCreationRequest): MusicGenre {
+  if (request.genres && request.genres.length > 0) return request.genres[0]
+  return request.genre
+}
+
+/** Validate genre/mood limits and normalise the request in place. Throws on invalid input. */
+export function validateMusicRequest(request: MusicCreationRequest): void {
+  if (request.genres && request.genres.length > 5) {
+    throw new Error('Too many genres: maximum 5 genres allowed.')
+  }
+  if (request.moods && request.moods.length > 5) {
+    throw new Error('Too many moods: maximum 5 moods allowed.')
+  }
+  // Normalise instrumental flag
+  if (request.instrumental) {
+    request.vocalStyle = 'instrumental_only'
+  }
 }
 
 /** One section in a generated song structure. */
@@ -333,22 +380,30 @@ const GENRE_DEFAULTS: Record<string, GenreDefaults> = {
  * Build a detailed lyrics generation prompt for an AI language model.
  */
 export function buildLyricsPrompt(request: MusicCreationRequest): string {
-  const genreName = GENRE_DISPLAY[request.genre] ?? request.genre
-  const defs = GENRE_DEFAULTS[request.genre] ?? GENRE_DEFAULTS.pop
+  const primaryGenre = resolveGenre(request)
+  const genreName = GENRE_DISPLAY[primaryGenre] ?? primaryGenre
+  const defs = GENRE_DEFAULTS[primaryGenre] ?? GENRE_DEFAULTS.pop
   const bpm = request.bpm || defs.typicalBpm
   const style = request.vocalStyle.replace(/_/g, ' ')
+  const moodStr = request.moods && request.moods.length > 0
+    ? `- Moods: ${request.moods.join(', ')}\n`
+    : ''
+  const genresStr = request.genres && request.genres.length > 1
+    ? `- Genres (blend): ${request.genres.map(g => GENRE_DISPLAY[g] ?? g).join(', ')}\n`
+    : `- Genre: ${genreName}\n`
+  const langStr = request.language && request.language !== 'en' && request.language.toLowerCase() !== 'english'
+    ? `- Language: ${request.language}\n`
+    : ''
 
   return `You are a professional songwriter and music producer. Create complete, polished song lyrics for the following track.
 
 TRACK DETAILS:
 - Title: ${request.title ?? 'auto-generate a compelling title'}
-- Genre: ${genreName}
-- Theme / mood: ${request.theme}
+${genresStr}${moodStr}- Theme / mood: ${request.theme}
 - Vocal style: ${style}
 - BPM: ${bpm}
 - Production style: ${defs.productionStyle}
-${request.productionNotes ? `- Extra direction: ${request.productionNotes}` : ''}
-
+${langStr}${request.productionNotes ? `- Extra direction: ${request.productionNotes}\n` : ''}
 REQUIRED OUTPUT (respond in this exact format):
 
 TITLE: <song title>
@@ -382,12 +437,13 @@ export function parseLyricsOutput(
   model: string,
 ): LyricsResult {
   const id = randomUUID()
-  const defs = GENRE_DEFAULTS[request.genre] ?? GENRE_DEFAULTS.pop
+  const primaryGenre = resolveGenre(request)
+  const defs = GENRE_DEFAULTS[primaryGenre] ?? GENRE_DEFAULTS.pop
   const bpm = request.bpm || defs.typicalBpm
 
   // Extract title
   const titleMatch = raw.match(/TITLE:\s*(.+)/i)
-  const title = titleMatch?.[1]?.trim() ?? request.title ?? `${request.theme} (${GENRE_DISPLAY[request.genre]})`
+  const title = titleMatch?.[1]?.trim() ?? request.title ?? `${request.theme} (${GENRE_DISPLAY[primaryGenre]})`
 
   // Extract lyrics section using a linear split to avoid ReDoS on adversarial input.
   // Split on "PRODUCTION NOTES:" (case-insensitive) and take the portion after "LYRICS:".
@@ -451,7 +507,7 @@ export function parseLyricsOutput(
   return {
     id,
     title,
-    genre: request.genre,
+    genre: resolveGenre(request),
     theme: request.theme,
     vocalStyle: request.vocalStyle,
     lyrics,
@@ -489,7 +545,7 @@ async function generateAudio(
         },
         body: JSON.stringify({
           prompt: lyrics.lyrics.slice(0, SUNO_MAX_PROMPT_LENGTH),
-          tags: `${GENRE_DISPLAY[request.genre].toLowerCase()} ${request.vocalStyle.replace(/_/g, ' ')}`,
+          tags: `${GENRE_DISPLAY[resolveGenre(request)].toLowerCase()} ${request.vocalStyle.replace(/_/g, ' ')}`,
           title: lyrics.title,
           make_instrumental: request.vocalStyle === 'instrumental_only',
         }),
@@ -516,7 +572,7 @@ async function generateAudio(
         body: JSON.stringify({
           version: 'b05b1dff1d8c6dc63d14b0cdb42135378dcb87f6945b23e43fd3fe3fa33a2571', // MusicGen melody
           input: {
-            prompt: `${GENRE_DISPLAY[request.genre]} music: ${request.theme}. ${GENRE_DEFAULTS[request.genre]?.productionStyle ?? ''}`,
+            prompt: `${GENRE_DISPLAY[resolveGenre(request)]} music: ${request.theme}. ${GENRE_DEFAULTS[resolveGenre(request)]?.productionStyle ?? ''}`,
             duration: Math.min(request.durationSeconds ?? 30, 30),
           },
         }),
@@ -562,8 +618,8 @@ async function generateCoverArt(
 
   try {
     const prompt =
-      `Album cover art for a ${GENRE_DISPLAY[request.genre]} song titled "${lyrics.title}". ` +
-      `Theme: ${request.theme}. Style: ${GENRE_DEFAULTS[request.genre]?.productionStyle ?? 'modern'}. ` +
+      `Album cover art for a ${GENRE_DISPLAY[resolveGenre(request)]} song titled "${lyrics.title}". ` +
+      `Theme: ${request.theme}. Style: ${GENRE_DEFAULTS[resolveGenre(request)]?.productionStyle ?? 'modern'}. ` +
       'High quality, visually compelling, no text overlays.'
 
     const res = await fetch('https://api.openai.com/v1/images/generations', {
@@ -664,8 +720,9 @@ async function generateLyricsViaChat(
  * This is a real, usable starting point — not a placeholder.
  */
 function buildFallbackLyrics(request: MusicCreationRequest): string {
-  const genreName = GENRE_DISPLAY[request.genre] ?? request.genre
-  const defs = GENRE_DEFAULTS[request.genre] ?? GENRE_DEFAULTS.pop
+  const primaryGenre = resolveGenre(request)
+  const genreName = GENRE_DISPLAY[primaryGenre] ?? primaryGenre
+  const defs = GENRE_DEFAULTS[primaryGenre] ?? GENRE_DEFAULTS.pop
 
   return `TITLE: ${request.title ?? request.theme}
 
@@ -736,20 +793,34 @@ const artifactStore = new Map<string, MusicArtifact>()
 export async function createMusic(
   request: MusicCreationRequest,
 ): Promise<MusicStudioResult> {
-  const defs = GENRE_DEFAULTS[request.genre] ?? GENRE_DEFAULTS.pop
+  // Validate and normalise multi-genre/mood inputs
+  validateMusicRequest(request)
+
+  const primaryGenre = resolveGenre(request)
+  const defs = GENRE_DEFAULTS[primaryGenre] ?? GENRE_DEFAULTS.pop
   const bpm = request.bpm || defs.typicalBpm
 
-  // Step 1: Generate lyrics
-  const { lyrics: rawLyrics, model: lyricsModel } = await generateLyricsViaChat(request)
+  // Step 1: Use existing lyrics or generate them
+  let rawLyrics: string
+  let lyricsModel: string
+  if (request.existingLyrics?.trim()) {
+    rawLyrics = request.existingLyrics
+    lyricsModel = 'user_provided'
+  } else {
+    const result = await generateLyricsViaChat(request)
+    rawLyrics = result.lyrics
+    lyricsModel = result.model
+  }
   const lyricsResult = parseLyricsOutput(rawLyrics, request, lyricsModel)
 
   // Step 2: Attempt audio generation
   const audioResult = await generateAudio(request, lyricsResult)
 
-  // Step 3: Optional cover art
+  // Step 3: Optional cover art — honour coverArtChoice (defaults to "auto")
   let coverArtUrl: string | null = null
   let coverArtModel: string | null = null
-  if (request.generateCoverArt !== false) {
+  const coverArtChoice = request.coverArtChoice ?? (request.generateCoverArt === false ? 'none' : 'auto')
+  if (coverArtChoice === 'auto') {
     const art = await generateCoverArt(lyricsResult, request)
     if (art) {
       coverArtUrl = art.url
@@ -763,7 +834,7 @@ export async function createMusic(
     id: randomUUID(),
     appSlug: request.appSlug,
     title: lyricsResult.title,
-    genre: request.genre,
+    genre: primaryGenre,
     vocalStyle: request.vocalStyle,
     theme: request.theme,
     durationSeconds: request.durationSeconds ?? 180,
@@ -778,7 +849,12 @@ export async function createMusic(
     lyricsModel,
     coverArtModel,
     generatedAt: new Date().toISOString(),
-    tags: [request.genre, request.vocalStyle, request.theme.toLowerCase().slice(0, 20)],
+    tags: [
+      primaryGenre,
+      ...((request.genres ?? []).slice(1)),
+      request.vocalStyle,
+      request.theme.toLowerCase().slice(0, 20),
+    ].filter(Boolean),
   }
 
   artifactStore.set(artifact.id, artifact)
@@ -995,5 +1071,286 @@ export function getMusicStudioSummary(): MusicStudioSummary {
     byAppSlug,
     lastCreatedAt: all.sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0]?.generatedAt ?? null,
     providersUsed: Array.from(providers),
+  }
+}
+
+// ── Async Job API ─────────────────────────────────────────────────────────────
+//
+// Provides a fire-and-poll pattern for music generation jobs.
+// The job record is created immediately and returns a jobId.
+// The actual generation runs in the background (via setImmediate).
+// Clients poll GET /api/admin/music-studio/jobs/[jobId] for status.
+
+export type MusicJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+
+export interface MusicJobRecord {
+  id: string
+  appSlug: string
+  status: MusicJobStatus
+  title: string
+  theme: string
+  genres: MusicGenre[]
+  moods: string[]
+  vocalStyle: VocalStyle
+  bpm: number
+  language: string
+  durationSeconds: number
+  instrumental: boolean
+  coverArtChoice: 'auto' | 'custom' | 'none'
+  artifactId: string | null
+  result: MusicStudioResult | null
+  errorMessage: string | null
+  provider: string
+  model: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+function safeParseJson<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+/** Create an async music generation job record and start processing in the background. */
+export async function createMusicJob(request: MusicCreationRequest): Promise<MusicJobRecord> {
+  validateMusicRequest(request)
+
+  const primaryGenre = resolveGenre(request)
+  const genres = request.genres ?? [primaryGenre]
+
+  let jobId: string
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const row = await prisma.musicGenerationJob.create({
+      data: {
+        appSlug: request.appSlug,
+        status: 'pending',
+        title: request.title ?? '',
+        theme: request.theme,
+        genres: JSON.stringify(genres),
+        moods: JSON.stringify(request.moods ?? []),
+        vocalStyle: request.vocalStyle,
+        bpm: request.bpm ?? 0,
+        language: request.language ?? 'en',
+        durationSeconds: request.durationSeconds ?? 180,
+        instrumental: request.instrumental ?? (request.vocalStyle === 'instrumental_only'),
+        coverArtChoice: request.coverArtChoice ?? 'auto',
+        existingLyrics: request.existingLyrics ?? '',
+        productionNotes: request.productionNotes ?? '',
+      },
+    })
+    jobId = row.id
+  } catch {
+    // DB not available — fall back to a random ID (in-memory only)
+    jobId = randomUUID()
+  }
+
+  // Fire-and-forget background processing (non-blocking)
+  setImmediate(() => {
+    void processMusicJobBackground(jobId, request)
+  })
+
+  return {
+    id: jobId,
+    appSlug: request.appSlug,
+    status: 'pending',
+    title: request.title ?? '',
+    theme: request.theme,
+    genres,
+    moods: request.moods ?? [],
+    vocalStyle: request.vocalStyle,
+    bpm: request.bpm ?? 0,
+    language: request.language ?? 'en',
+    durationSeconds: request.durationSeconds ?? 180,
+    instrumental: request.instrumental ?? (request.vocalStyle === 'instrumental_only'),
+    coverArtChoice: request.coverArtChoice ?? 'auto',
+    artifactId: null,
+    result: null,
+    errorMessage: null,
+    provider: '',
+    model: '',
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null,
+  }
+}
+
+/** Run the full music creation pipeline for a job and update its DB record. */
+async function processMusicJobBackground(
+  jobId: string,
+  request: MusicCreationRequest,
+): Promise<void> {
+  let prismaClient: import('@prisma/client').PrismaClient | null = null
+  try {
+    const mod = await import('@/lib/prisma')
+    prismaClient = mod.prisma as import('@prisma/client').PrismaClient
+    await prismaClient.musicGenerationJob.update({
+      where: { id: jobId },
+      data: { status: 'processing', startedAt: new Date() },
+    })
+  } catch { /* DB may not be available */ }
+
+  try {
+    const result = await createMusic(request)
+    if (prismaClient) {
+      await prismaClient.musicGenerationJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'completed',
+          artifactId: result.artifact.id,
+          resultJson: JSON.stringify(result),
+          provider: result.artifact.musicProvider,
+          model: result.artifact.lyricsModel,
+          completedAt: new Date(),
+        },
+      })
+    }
+  } catch (err) {
+    if (prismaClient) {
+      await prismaClient.musicGenerationJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'failed',
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          completedAt: new Date(),
+        },
+      }).catch(() => { /* ignore */ })
+    }
+  }
+}
+
+/** Fetch a music generation job by ID. Returns null if not found. */
+export async function getMusicJob(jobId: string): Promise<MusicJobRecord | null> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const row = await prisma.musicGenerationJob.findUnique({ where: { id: jobId } })
+    if (!row) return null
+    let result: MusicStudioResult | null = null
+    if (row.resultJson) {
+      try { result = JSON.parse(row.resultJson) as MusicStudioResult } catch { /* ignore */ }
+    }
+    return {
+      id: row.id,
+      appSlug: row.appSlug,
+      status: row.status as MusicJobStatus,
+      title: row.title,
+      theme: row.theme,
+      genres: safeParseJson<MusicGenre[]>(row.genres, []),
+      moods: safeParseJson<string[]>(row.moods, []),
+      vocalStyle: row.vocalStyle as VocalStyle,
+      bpm: row.bpm,
+      language: row.language,
+      durationSeconds: row.durationSeconds,
+      instrumental: row.instrumental,
+      coverArtChoice: row.coverArtChoice as 'auto' | 'custom' | 'none',
+      artifactId: row.artifactId ?? null,
+      result,
+      errorMessage: row.errorMessage ?? null,
+      provider: row.provider,
+      model: row.model,
+      createdAt: row.createdAt.toISOString(),
+      startedAt: row.startedAt?.toISOString() ?? null,
+      completedAt: row.completedAt?.toISOString() ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Cancel a pending or processing music job. Returns false if job not found or already terminal. */
+export async function cancelMusicJob(jobId: string): Promise<boolean> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const row = await prisma.musicGenerationJob.findUnique({ where: { id: jobId } })
+    if (!row) return false
+    if (row.status === 'completed' || row.status === 'failed' || row.status === 'cancelled') return false
+    await prisma.musicGenerationJob.update({
+      where: { id: jobId },
+      data: { status: 'cancelled', completedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Retry a failed or cancelled job. Returns the new job record or null on error. */
+export async function retryMusicJob(jobId: string): Promise<MusicJobRecord | null> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const row = await prisma.musicGenerationJob.findUnique({ where: { id: jobId } })
+    if (!row) return null
+    if (row.status !== 'failed' && row.status !== 'cancelled') return null
+
+    const request: MusicCreationRequest = {
+      appSlug: row.appSlug,
+      title: row.title || undefined,
+      theme: row.theme,
+      genre: safeParseJson<MusicGenre[]>(row.genres, ['pop'])[0] ?? 'pop',
+      genres: safeParseJson<MusicGenre[]>(row.genres, ['pop']),
+      moods: safeParseJson<string[]>(row.moods, []),
+      vocalStyle: row.vocalStyle as VocalStyle,
+      bpm: row.bpm || undefined,
+      language: row.language,
+      durationSeconds: row.durationSeconds,
+      instrumental: row.instrumental,
+      coverArtChoice: row.coverArtChoice as 'auto' | 'custom' | 'none',
+      existingLyrics: row.existingLyrics || undefined,
+      productionNotes: row.productionNotes || undefined,
+    }
+
+    return createMusicJob(request)
+  } catch {
+    return null
+  }
+}
+
+/** List music generation jobs, optionally filtered by appSlug. */
+export async function listMusicJobs(
+  appSlug?: string,
+  limit = 20,
+): Promise<MusicJobRecord[]> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const rows = await prisma.musicGenerationJob.findMany({
+      where: appSlug ? { appSlug } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    })
+    return rows.map(row => {
+      let result: MusicStudioResult | null = null
+      if (row.resultJson) {
+        try { result = JSON.parse(row.resultJson) as MusicStudioResult } catch { /* ignore */ }
+      }
+      return {
+        id: row.id,
+        appSlug: row.appSlug,
+        status: row.status as MusicJobStatus,
+        title: row.title,
+        theme: row.theme,
+        genres: safeParseJson<MusicGenre[]>(row.genres, []),
+        moods: safeParseJson<string[]>(row.moods, []),
+        vocalStyle: row.vocalStyle as VocalStyle,
+        bpm: row.bpm,
+        language: row.language,
+        durationSeconds: row.durationSeconds,
+        instrumental: row.instrumental,
+        coverArtChoice: row.coverArtChoice as 'auto' | 'custom' | 'none',
+        artifactId: row.artifactId ?? null,
+        result,
+        errorMessage: row.errorMessage ?? null,
+        provider: row.provider,
+        model: row.model,
+        createdAt: row.createdAt.toISOString(),
+        startedAt: row.startedAt?.toISOString() ?? null,
+        completedAt: row.completedAt?.toISOString() ?? null,
+      }
+    })
+  } catch {
+    return []
   }
 }

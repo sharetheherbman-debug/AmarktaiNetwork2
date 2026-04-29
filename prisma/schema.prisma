@@ -1192,3 +1192,82 @@ model AivaAvatarConfig {
 
   @@map("aiva_avatar_configs")
 }
+
+// ── PHASE 1 — Self-Healing Persistence ───────────────────────────────────────
+
+/// Persisted self-healing issue record.
+/// Each call to runHealingChecks() upserts records per category+affectedResource key.
+model HealingRecord {
+  id               String    @id @default(cuid())
+  /// Detection category
+  category         String    // provider_failure | route_failure | missing_credentials | stale_config | fallback_overuse | agent_degraded | budget_threshold | model_unavailable
+  severity         String    // info | warning | critical
+  title            String
+  description      String
+  affectedResource String    @map("affected_resource")
+  /// Action the system took or suggested
+  actionTaken      String?   @map("action_taken") // auto_disabled | traffic_shifted | alert_surfaced | repair_suggested | config_invalidated | fallback_promoted
+  actionDetail     String?   @map("action_detail")
+  autoHealed       Boolean   @default(false) @map("auto_healed")
+  resolved         Boolean   @default(false)
+  resolvedAt       DateTime? @map("resolved_at")
+  detectedAt       DateTime  @default(now()) @map("detected_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([category, affectedResource], name: "healing_record_key")
+  @@index([category])
+  @@index([severity])
+  @@index([resolved])
+  @@index([detectedAt])
+  @@map("healing_records")
+}
+
+// ── PHASE 1 — Music Generation Async Jobs ────────────────────────────────────
+
+/// Async music generation job.
+/// Supports multi-genre and multi-mood inputs (max 5 each) as per Phase 1 spec.
+model MusicGenerationJob {
+  id              String    @id @default(cuid())
+  appSlug         String    @map("app_slug")
+
+  // Status lifecycle
+  status          String    @default("pending") // pending | processing | completed | failed | cancelled
+
+  // Input request
+  title           String    @default("")
+  theme           String
+  /// JSON MusicGenre[] — max 5 genres
+  genres          String    @default("[]")
+  /// JSON string[] — max 5 moods
+  moods           String    @default("[]")
+  vocalStyle      String    @default("") @map("vocal_style")
+  bpm             Int       @default(0)
+  language        String    @default("en")
+  durationSeconds Int       @default(180) @map("duration_seconds")
+  instrumental    Boolean   @default(false)
+  /// auto | custom | none
+  coverArtChoice  String    @default("auto") @map("cover_art_choice")
+  existingLyrics  String    @default("") @map("existing_lyrics")
+  productionNotes String    @default("") @map("production_notes")
+
+  // Output
+  /// Artifact.id when completed (music artifact)
+  artifactId      String?   @map("artifact_id")
+  /// JSON MusicStudioResult when completed
+  resultJson      String?   @map("result_json")
+  errorMessage    String?   @map("error_message")
+
+  // Tracking
+  provider        String    @default("")
+  model           String    @default("")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([appSlug])
+  @@index([status])
+  @@index([createdAt])
+  @@map("music_generation_jobs")
+}

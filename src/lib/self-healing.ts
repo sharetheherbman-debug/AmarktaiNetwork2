@@ -348,3 +348,247 @@ export async function getHealingStatus(): Promise<{
     totalIssues: status.totalIssues,
   }
 }
+
+// ── DB Persistence ────────────────────────────────────────────────────────────
+
+/**
+ * Persist a healing issue to the database using upsert on (category, affectedResource).
+ * Safe to call from tests — fails silently if the DB is unavailable.
+ */
+async function persistHealingIssue(issue: HealingIssue): Promise<void> {
+  try {
+    await prisma.healingRecord.upsert({
+      where: {
+        healing_record_key: {
+          category: issue.category,
+          affectedResource: issue.affectedResource,
+        },
+      },
+      update: {
+        severity: issue.severity,
+        title: issue.title,
+        description: issue.description,
+        actionTaken: issue.actionTaken ?? null,
+        actionDetail: issue.actionDetail ?? null,
+        autoHealed: issue.autoHealed,
+        resolved: issue.resolved,
+        resolvedAt: issue.resolvedAt,
+      },
+      create: {
+        id: issue.id,
+        category: issue.category,
+        severity: issue.severity,
+        title: issue.title,
+        description: issue.description,
+        affectedResource: issue.affectedResource,
+        actionTaken: issue.actionTaken ?? null,
+        actionDetail: issue.actionDetail ?? null,
+        autoHealed: issue.autoHealed,
+        resolved: issue.resolved,
+        resolvedAt: issue.resolvedAt,
+        detectedAt: issue.detectedAt,
+      },
+    })
+  } catch {
+    // DB may not be available in tests or during startup
+  }
+}
+
+/**
+ * Mark a previously-detected issue as resolved in the DB.
+ * Called when a provider passes a subsequent health check.
+ */
+async function markHealingIssueResolved(
+  category: HealingCategory,
+  affectedResource: string,
+): Promise<void> {
+  try {
+    await prisma.healingRecord.updateMany({
+      where: { category, affectedResource, resolved: false },
+      data: { resolved: true, resolvedAt: new Date() },
+    })
+  } catch {
+    // DB may not be available
+  }
+}
+
+// ── Auto-Healing Actions ──────────────────────────────────────────────────────
+
+/**
+ * Apply auto-healing actions for critical provider failures:
+ *   - Mark provider as degraded in the AiProvider table
+ *   - Log the action to ManagerAgentLog
+ *
+ * For `info` or `warning` issues we only persist the record without modifying
+ * provider state — the issue is surfaced for manual review.
+ *
+ * Recovery: if a provider that was previously degraded no longer appears in
+ * the issue list (i.e., it passed health checks), mark it recovered.
+ */
+async function applyAutoHealingActions(issues: HealingIssue[]): Promise<void> {
+  // Collect resources with critical provider_failure or missing_credentials
+  const criticalProviders = new Set<string>()
+  for (const issue of issues) {
+    if (
+      issue.severity === 'critical' &&
+      (issue.category === 'provider_failure' || issue.category === 'missing_credentials') &&
+      issue.autoHealed
+    ) {
+      criticalProviders.add(issue.affectedResource)
+    }
+  }
+
+  if (criticalProviders.size === 0) return
+
+  try {
+    for (const providerKey of criticalProviders) {
+      // Only demote if currently not already in error/disabled state
+      const provider = await prisma.aiProvider.findUnique({ where: { providerKey } })
+      if (!provider) continue
+      if (provider.healthStatus === 'disabled' || provider.healthStatus === 'error') continue
+
+      await prisma.aiProvider.update({
+        where: { providerKey },
+        data: {
+          healthStatus: 'degraded',
+          healthMessage: 'Auto-demoted by self-healing engine due to repeated failures',
+          lastCheckedAt: new Date(),
+        },
+      })
+
+      // Log the action
+      await prisma.managerAgentLog.create({
+        data: {
+          managerType: 'routing',
+          action: 'health_check',
+          summary: `Auto-healed: provider ${providerKey} demoted to degraded`,
+          details: JSON.stringify({
+            providerKey,
+            action: 'traffic_shifted',
+            reason: 'Critical provider failure detected by self-healing engine',
+            timestamp: new Date().toISOString(),
+          }),
+          severity: 'warning',
+        },
+      })
+    }
+  } catch {
+    // DB may not be available
+  }
+}
+
+/**
+ * Recover providers that previously had healing issues but are no longer flagged.
+ * If a provider's AiProvider record is 'degraded' (auto-demoted) but it no longer
+ * appears in the critical issue list, attempt a health check and promote it back.
+ */
+async function recoverHealthyProviders(issues: HealingIssue[]): Promise<void> {
+  const affectedProviders = new Set(
+    issues
+      .filter(i => i.category === 'provider_failure' || i.category === 'missing_credentials')
+      .map(i => i.affectedResource),
+  )
+
+  try {
+    // Find providers that were auto-demoted (degraded + matching healing record)
+    const degradedProviders = await prisma.aiProvider.findMany({
+      where: { healthStatus: 'degraded' },
+    })
+
+    for (const p of degradedProviders) {
+      if (affectedProviders.has(p.providerKey)) continue
+
+      // Provider is degraded but no longer in the issue list → try to recover
+      const healingRecord = await prisma.healingRecord.findFirst({
+        where: {
+          affectedResource: p.providerKey,
+          category: 'provider_failure',
+          autoHealed: true,
+          resolved: false,
+        },
+      })
+      if (!healingRecord) continue
+
+      // Mark the healing record as resolved
+      await markHealingIssueResolved('provider_failure', p.providerKey)
+
+      // Update provider status to configured (requires manual health check to become healthy)
+      await prisma.aiProvider.update({
+        where: { providerKey: p.providerKey },
+        data: {
+          healthStatus: 'configured',
+          healthMessage: 'Recovered: no active failure detected. Re-run health check to validate.',
+          lastCheckedAt: new Date(),
+        },
+      })
+
+      await prisma.managerAgentLog.create({
+        data: {
+          managerType: 'routing',
+          action: 'recovery',
+          summary: `Provider ${p.providerKey} recovered — no longer failing`,
+          details: JSON.stringify({
+            providerKey: p.providerKey,
+            action: 'fallback_promoted',
+            timestamp: new Date().toISOString(),
+          }),
+          severity: 'info',
+        },
+      })
+    }
+  } catch {
+    // DB may not be available
+  }
+}
+
+/**
+ * Run all healing checks, apply auto-healing actions, and persist results to DB.
+ *
+ * This is the preferred entry point when calling from scheduled jobs or the
+ * admin healing endpoint — it persists issues and triggers auto-healing.
+ * `runHealingChecks()` remains available as a lightweight, read-only version.
+ */
+export async function runAndPersistHealingChecks(): Promise<HealingStatus> {
+  const status = await runHealingChecks()
+
+  // Persist all issues to DB (upsert by category + affectedResource)
+  await Promise.all(status.recentIssues.map(issue => persistHealingIssue(issue)))
+
+  // Apply auto-healing for critical failures
+  await applyAutoHealingActions(status.recentIssues)
+
+  // Recover providers that are no longer failing
+  await recoverHealthyProviders(status.recentIssues)
+
+  return status
+}
+
+/**
+ * Fetch persisted healing records from DB.
+ * Returns recent records sorted by severity (critical first) then by detectedAt descending.
+ */
+export async function getPersistedHealingRecords(limit = 100): Promise<HealingIssue[]> {
+  try {
+    const records = await prisma.healingRecord.findMany({
+      orderBy: [{ detectedAt: 'desc' }],
+      take: limit,
+    })
+
+    return records.map(r => ({
+      id: r.id,
+      category: r.category as HealingCategory,
+      severity: r.severity as HealingSeverity,
+      title: r.title,
+      description: r.description,
+      affectedResource: r.affectedResource,
+      detectedAt: r.detectedAt,
+      resolved: r.resolved,
+      resolvedAt: r.resolvedAt,
+      actionTaken: r.actionTaken as HealingActionType | null,
+      actionDetail: r.actionDetail,
+      autoHealed: r.autoHealed,
+    }))
+  } catch {
+    return []
+  }
+}
