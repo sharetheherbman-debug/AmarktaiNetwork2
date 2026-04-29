@@ -16,6 +16,7 @@ import {
   Rocket,
   Settings2,
   Activity,
+  GitBranch,
 } from 'lucide-react'
 import AivaAssistant from '@/components/AivaAssistant'
 
@@ -27,6 +28,7 @@ const NAV_GROUPS: Array<{
     items: [
       { href: '/admin/dashboard',              label: 'Overview',       icon: LayoutDashboard },
       { href: '/admin/dashboard/workspace',    label: 'Workspace',      icon: Sparkles        },
+      { href: '/admin/dashboard/repo-workbench', label: 'Repo Workbench', icon: GitBranch      },
       { href: '/admin/dashboard/apps',         label: 'Apps & Agents',  icon: AppWindow       },
       { href: '/admin/dashboard/ai-engine',    label: 'AI Engine',      icon: Cpu             },
       { href: '/admin/dashboard/artifacts',    label: 'Artifacts',      icon: Archive         },

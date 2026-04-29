@@ -9,19 +9,8 @@ import {
   type ArtifactType,
   type ArtifactStatus,
 } from '@/lib/artifact-store'
+import { verifyStorage } from '@/lib/storage-driver'
 
-/**
- * GET /api/admin/artifacts
- *
- * Query params:
- *   id       — get single artifact
- *   appSlug  — filter by app
- *   type     — filter by type
- *   status   — filter by status
- *   counts   — return counts only
- *   limit    — max results (default 50)
- *   offset   — pagination offset
- */
 export async function GET(request: NextRequest) {
   const session = await getSession()
   if (!session.isLoggedIn) {
@@ -30,7 +19,6 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
 
-  // Single artifact
   const id = searchParams.get('id')
   if (id) {
     const artifact = await getArtifact(id)
@@ -38,29 +26,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ artifact })
   }
 
-  // Counts only
   if (searchParams.has('counts')) {
     const appSlug = searchParams.get('appSlug') ?? undefined
     const counts = await getArtifactCounts(appSlug)
     return NextResponse.json({ counts })
   }
 
-  // Storage driver info — used by the UI to warn about ephemeral local storage
   if (searchParams.has('storage-info')) {
-    const driver = process.env.STORAGE_DRIVER ?? 'local'
+    const storage = await verifyStorage()
     return NextResponse.json({
-      storageDriver: driver,
-      ephemeral: driver === 'local',
-      warning:
-        driver === 'local'
-          ? 'Artifacts are stored on the local filesystem (.storage/ directory). ' +
-            'This storage is ephemeral — files will be lost on redeploy or container restart. ' +
-            'Configure STORAGE_DRIVER=s3 or STORAGE_DRIVER=r2 with appropriate credentials for persistent storage.'
-          : null,
+      storageDriver: storage.driver,
+      storageRoot: storage.basePath,
+      persistent: storage.persistent,
+      configured: storage.configured,
+      writable: storage.writable,
+      requiredDriver: storage.requiredDriver,
+      requiredRoot: storage.requiredRoot,
+      requiredDirectories: storage.requiredDirectories,
+      directories: storage.directories,
+      missingSetup: storage.missingSetup,
+      warning: storage.configured ? null : storage.error ?? storage.note,
     })
   }
 
-  // List with filters
   const result = await listArtifacts({
     appSlug: searchParams.get('appSlug') ?? undefined,
     type: (searchParams.get('type') ?? undefined) as ArtifactType | undefined,
@@ -72,26 +60,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(result)
 }
 
-/**
- * POST /api/admin/artifacts
- *
- * Body:
- * {
- *   appSlug?: string
- *   type: ArtifactType
- *   subType?: string
- *   title?: string
- *   description?: string
- *   provider?: string
- *   model?: string
- *   traceId?: string
- *   mimeType?: string
- *   costUsdCents?: number
- *   metadata?: Record<string, unknown>
- *   contentUrl?: string
- *   contentBase64?: string
- * }
- */
 export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session.isLoggedIn) {
@@ -120,7 +88,6 @@ export async function POST(request: NextRequest) {
   if (rawContentBase64 && typeof rawContentBase64 === 'string') {
     content = Buffer.from(rawContentBase64, 'base64')
   } else if (rawContentUrl && typeof rawContentUrl === 'string' && rawContentUrl.startsWith('data:')) {
-    // data: URI — extract base64 and store as binary
     const match = rawContentUrl.match(/^data:([^;]+);base64,(.+)$/)
     if (match) {
       mimeType = mimeType ?? match[1]
@@ -128,31 +95,25 @@ export async function POST(request: NextRequest) {
       contentUrl = undefined
     }
   } else if (rawContentUrl && typeof rawContentUrl === 'string' && rawContentUrl.startsWith('http')) {
-    // External HTTP/HTTPS URL (e.g. OpenAI CDN) — fetch and store as binary so the
-    // artifact remains accessible after the CDN URL expires (OpenAI URLs expire in ~1h).
-    //
-    // SSRF mitigation: only fetch from known AI provider CDN domains.
-    // This prevents the server from making arbitrary requests to internal/private hosts.
-    const ALLOWED_CDN_HOSTNAMES = [
-      'oaidalleapi.blob.core.windows.net',   // OpenAI DALL-E CDN
+    const allowedCdnHostnames = [
+      'oaidalleapi.blob.core.windows.net',
       'openai.com',
-      'replicate.delivery',                   // Replicate output storage
+      'replicate.delivery',
       'pbxt.replicate.delivery',
-      'api.together.xyz',                     // Together AI results
-      'storage.googleapis.com',               // Google/Gemini image storage
+      'api.together.xyz',
+      'storage.googleapis.com',
       'lh3.googleusercontent.com',
     ]
     let fetchAllowed = false
     try {
       const parsed = new URL(rawContentUrl)
-      // Only allow HTTPS
       if (parsed.protocol === 'https:') {
-        fetchAllowed = ALLOWED_CDN_HOSTNAMES.some(
-          (h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`),
+        fetchAllowed = allowedCdnHostnames.some(
+          (host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`),
         )
       }
     } catch {
-      // Malformed URL — do not fetch
+      fetchAllowed = false
     }
     if (fetchAllowed) {
       try {
@@ -163,11 +124,11 @@ export async function POST(request: NextRequest) {
           if (buf.length > 0) {
             content = buf
             mimeType = mimeType ?? ct
-            contentUrl = undefined  // Do not persist the expiring URL
+            contentUrl = undefined
           }
         }
       } catch {
-        // Network error fetching CDN URL — fall back to storing URL as-is
+        // createArtifact will reject unpersisted external URLs instead of claiming success.
       }
     }
   }
@@ -197,11 +158,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * DELETE /api/admin/artifacts
- *
- * Body: { id: string }
- */
 export async function DELETE(request: NextRequest) {
   const session = await getSession()
   if (!session.isLoggedIn) {

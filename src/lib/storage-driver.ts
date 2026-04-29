@@ -1,23 +1,21 @@
 /**
  * @module storage-driver
- * @description Pluggable storage abstraction for the AmarktAI Network.
+ * @description Pluggable storage abstraction for the Amarktai Network.
  *
- * Supports:
- *   - 'local_vps' — VPS persistent storage at /var/www/amarktai/storage (default)
- *   - 'local'     — file system storage relative to project root (dev/ephemeral)
- *   - 's3'        — S3-compatible object storage (AWS S3, MinIO, etc.)
- *   - 'r2'        — Cloudflare R2 (S3-compatible API)
+ * Production policy:
+ *   STORAGE_DRIVER=local_vps
+ *   STORAGE_ROOT=/var/www/amarktai/storage
  *
- * The active driver is selected via STORAGE_DRIVER env var (default: 'local_vps').
- * Business logic never references a specific cloud vendor — only this interface.
- *
- * Server-side only.
+ * Required persistent directories:
+ *   artifacts, uploads, repos, workspaces, logs
  */
 
 import fs from 'fs/promises'
 import path from 'path'
 
-// ── Interface ────────────────────────────────────────────────────────────────
+export const REQUIRED_STORAGE_DRIVER = 'local_vps'
+export const DEFAULT_STORAGE_ROOT = '/var/www/amarktai/storage'
+export const REQUIRED_STORAGE_DIRS = ['artifacts', 'uploads', 'repos', 'workspaces', 'logs'] as const
 
 export interface StoragePutResult {
   url: string
@@ -26,45 +24,69 @@ export interface StoragePutResult {
 }
 
 export interface StorageDriver {
-  /** Human-readable driver name. */
   name: string
-  /** Store a blob under the given key. Returns the public/signed URL. */
   put(key: string, data: Buffer, contentType: string): Promise<StoragePutResult>
-  /** Retrieve a blob by key. Returns null if not found. */
   get(key: string): Promise<Buffer | null>
-  /** Delete a blob by key. Returns true if deleted. */
   delete(key: string): Promise<boolean>
-  /** Check if a blob exists. */
   exists(key: string): Promise<boolean>
-  /** Get a public/signed URL for a stored blob. */
   getUrl(key: string): Promise<string>
+  ensureDirectories?(): Promise<void>
 }
 
-// ── VPS Persistent Storage Driver ────────────────────────────────────────────
+export interface StorageStatus {
+  driver: string
+  configured: boolean
+  persistent: boolean
+  basePath: string
+  requiredDriver: string
+  requiredRoot: string
+  requiredDirectories: readonly string[]
+  missingSetup: string[]
+  note: string
+}
 
-const VPS_STORAGE_BASE = '/var/www/amarktai/storage'
+export interface StorageHealth extends StorageStatus {
+  writable: boolean
+  directories: Array<{ name: string; path: string; exists: boolean; writable: boolean }>
+  error: string | null
+}
+
+function getStorageRoot(): string {
+  return process.env.STORAGE_ROOT?.trim() || DEFAULT_STORAGE_ROOT
+}
+
+function encodeStorageKey(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
+function assertInsideBase(basePath: string, key: string): string {
+  const base = path.resolve(basePath)
+  const resolved = path.resolve(base, key)
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    throw new Error('Path traversal detected')
+  }
+  return resolved
+}
 
 class VpsLocalStorageDriver implements StorageDriver {
   name = 'local_vps'
 
+  private get basePath(): string {
+    return getStorageRoot()
+  }
+
   private resolvePath(key: string): string {
-    // Resolve the full path and verify it remains within the base directory.
-    // This is the primary protection against path traversal — path.resolve
-    // normalises all '..' components before the boundary check.
-    const resolved = path.resolve(VPS_STORAGE_BASE, key)
-    if (!resolved.startsWith(path.resolve(VPS_STORAGE_BASE) + path.sep) &&
-        resolved !== path.resolve(VPS_STORAGE_BASE)) {
-      throw new Error('Path traversal detected')
-    }
-    return resolved
+    return assertInsideBase(this.basePath, key)
   }
 
   async put(key: string, data: Buffer, _contentType: string): Promise<StoragePutResult> {
+    await this.ensureDirectories()
     const filePath = this.resolvePath(key)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
     await fs.writeFile(filePath, data)
-    const url = `/api/artifacts/file/${encodeURIComponent(key)}`
-    return { url, path: key, sizeBytes: data.length }
+    const exists = await this.exists(key)
+    if (!exists) throw new Error(`Storage write verification failed for ${key}`)
+    return { url: `/api/artifacts/file/${encodeStorageKey(key)}`, path: key, sizeBytes: data.length }
   }
 
   async get(key: string): Promise<Buffer | null> {
@@ -94,18 +116,15 @@ class VpsLocalStorageDriver implements StorageDriver {
   }
 
   async getUrl(key: string): Promise<string> {
-    return `/api/artifacts/file/${encodeURIComponent(key)}`
+    return `/api/artifacts/file/${encodeStorageKey(key)}`
   }
 
-  /** Ensure all required subdirectories exist. */
   async ensureDirectories(): Promise<void> {
-    for (const sub of ['artifacts', 'workspaces', 'repos', 'uploads', 'logs']) {
-      await fs.mkdir(path.join(VPS_STORAGE_BASE, sub), { recursive: true })
+    for (const sub of REQUIRED_STORAGE_DIRS) {
+      await fs.mkdir(path.join(this.basePath, sub), { recursive: true })
     }
   }
 }
-
-// ── Local File System Driver ─────────────────────────────────────────────────
 
 const LOCAL_BASE_DIR = process.env.STORAGE_LOCAL_DIR ?? path.join(process.cwd(), '.storage')
 
@@ -113,22 +132,15 @@ class LocalStorageDriver implements StorageDriver {
   name = 'local'
 
   private resolvePath(key: string): string {
-    // Sanitize key: strip any path traversal attempts, then validate resolved path
     const sanitized = key.replace(/\.\./g, '').replace(/^\/+/, '')
-    const resolved = path.resolve(LOCAL_BASE_DIR, sanitized)
-    // Ensure the resolved path is still within the base directory
-    if (!resolved.startsWith(path.resolve(LOCAL_BASE_DIR))) {
-      throw new Error('Path traversal detected')
-    }
-    return resolved
+    return assertInsideBase(LOCAL_BASE_DIR, sanitized)
   }
 
   async put(key: string, data: Buffer, _contentType: string): Promise<StoragePutResult> {
     const filePath = this.resolvePath(key)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
     await fs.writeFile(filePath, data)
-    const url = `/api/artifacts/file/${encodeURIComponent(key)}`
-    return { url, path: key, sizeBytes: data.length }
+    return { url: `/api/artifacts/file/${encodeStorageKey(key)}`, path: key, sizeBytes: data.length }
   }
 
   async get(key: string): Promise<Buffer | null> {
@@ -158,98 +170,64 @@ class LocalStorageDriver implements StorageDriver {
   }
 
   async getUrl(key: string): Promise<string> {
-    return `/api/artifacts/file/${encodeURIComponent(key)}`
+    return `/api/artifacts/file/${encodeStorageKey(key)}`
   }
 }
-
-// ── S3-Compatible Driver (stub — ready for Phase 3 full implementation) ──────
 
 class S3StorageDriver implements StorageDriver {
   name = 's3'
 
-  private bucket = process.env.S3_BUCKET ?? 'amarktai-artifacts'
-  private region = process.env.S3_REGION ?? 'us-east-1'
-  private endpoint = process.env.S3_ENDPOINT ?? ''
-
-  async put(key: string, data: Buffer, contentType: string): Promise<StoragePutResult> {
-    // Phase 3: Use @aws-sdk/client-s3 for real S3 upload
-    // For now, fall back to local storage with a warning
-    console.warn(`[storage] S3 driver not fully configured — storing locally. Set S3_BUCKET, S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY`)
-    const local = new LocalStorageDriver()
-    return local.put(key, data, contentType)
+  async put(): Promise<StoragePutResult> {
+    throw new Error('S3 storage is not enabled for this deployment. Use STORAGE_DRIVER=local_vps.')
   }
 
-  async get(key: string): Promise<Buffer | null> {
-    console.warn(`[storage] S3 get not implemented — checking local fallback`)
-    const local = new LocalStorageDriver()
-    return local.get(key)
+  async get(): Promise<Buffer | null> {
+    return null
   }
 
-  async delete(key: string): Promise<boolean> {
-    const local = new LocalStorageDriver()
-    return local.delete(key)
+  async delete(): Promise<boolean> {
+    return false
   }
 
-  async exists(key: string): Promise<boolean> {
-    const local = new LocalStorageDriver()
-    return local.exists(key)
+  async exists(): Promise<boolean> {
+    return false
   }
 
   async getUrl(key: string): Promise<string> {
-    if (this.endpoint) {
-      return `${this.endpoint}/${this.bucket}/${key}`
-    }
-    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`
+    return key
   }
 }
-
-// ── R2 Driver (Cloudflare R2 — S3-compatible, stub) ──────────────────────────
 
 class R2StorageDriver implements StorageDriver {
   name = 'r2'
 
-  async put(key: string, data: Buffer, contentType: string): Promise<StoragePutResult> {
-    // R2 uses the S3 API — delegate to S3 driver with R2 endpoint
-    console.warn(`[storage] R2 driver not fully configured — storing locally`)
-    const local = new LocalStorageDriver()
-    return local.put(key, data, contentType)
+  async put(): Promise<StoragePutResult> {
+    throw new Error('R2 storage is not enabled for this deployment. Use STORAGE_DRIVER=local_vps.')
   }
 
-  async get(key: string): Promise<Buffer | null> {
-    const local = new LocalStorageDriver()
-    return local.get(key)
+  async get(): Promise<Buffer | null> {
+    return null
   }
 
-  async delete(key: string): Promise<boolean> {
-    const local = new LocalStorageDriver()
-    return local.delete(key)
+  async delete(): Promise<boolean> {
+    return false
   }
 
-  async exists(key: string): Promise<boolean> {
-    const local = new LocalStorageDriver()
-    return local.exists(key)
+  async exists(): Promise<boolean> {
+    return false
   }
 
   async getUrl(key: string): Promise<string> {
-    const publicUrl = process.env.R2_PUBLIC_URL
-    if (publicUrl) return `${publicUrl}/${key}`
-    return `/api/artifacts/file/${encodeURIComponent(key)}`
+    return key
   }
 }
 
-// ── Factory ──────────────────────────────────────────────────────────────────
-
 let _cachedDriver: StorageDriver | null = null
 
-/**
- * Get the active storage driver instance.
- * Selected via STORAGE_DRIVER env var (default: 'local_vps').
- */
 export function getStorageDriver(): StorageDriver {
   if (_cachedDriver) return _cachedDriver
 
-  const driverName = (process.env.STORAGE_DRIVER ?? 'local_vps').toLowerCase()
-
+  const driverName = (process.env.STORAGE_DRIVER ?? REQUIRED_STORAGE_DRIVER).toLowerCase()
   switch (driverName) {
     case 'local_vps':
       _cachedDriver = new VpsLocalStorageDriver()
@@ -267,50 +245,106 @@ export function getStorageDriver(): StorageDriver {
   return _cachedDriver
 }
 
-/**
- * Get storage status for dashboard truth.
- */
-export function getStorageStatus(): {
-  driver: string
-  configured: boolean
-  basePath: string
-  note: string
-} {
-  const driverName = (process.env.STORAGE_DRIVER ?? 'local_vps').toLowerCase()
+export function getStorageStatus(): StorageStatus {
+  const driverName = (process.env.STORAGE_DRIVER ?? REQUIRED_STORAGE_DRIVER).toLowerCase()
+  const root = getStorageRoot()
+  const missingSetup: string[] = []
+  if (driverName !== REQUIRED_STORAGE_DRIVER) {
+    missingSetup.push(`Set STORAGE_DRIVER=${REQUIRED_STORAGE_DRIVER}`)
+  }
+  if (root !== DEFAULT_STORAGE_ROOT && process.env.NODE_ENV === 'production') {
+    missingSetup.push(`Set STORAGE_ROOT=${DEFAULT_STORAGE_ROOT}`)
+  }
+
+  const baseStatus = {
+    requiredDriver: REQUIRED_STORAGE_DRIVER,
+    requiredRoot: DEFAULT_STORAGE_ROOT,
+    requiredDirectories: REQUIRED_STORAGE_DIRS,
+    missingSetup,
+  }
 
   if (driverName === 'local_vps') {
     return {
+      ...baseStatus,
       driver: 'local_vps',
-      configured: true,
-      basePath: VPS_STORAGE_BASE,
-      note: `VPS local storage active at ${VPS_STORAGE_BASE}. Persists across redeployments.`,
+      configured: missingSetup.length === 0,
+      persistent: true,
+      basePath: root,
+      note: `VPS local storage active at ${root}. Artifacts are persistent only when this path is mounted across redeployments.`,
     }
   }
 
   if (driverName === 's3') {
-    const configured = !!(process.env.S3_BUCKET && process.env.AWS_ACCESS_KEY_ID)
     return {
+      ...baseStatus,
       driver: 's3',
-      configured,
+      configured: false,
+      persistent: !!(process.env.S3_BUCKET && process.env.AWS_ACCESS_KEY_ID),
       basePath: process.env.S3_BUCKET ?? '',
-      note: configured ? 'S3 storage configured' : 'S3 credentials not set — falling back to local',
+      note: 'S3 is not the required production storage driver for this deployment. Set STORAGE_DRIVER=local_vps.',
     }
   }
 
   if (driverName === 'r2') {
-    const configured = !!(process.env.R2_PUBLIC_URL)
     return {
+      ...baseStatus,
       driver: 'r2',
-      configured,
+      configured: false,
+      persistent: !!process.env.R2_PUBLIC_URL,
       basePath: process.env.R2_PUBLIC_URL ?? '',
-      note: configured ? 'Cloudflare R2 configured' : 'R2 not configured — falling back to local',
+      note: 'R2 is not the required production storage driver for this deployment. Set STORAGE_DRIVER=local_vps.',
     }
   }
 
   return {
+    ...baseStatus,
     driver: 'local',
-    configured: true,
+    configured: false,
+    persistent: false,
     basePath: LOCAL_BASE_DIR,
-    note: 'Local file storage active (ephemeral). Set STORAGE_DRIVER=local_vps for persistent VPS storage.',
+    note: 'Local file storage is ephemeral. Set STORAGE_DRIVER=local_vps and STORAGE_ROOT=/var/www/amarktai/storage.',
+  }
+}
+
+export async function verifyStorage(): Promise<StorageHealth> {
+  const status = getStorageStatus()
+  const directories: StorageHealth['directories'] = []
+  let error: string | null = null
+
+  if (status.driver !== REQUIRED_STORAGE_DRIVER) {
+    return { ...status, writable: false, directories, error: status.note }
+  }
+
+  try {
+    const driver = getStorageDriver()
+    await driver.ensureDirectories?.()
+    for (const name of REQUIRED_STORAGE_DIRS) {
+      const dirPath = path.join(status.basePath, name)
+      let exists = false
+      let writable = false
+      try {
+        await fs.mkdir(dirPath, { recursive: true })
+        await fs.access(dirPath)
+        exists = true
+        const probePath = path.join(dirPath, `.amarktai-write-test-${process.pid}`)
+        await fs.writeFile(probePath, 'ok')
+        await fs.unlink(probePath)
+        writable = true
+      } catch {
+        writable = false
+      }
+      directories.push({ name, path: dirPath, exists, writable })
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : 'Storage verification failed'
+  }
+
+  const writable = directories.length === REQUIRED_STORAGE_DIRS.length && directories.every((dir) => dir.exists && dir.writable)
+  return {
+    ...status,
+    configured: status.configured && writable,
+    writable,
+    directories,
+    error,
   }
 }

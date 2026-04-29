@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   RefreshCw, Activity, Cpu, MemoryStick, HardDrive, Wifi,
@@ -505,12 +506,12 @@ export default function MonitorPage() {
             <p className="text-sm text-slate-500 mt-1 mb-4">
               Enable monitoring on apps to see VPS metrics and health data here.
             </p>
-            <a
+            <Link
               href="/admin/dashboard/apps"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30 text-sm transition-all"
             >
               Go to Apps
-            </a>
+            </Link>
           </div>
         </motion.div>
       ) : (

@@ -22,7 +22,7 @@ import {
   ChevronRight,
   AlertTriangle,
   Cpu,
-  Image,
+  Image as ImageIcon,
   Music,
   Video,
   Globe,
@@ -270,7 +270,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     label: 'Create image',
-    icon: <Image className="h-3 w-3" />,
+    icon: <ImageIcon className="h-3 w-3" />,
     capability: 'image_generation',
     promptInputLabel: 'Describe the image…',
     saveArtifact: true,
@@ -329,6 +329,7 @@ export default function AivaAssistant() {
   const [isRecording, setIsRecording] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const streamAbortRef = useRef<AbortController | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -359,6 +360,14 @@ export default function AivaAssistant() {
 
   // ── Send Message ──────────────────────────────────────────────────────────
 
+  const cancelStreaming = useCallback(() => {
+    streamAbortRef.current?.abort()
+    streamAbortRef.current = null
+    setSending(false)
+    setOrbState('idle')
+    setMessages(prev => prev.map(m => m.pending ? { ...m, pending: false, error: 'Cancelled' } : m))
+  }, [])
+
   const sendMessage = useCallback(async (
     text: string,
     capability?: string,
@@ -383,6 +392,99 @@ export default function AivaAssistant() {
     setOrbState('thinking')
 
     try {
+      const shouldStream = !capability || capability === 'chat'
+      if (shouldStream) {
+        const controller = new AbortController()
+        streamAbortRef.current = controller
+        const res = await fetch('/api/admin/aiva/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text.trim(), conversationId }),
+          signal: controller.signal,
+        })
+
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+          throw new Error(data.error ?? `HTTP ${res.status}`)
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let output = ''
+        let streamError: string | null = null
+        let doneData: { conversationId?: string; messageId?: string; model?: string } = {}
+
+        const handleEvent = (raw: string) => {
+          if (!raw.trim()) return
+          try {
+            const event = JSON.parse(raw) as {
+              type?: string
+              content?: string
+              error?: string
+              conversationId?: string
+              messageId?: string | null
+              model?: string
+            }
+            if (event.type === 'start' && event.conversationId) setConversationId(event.conversationId)
+            if (event.type === 'chunk' && event.content) {
+              output += event.content
+              setMessages(prev => prev.map(m => (
+                m.id === pendingMsg.id
+                  ? { ...m, content: output, pending: false, capability: 'chat', outputType: 'text' }
+                  : m
+              )))
+            }
+            if (event.type === 'error') streamError = event.error ?? 'Streaming failed'
+            if (event.type === 'done') {
+              doneData = {
+                conversationId: event.conversationId,
+                messageId: event.messageId ?? undefined,
+                model: event.model,
+              }
+            }
+          } catch {
+            // Ignore malformed SSE frames.
+          }
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const frames = buffer.split('\n\n')
+          buffer = frames.pop() ?? ''
+          for (const frame of frames) {
+            const line = frame.split('\n').find(l => l.startsWith('data:'))
+            if (line) handleEvent(line.slice(5).trim())
+          }
+        }
+        if (buffer.trim()) {
+          const line = buffer.split('\n').find(l => l.startsWith('data:'))
+          if (line) handleEvent(line.slice(5).trim())
+        }
+
+        if (doneData.conversationId) setConversationId(doneData.conversationId)
+        setMessages(prev => prev.map(m => (
+          m.id === pendingMsg.id
+            ? {
+                ...m,
+                id: doneData.messageId ?? m.id,
+                content: output,
+                pending: false,
+                capability: 'chat',
+                provider: 'Aiva',
+                model: doneData.model,
+                outputType: 'text',
+                error: streamError ?? undefined,
+              }
+            : m
+        )))
+        setOrbState(streamError ? 'error' : 'idle')
+        if (streamError) setTimeout(() => setOrbState('idle'), 3000)
+        return
+      }
+
       const res = await fetch('/api/admin/aiva/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -425,6 +527,7 @@ export default function AivaAssistant() {
       setOrbState('error')
       setTimeout(() => setOrbState('idle'), 3000)
     } finally {
+      streamAbortRef.current = null
       setSending(false)
     }
   }, [sending, conversationId])
@@ -811,11 +914,12 @@ export default function AivaAssistant() {
                 className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-cyan-400/40 disabled:opacity-50"
               />
               <button
-                onClick={handleSubmit}
-                disabled={!input.trim() || sending}
+                onClick={sending ? cancelStreaming : handleSubmit}
+                disabled={!input.trim() && !sending}
                 className="flex h-7 w-7 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-400 transition hover:bg-cyan-400/20 disabled:opacity-40"
+                title={sending ? 'Cancel response' : 'Send'}
               >
-                {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {sending ? <X className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
               </button>
               <button
                 onClick={() => setMode('orb')}

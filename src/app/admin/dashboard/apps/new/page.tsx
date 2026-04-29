@@ -1,5 +1,6 @@
 'use client'
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, ArrowRight, Check, Loader2, Sparkles, Rocket,
@@ -263,10 +264,10 @@ export default function NewAppPage() {
             <span className="text-white font-semibold">{appName}</span> is now connected to the Amarktai brain.
           </p>
           {capPack && <p className="text-xs text-violet-400">Capability Pack: {capPack.name}</p>}
-          <a href="/admin/dashboard/apps"
+          <Link href="/admin/dashboard/apps"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.1] text-white text-sm font-medium transition-all">
             <ArrowLeft className="w-4 h-4" /> Back to App Registry
-          </a>
+          </Link>
         </motion.div>
       </div>
     )
@@ -710,10 +711,10 @@ export default function NewAppPage() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <a href="/admin/dashboard/apps"
+          <Link href="/admin/dashboard/apps"
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all">
             <ArrowLeft className="w-4 h-4" />
-          </a>
+          </Link>
           <div>
             <h1 className="text-lg font-bold flex items-center gap-2">
               <Sparkles className="w-4.5 h-4.5 text-violet-400" /> Smart App Onboarding

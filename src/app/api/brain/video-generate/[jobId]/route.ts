@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getVaultApiKey } from '@/lib/brain';
 import { dispatchEvent } from '@/lib/webhook-manager';
+import { createArtifact } from '@/lib/artifact-store';
 
 async function pollReplicateJob(
   predictionId: string,
@@ -115,6 +116,49 @@ async function pollQwenWanJob(
   return { status: 'processing' };
 }
 
+async function ensureVideoArtifact(job: {
+  id: string;
+  appSlug: string | null;
+  provider: string;
+  modelId: string;
+  prompt: string;
+  resultUrl: string | null;
+}): Promise<{ artifactId: string | null; artifactError: string | null }> {
+  if (!job.resultUrl) return { artifactId: null, artifactError: null };
+  const traceId = `video-job-${job.id}`;
+
+  try {
+    const existing = await prisma.artifact.findFirst({
+      where: { traceId, type: 'video' },
+      select: { id: true },
+    });
+    if (existing) return { artifactId: existing.id, artifactError: null };
+
+    const artifact = await createArtifact({
+      appSlug: job.appSlug ?? 'workspace',
+      type: 'video',
+      subType: 'video_generation',
+      title: `Video generation ${job.id}`,
+      description: job.prompt,
+      provider: job.provider,
+      model: job.modelId,
+      traceId,
+      mimeType: 'video/mp4',
+      contentUrl: job.resultUrl,
+      metadata: {
+        jobId: job.id,
+        source: 'video_generation_job',
+      },
+    });
+    return { artifactId: artifact.id, artifactError: null };
+  } catch (err) {
+    return {
+      artifactId: null,
+      artifactError: err instanceof Error ? err.message : 'Video artifact persistence failed',
+    };
+  }
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ jobId: string }> },
@@ -132,6 +176,9 @@ export async function GET(
 
   // If job is already terminal, return stored state
   if (job.status === 'succeeded' || job.status === 'failed') {
+    const artifact = job.status === 'succeeded'
+      ? await ensureVideoArtifact(job)
+      : { artifactId: null, artifactError: null };
     return NextResponse.json({
       capability: 'video_generation',
       jobId: job.id,
@@ -140,6 +187,8 @@ export async function GET(
       model: job.modelId,
       prompt: job.prompt,
       resultUrl: job.resultUrl ?? null,
+      artifactId: artifact.artifactId,
+      artifactError: artifact.artifactError,
       errorMessage: job.errorMessage ?? null,
       createdAt: job.createdAt,
       updatedAt: job.updatedAt,
@@ -230,6 +279,10 @@ export async function GET(
       });
     }
 
+    const artifact = dbUpdated.status === 'succeeded'
+      ? await ensureVideoArtifact(dbUpdated)
+      : { artifactId: null, artifactError: null };
+
     return NextResponse.json({
       capability: 'video_generation',
       jobId: dbUpdated.id,
@@ -238,6 +291,8 @@ export async function GET(
       model: dbUpdated.modelId,
       prompt: dbUpdated.prompt,
       resultUrl: dbUpdated.resultUrl ?? null,
+      artifactId: artifact.artifactId,
+      artifactError: artifact.artifactError,
       errorMessage: dbUpdated.errorMessage ?? null,
       createdAt: dbUpdated.createdAt,
       updatedAt: dbUpdated.updatedAt,

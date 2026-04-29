@@ -40,6 +40,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppSafetyConfig, loadAppSafetyConfigFromDB, scanContent } from '@/lib/content-filter';
 import { getVaultApiKey } from '@/lib/brain';
+import { getAdultImageModels } from '@/lib/adult-model-catalog';
 
 const ALLOWED_SIZES = ['512x512', '768x768', '1024x1024'] as const;
 type AdultImageSize = (typeof ALLOWED_SIZES)[number];
@@ -49,31 +50,7 @@ type AdultImageSize = (typeof ALLOWED_SIZES)[number];
  * The operator must ensure their HuggingFace API key has appropriate model access.
  * For fully unrestricted adult content, a private Inference Endpoint is recommended.
  */
-const HF_ADULT_MODELS: ReadonlyArray<{
-  id: string;
-  steps: number;
-  cfgScale: number;
-  label: string;
-}> = [
-  {
-    id: 'SG161222/RealVisXL_V4.0',
-    steps: 30,
-    cfgScale: 7.0,
-    label: 'RealVisXL v4',
-  },
-  {
-    id: 'Lykon/dreamshaper-8',
-    steps: 25,
-    cfgScale: 7.0,
-    label: 'DreamShaper 8',
-  },
-  {
-    id: 'stabilityai/stable-diffusion-xl-base-1.0',
-    steps: 30,
-    cfgScale: 7.5,
-    label: 'SDXL Base',
-  },
-] as const;
+const HF_ADULT_MODELS = getAdultImageModels();
 
 const TOGETHER_ADULT_MODELS: ReadonlyArray<{ id: string; steps: number }> = [
   { id: 'black-forest-labs/FLUX.1-schnell-Free', steps: 4 },

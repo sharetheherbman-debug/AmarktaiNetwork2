@@ -17,6 +17,7 @@ import {
   AppWindow,
   AlertTriangle,
   Clock,
+  Layers,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,6 +65,48 @@ interface DashboardData {
     avgLatencyMs?: number | null
     activeTaskCount?: number
   }
+}
+
+interface TruthSummary {
+  activeProviders: number
+  configuredProviders: number
+  usableModels: number
+  totalModels: number
+  availableCapabilities: number
+  totalCapabilities: number
+  unavailableCapabilities: number
+  artifactCount: number
+  queueHealthy: boolean
+  storageDriver: string
+  healthScore: number
+  criticalAlerts: number
+  unresolvedAlerts: number
+}
+
+interface ReadinessData {
+  overallReady: boolean
+  score: number
+  failed: number
+  warnings: number
+  criticalFailures: number
+}
+
+interface StorageInfo {
+  storageDriver: string
+  storageRoot: string
+  persistent: boolean
+  configured: boolean
+  writable: boolean
+  missingSetup: string[]
+}
+
+interface JobStatus {
+  queue: {
+    healthy: boolean
+    backendAvailable: boolean
+  }
+  batch: { processing: number; failed: number }
+  video: { processing: number; failed: number }
 }
 
 interface DbStats {
@@ -125,21 +168,42 @@ export default function OverviewPage() {
   const [aiEngine, setAiEngine] = useState<AIEngineStatus | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
+  const [truth, setTruth] = useState<TruthSummary | null>(null)
+  const [readiness, setReadiness] = useState<ReadinessData | null>(null)
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
+  const [jobs, setJobs] = useState<JobStatus | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [monRes, aiRes, dashRes, dbRes] = await Promise.allSettled([
+      const [monRes, aiRes, dashRes, dbRes, truthRes, readinessRes, storageRes, jobsRes] = await Promise.allSettled([
         fetch('/api/admin/vps'),
         fetch('/api/admin/genx/status'),
         fetch('/api/admin/dashboard'),
         fetch('/api/admin/monitor/stats'),
+        fetch('/api/admin/truth?section=summary'),
+        fetch('/api/admin/readiness'),
+        fetch('/api/admin/artifacts?storage-info=true'),
+        fetch('/api/admin/jobs'),
       ])
       if (monRes.status === 'fulfilled' && monRes.value.ok) setMonitor(await monRes.value.json())
       if (aiRes.status === 'fulfilled' && aiRes.value.ok) setAiEngine(await aiRes.value.json())
       if (dashRes.status === 'fulfilled' && dashRes.value.ok) setDashboard(await dashRes.value.json())
       if (dbRes.status === 'fulfilled' && dbRes.value.ok) setDbStats(await dbRes.value.json())
+      if (truthRes.status === 'fulfilled' && truthRes.value.ok) {
+        const data = await truthRes.value.json() as { summary?: TruthSummary }
+        setTruth(data.summary ?? null)
+      }
+      if (readinessRes.status === 'fulfilled' && readinessRes.value.ok) {
+        setReadiness(await readinessRes.value.json())
+      }
+      if (storageRes.status === 'fulfilled' && storageRes.value.ok) {
+        setStorage(await storageRes.value.json())
+      }
+      if (jobsRes.status === 'fulfilled' && jobsRes.value.ok) {
+        setJobs(await jobsRes.value.json())
+      }
     } finally {
       setLoading(false)
     }
@@ -149,6 +213,11 @@ export default function OverviewPage() {
 
   const alerts = computeAlerts(monitor, dbStats)
   const topSnap = monitor?.products?.[0]?.vpsSnapshots?.[0] ?? null
+  const missingSetup = [
+    ...(storage?.missingSetup ?? []),
+    ...(readiness && readiness.criticalFailures > 0 ? [`${readiness.criticalFailures} critical readiness failure${readiness.criticalFailures === 1 ? '' : 's'}`] : []),
+    ...(jobs && !jobs.queue.backendAvailable ? ['Redis/BullMQ job backend is unavailable'] : []),
+  ]
 
   return (
     <div className="space-y-6">
@@ -165,6 +234,64 @@ export default function OverviewPage() {
           </button>
         </div>
       </div>
+
+      {/* System Truth */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[11px] uppercase tracking-[0.14em] text-slate-500">System Truth</h2>
+          <Link href="/admin/dashboard/readiness" className="text-xs text-cyan-400 hover:text-cyan-300">Full audit</Link>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <TruthCard
+            icon={Activity}
+            label="Aiva"
+            value={aiEngine?.available ? 'Streaming ready' : aiEngine?.configured ? 'Configured, unreachable' : 'Needs AI key'}
+            detail={truth ? `${truth.usableModels}/${truth.totalModels} usable models` : 'Waiting for truth API'}
+            state={aiEngine?.available ? 'ok' : 'warn'}
+            href="/admin/dashboard/ai-engine"
+          />
+          <TruthCard
+            icon={HardDrive}
+            label="Storage"
+            value={storage?.configured && storage.writable ? 'Persistent' : 'Needs setup'}
+            detail={storage ? `${storage.storageDriver} at ${storage.storageRoot}` : 'Checking storage'}
+            state={storage?.configured && storage.writable && storage.persistent ? 'ok' : 'error'}
+            href="/admin/dashboard/artifacts"
+          />
+          <TruthCard
+            icon={Layers}
+            label="Jobs"
+            value={jobs?.queue.backendAvailable ? (jobs.queue.healthy ? 'Queue healthy' : 'Queue degraded') : 'Queue unavailable'}
+            detail={jobs ? `${jobs.batch.processing + jobs.video.processing} running, ${jobs.batch.failed + jobs.video.failed} failed` : 'Checking jobs'}
+            state={jobs?.queue.backendAvailable && jobs.queue.healthy ? 'ok' : 'warn'}
+            href="/admin/dashboard/jobs"
+          />
+          <TruthCard
+            icon={AlertTriangle}
+            label="Go-live"
+            value={readiness?.overallReady ? 'Critical checks pass' : 'Not ready'}
+            detail={readiness ? `${readiness.score}/100, ${readiness.failed} failed, ${readiness.warnings} warnings` : 'Audit not loaded'}
+            state={readiness?.overallReady ? 'ok' : 'error'}
+            href="/admin/dashboard/readiness"
+          />
+        </div>
+        {truth && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniTruth label="Capabilities" value={`${truth.availableCapabilities}/${truth.totalCapabilities}`} sub={`${truth.unavailableCapabilities} unavailable`} />
+            <MiniTruth label="Providers" value={`${truth.activeProviders}/${truth.configuredProviders}`} sub="active/configured" />
+            <MiniTruth label="Artifacts" value={truth.artifactCount.toLocaleString()} sub="DB persisted" />
+            <MiniTruth label="Alerts" value={(truth.criticalAlerts + truth.unresolvedAlerts).toLocaleString()} sub={`${truth.criticalAlerts} critical`} warn={truth.criticalAlerts > 0} />
+          </div>
+        )}
+        {missingSetup.length > 0 && (
+          <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-sm font-semibold text-amber-300">Missing setup that blocks honest operation</p>
+            <ul className="mt-2 space-y-1 text-xs text-amber-100/80">
+              {missingSetup.slice(0, 6).map((item) => <li key={item}>- {item}</li>)}
+            </ul>
+          </div>
+        )}
+      </section>
 
       {/* Alerts */}
       {alerts.length > 0 && (
@@ -315,6 +442,49 @@ export default function OverviewPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function TruthCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  state,
+  href,
+}: {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  label: string
+  value: string
+  detail: string
+  state: 'ok' | 'warn' | 'error'
+  href: string
+}) {
+  const color = state === 'ok'
+    ? 'text-emerald-400 border-emerald-400/20 bg-emerald-400/5'
+    : state === 'error'
+      ? 'text-red-400 border-red-400/20 bg-red-400/5'
+      : 'text-amber-400 border-amber-400/20 bg-amber-400/5'
+
+  return (
+    <Link href={href} className={`rounded-xl border p-4 transition-colors hover:bg-white/[0.07] ${color}`}>
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4" />
+        <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      </div>
+      <p className="mt-3 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-1 text-xs text-slate-500 break-words">{detail}</p>
+    </Link>
+  )
+}
+
+function MiniTruth({ label, value, sub, warn }: { label: string; value: string; sub: string; warn?: boolean }) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+      <p className="text-[10px] text-slate-600">{label}</p>
+      <p className={`text-sm font-semibold ${warn ? 'text-amber-400' : 'text-white'}`}>{value}</p>
+      <p className="text-[10px] text-slate-600">{sub}</p>
+    </div>
+  )
+}
 
 function VpsCard({
   icon: Icon, label, value, sub, pct,

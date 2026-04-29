@@ -1,12 +1,13 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { getSession } from '@/lib/session'
 import { routeWorkspaceTask } from '@/lib/workspace-executor'
+import { executeCapability } from '@/lib/capability-router'
 import type { GenXModelPolicy, GenXCapability, GenXOperationType } from '@/lib/genx-client'
 
 const VALID_POLICIES = new Set<GenXModelPolicy>(['best', 'cheap', 'balanced', 'fixed'])
 const VALID_CAPABILITIES = new Set<GenXCapability>([
   'chat', 'code', 'reasoning', 'image_generation', 'image_editing',
-  'video_generation', 'tts', 'stt', 'embeddings', 'multimodal', 'research', 'adult',
+  'video_generation', 'tts', 'stt', 'embeddings', 'multimodal', 'research', 'adult', 'adult_text',
 ])
 const VALID_OPERATIONS = new Set<GenXOperationType>([
   'chat', 'generate', 'edit', 'plan', 'code', 'summarise', 'classify', 'embed', 'tts', 'stt',
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
     const {
       task, systemPrompt, fileContexts, capability, operationType,
       policyOverride, fixedModelOverride, maxTokens, temperature,
+      adultMode, safeMode, providerOverride, modelOverride, endpoint, metadata,
     } = body
 
     if (!task || typeof task !== 'string' || !task.trim()) {
@@ -53,6 +55,44 @@ export async function POST(req: NextRequest) {
 
     if (policyOverride !== undefined && !VALID_POLICIES.has(policyOverride as GenXModelPolicy)) {
       return NextResponse.json({ error: `Invalid policyOverride "${policyOverride}". Valid values: best, cheap, balanced, fixed` }, { status: 400 })
+    }
+
+    if (capability === 'adult_text' || capability === 'adult') {
+      const traceId = `workspace-adult-text-${Date.now()}`
+      const result = await executeCapability({
+        input: task,
+        capability: 'adult_text',
+        providerOverride: typeof providerOverride === 'string' ? providerOverride : undefined,
+        modelOverride: typeof modelOverride === 'string'
+          ? modelOverride
+          : typeof fixedModelOverride === 'string'
+            ? fixedModelOverride
+            : undefined,
+        adultMode: adultMode === true,
+        safeMode: safeMode === true,
+        saveArtifact: true,
+        traceId,
+        metadata: {
+          ...(typeof metadata === 'object' && metadata !== null ? metadata as Record<string, unknown> : {}),
+          ...(typeof endpoint === 'string' && endpoint.trim() ? { endpoint: endpoint.trim() } : {}),
+        },
+      })
+      return NextResponse.json({
+        success: result.success,
+        output: result.output,
+        resolvedModel: result.model ?? 'adult-text-provider',
+        modelPolicy: 'fixed',
+        latencyMs: 0,
+        genxUsed: false,
+        fallbackUsed: false,
+        error: result.error ?? null,
+        traceId,
+        capability: result.capability,
+        provider: result.provider,
+        outputType: result.outputType,
+        artifactId: result.artifactId,
+        providerAttempts: result.providerAttempts,
+      }, { status: result.success ? 200 : 422 })
     }
 
     const result = await routeWorkspaceTask({

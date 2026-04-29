@@ -22,6 +22,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { decryptVaultKey } from '@/lib/crypto-vault'
 import { getVaultApiKey } from '@/lib/brain'
+import { getAdultTextModel, getDefaultAdultTextModel } from '@/lib/adult-model-catalog'
 
 type ProviderType = 'together' | 'huggingface' | 'xai' | 'custom'
 
@@ -49,6 +50,8 @@ function classifyHttpError(status: number, body: string): ErrorCategory {
 
 /** Safe test prompt used for all adult generation tests — not stored after test */
 const ADULT_TEST_PROMPT = 'a tasteful artistic portrait of a woman in soft studio lighting'
+const ADULT_TEXT_TEST_PROMPT =
+  'Write one short noir romance paragraph about two consenting adult characters. Keep it non-explicit.'
 
 /** Block SSRF: only allow http/https and block private/loopback in production */
 function validateUrl(raw: string): { url: URL; error: string | null } {
@@ -76,6 +79,7 @@ export async function POST(req: NextRequest) {
   let inlineEndpoint     = ''
   let inlineKey          = ''
   let inlineModel        = ''
+  let inlineOutputType   = ''
 
   try {
     const body = await req.json()
@@ -84,6 +88,7 @@ export async function POST(req: NextRequest) {
     inlineEndpoint     = typeof body.endpoint     === 'string' ? body.endpoint.trim()     : ''
     inlineKey          = typeof body.apiKey       === 'string' ? body.apiKey.trim()       : ''
     inlineModel        = typeof body.model        === 'string' ? body.model.trim()        : ''
+    inlineOutputType   = typeof body.outputType   === 'string' ? body.outputType.trim()   : ''
   } catch { /* ignore */ }
 
   // ── Resolve from DB if not provided inline ──
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
   let endpoint     = inlineEndpoint
   let apiKey       = inlineKey
   let providerModel = inlineModel
+  let outputType    = inlineOutputType || 'image'
 
   if (!mode) {
     try {
@@ -103,6 +109,7 @@ export async function POST(req: NextRequest) {
         if (!providerType) providerType = (notes.providerType || 'together') as ProviderType
         if (!endpoint)     endpoint     = notes.specialistEndpoint || ''
         if (!providerModel) providerModel = notes.providerModel   || ''
+        if (!inlineOutputType) outputType = notes.outputType || outputType
         if (!apiKey && row.apiKey) apiKey = decryptVaultKey(row.apiKey) ?? ''
       }
     } catch { /* ignore */ }
@@ -247,6 +254,127 @@ export async function POST(req: NextRequest) {
 
   // ── HuggingFace private endpoint — real generation test ──
   if (providerType === 'huggingface') {
+    if (outputType === 'text' || outputType === 'chat' || outputType === 'roleplay') {
+      const defaultAdultModel = getDefaultAdultTextModel()
+      const testModel = providerModel || defaultAdultModel.id
+      const modelSpec = getAdultTextModel(testModel)
+
+      if (!apiKey && !endpoint) {
+        return NextResponse.json({
+          provider: 'huggingface',
+          model: testModel,
+          success: false,
+          supported: false,
+          status: 'not_configured',
+          outputType: 'text',
+          mode: 'specialist', providerType: 'huggingface',
+          error_category: 'missing_key' as ErrorCategory,
+          message: 'HuggingFace adult text requires either a HuggingFace API key plus a compatible hosted model, or a private/local endpoint for GGUF models.',
+        })
+      }
+
+      if (modelSpec && !endpoint) {
+        return NextResponse.json({
+          provider: 'huggingface',
+          model: testModel,
+          success: false,
+          supported: false,
+          status: 'endpoint_required',
+          outputType: 'text',
+          mode: 'specialist', providerType: 'huggingface',
+          error_category: 'endpoint_error' as ErrorCategory,
+          message: `${modelSpec.label} is cataloged from the DavidAU collection, but it is a GGUF model. Configure a HuggingFace private endpoint or local GGUF runtime endpoint before marking it READY.`,
+          runtime_required: modelSpec.runtime,
+        })
+      }
+
+      const start = Date.now()
+      try {
+        const hHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (apiKey) hHeaders['Authorization'] = `Bearer ${apiKey}`
+        const targetUrl = endpoint
+          ? validateUrl(endpoint)
+          : { url: new URL(`https://api-inference.huggingface.co/models/${testModel}`), error: null }
+        if (targetUrl.error) {
+          return NextResponse.json({
+            provider: 'huggingface',
+            model: testModel,
+            success: false,
+            supported: false,
+            status: 'invalid',
+            outputType: 'text',
+            mode: 'specialist', providerType: 'huggingface',
+            error_category: 'endpoint_error' as ErrorCategory,
+            message: targetUrl.error,
+          })
+        }
+
+        const res = await fetch(targetUrl.url.href, {
+          method: 'POST',
+          headers: hHeaders,
+          body: JSON.stringify({
+            inputs: ADULT_TEXT_TEST_PROMPT,
+            parameters: { max_new_tokens: 120, return_full_text: false, temperature: 0.8 },
+          }),
+          signal: AbortSignal.timeout(60_000),
+        })
+        const latencyMs = Date.now() - start
+        const bodyText = await res.text().catch(() => '')
+
+        if (res.ok) {
+          let textGenerated = false
+          try {
+            const parsed = JSON.parse(bodyText) as Array<{ generated_text?: string }> | { generated_text?: string }
+            textGenerated = Array.isArray(parsed) ? Boolean(parsed[0]?.generated_text) : Boolean(parsed.generated_text)
+          } catch {
+            textGenerated = bodyText.trim().length > 0
+          }
+
+          return NextResponse.json({
+            provider: 'huggingface',
+            model: testModel,
+            success: textGenerated,
+            supported: true,
+            status: textGenerated ? 'ready' : 'connected_no_text',
+            outputType: 'text',
+            mode: 'specialist', providerType: 'huggingface',
+            error_category: textGenerated ? undefined : ('model_not_supported' as ErrorCategory),
+            message: textGenerated
+              ? `HuggingFace adult text test passed (${latencyMs}ms)`
+              : `HuggingFace endpoint connected but returned no generated text (${latencyMs}ms)`,
+            latencyMs,
+          })
+        }
+
+        const errCat = classifyHttpError(res.status, bodyText)
+        return NextResponse.json({
+          provider: 'huggingface',
+          model: testModel,
+          success: false,
+          supported: false,
+          status: errCat,
+          outputType: 'text',
+          mode: 'specialist', providerType: 'huggingface',
+          error_category: errCat,
+          message: `HuggingFace adult text test failed (HTTP ${res.status}, ${latencyMs}ms)`,
+          latencyMs,
+        })
+      } catch (err) {
+        return NextResponse.json({
+          provider: 'huggingface',
+          model: testModel,
+          success: false,
+          supported: false,
+          status: 'unreachable',
+          outputType: 'text',
+          mode: 'specialist', providerType: 'huggingface',
+          error_category: 'endpoint_error' as ErrorCategory,
+          message: `Cannot reach HuggingFace adult text endpoint: ${err instanceof Error ? err.message : 'network error'}`,
+          latencyMs: Date.now() - start,
+        })
+      }
+    }
+
     if (!endpoint) {
       return NextResponse.json({
         provider: 'huggingface',

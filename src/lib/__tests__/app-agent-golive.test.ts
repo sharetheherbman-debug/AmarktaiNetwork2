@@ -184,9 +184,9 @@ describe('App Agent — Core Architecture', () => {
 describe('Firecrawl Integration', () => {
   it('getFirecrawlStatus reports unavailable when no API key', async () => {
     const { getFirecrawlStatus } = await import('@/lib/firecrawl')
-    const status = getFirecrawlStatus()
+    const status = await getFirecrawlStatus()
     expect(status.available).toBe(false)
-    expect(status.error).toContain('FIRECRAWL_API_KEY')
+    expect(status.error).toContain('Firecrawl API key')
   })
 
   it('crawlAppWebsite returns error when no API key', async () => {
@@ -203,9 +203,9 @@ describe('Firecrawl Integration', () => {
 describe('Mem0 Integration', () => {
   it('getMem0Status reports unavailable when no API key', async () => {
     const { getMem0Status } = await import('@/lib/mem0-client')
-    const status = getMem0Status()
+    const status = await getMem0Status()
     expect(status.available).toBe(false)
-    expect(status.error).toContain('MEM0_API_KEY')
+    expect(status.error).toContain('Mem0 API key')
   })
 
   it('searchMemories returns empty when no API key', async () => {
@@ -299,9 +299,9 @@ describe('LiteLLM Integration', () => {
 describe('PostHog Integration', () => {
   it('getPostHogStatus reports unavailable when no API key', async () => {
     const { getPostHogStatus } = await import('@/lib/posthog-client')
-    const status = getPostHogStatus()
+    const status = await getPostHogStatus()
     expect(status.available).toBe(false)
-    expect(status.error).toContain('POSTHOG_API_KEY')
+    expect(status.error).toContain('PostHog API key')
   })
 
   it('captureEvent returns false when no API key', async () => {
@@ -491,11 +491,11 @@ describe('Go-Live Hardening', () => {
     const { getLangGraphStatus } = await import('@/lib/langgraph-client')
 
     // All should return valid status objects without throwing
-    expect(getFirecrawlStatus()).toHaveProperty('available')
-    expect(getMem0Status()).toHaveProperty('available')
+    expect(await getFirecrawlStatus()).toHaveProperty('available')
+    expect(await getMem0Status()).toHaveProperty('available')
     expect(getGraphitiStatus()).toHaveProperty('available')
     expect(getLiteLLMStatus()).toHaveProperty('available')
-    expect(getPostHogStatus()).toHaveProperty('available')
+    expect(await getPostHogStatus()).toHaveProperty('available')
     expect(getLangGraphStatus()).toHaveProperty('available')
   })
 

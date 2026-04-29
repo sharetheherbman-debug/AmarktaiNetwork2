@@ -90,6 +90,16 @@ export async function POST(request: NextRequest) {
             size: resolvedSize,
           });
         }
+        if (genxResult.success && genxResult.jobId) {
+          return NextResponse.json({
+            executed: true,
+            jobId: genxResult.jobId,
+            status: genxResult.status,
+            provider: 'genx',
+            model: genxResult.model,
+            size: resolvedSize,
+          });
+        }
       } catch (genxErr) {
         console.warn('[brain/image] GenX image failed:', genxErr instanceof Error ? genxErr.message : genxErr);
       }
