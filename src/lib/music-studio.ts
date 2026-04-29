@@ -443,8 +443,7 @@ export function parseLyricsOutput(
 
   // Extract title
   const titleMatch = raw.match(/TITLE:\s*(.+)/i)
-  const primaryGenre2 = resolveGenre(request)
-  const title = titleMatch?.[1]?.trim() ?? request.title ?? `${request.theme} (${GENRE_DISPLAY[primaryGenre2]})`
+  const title = titleMatch?.[1]?.trim() ?? request.title ?? `${request.theme} (${GENRE_DISPLAY[primaryGenre]})`
 
   // Extract lyrics section using a linear split to avoid ReDoS on adversarial input.
   // Split on "PRODUCTION NOTES:" (case-insensitive) and take the portion after "LYRICS:".
@@ -1185,12 +1184,10 @@ async function processMusicJobBackground(
   jobId: string,
   request: MusicCreationRequest,
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let prismaClient: any = null
+  let prismaClient: import('@prisma/client').PrismaClient | null = null
   try {
     const mod = await import('@/lib/prisma')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    prismaClient = mod.prisma as any
+    prismaClient = mod.prisma as import('@prisma/client').PrismaClient
     await prismaClient.musicGenerationJob.update({
       where: { id: jobId },
       data: { status: 'processing', startedAt: new Date() },
