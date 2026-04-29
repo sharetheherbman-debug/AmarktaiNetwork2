@@ -1,8 +1,35 @@
 # AmarktAI Network — Full Audit Report
 
 **Version:** 1.0.0  
-**Date:** 2026-03-29  
-**Branch:** copilot/forensic-audit-repository
+**Date:** 2026-04-29  
+**Branch:** copilot/audit-existing-api-routes
+
+---
+
+## Phase 1 Backend Completion Summary
+
+> Updated 2026-04-29 — Phase 1 backend completion pass
+
+### What Was Implemented in Phase 1
+
+| # | Area | Change |
+|---|------|--------|
+| 1 | **Self-healing DB persistence** | Added `HealingRecord` Prisma model. `runAndPersistHealingChecks()` upserts every detected issue to DB by `(category, affectedResource)` key. `getPersistedHealingRecords()` returns audit history. |
+| 2 | **Self-healing auto-actions** | `applyAutoHealingActions()` updates `AiProvider.healthStatus` to `degraded` for critical failures. `recoverHealthyProviders()` promotes providers back to `configured` when they clear. All actions logged to `ManagerAgentLog`. |
+| 3 | **Healing API update** | `GET /api/admin/healing` now accepts `?persist=true` (run + persist) and `?history=true` (return DB records). |
+| 4 | **Music multi-genre/mood** | `MusicCreationRequest` now accepts `genres: MusicGenre[]` (max 5), `moods: string[]` (max 5), `language`, `instrumental`, `coverArtChoice`. `validateMusicRequest()` enforces limits. `resolveGenre()` normalises legacy/new fields. |
+| 5 | **Music async jobs** | Added `MusicGenerationJob` Prisma model. `createMusicJob()` creates a DB record and processes in background (setImmediate). `getMusicJob()`, `cancelMusicJob()`, `retryMusicJob()`, `listMusicJobs()` complete the lifecycle. |
+| 6 | **Music job API routes** | `POST /api/admin/music-studio` now supports `action: 'create_async'` (returns 202 + job). `GET /api/admin/music-studio?jobs=true` lists jobs. `GET/DELETE/POST /api/admin/music-studio/jobs/[jobId]` for poll/cancel/retry. |
+| 7 | **App capability permissions** | `executeCapability()` checks `AppAgent.allowedCapabilities` when a real `appId` is passed. Returns 403 `guardrail_block` with a clear message if capability is not in the allowed list. Backward-compatible: apps with no `AppAgent` record are allowed through. |
+| 8 | **38 new tests** | Phase 1 completion tests: music validation, multi-genre, async job lifecycle, self-healing exports, capability permission checks. |
+
+### Verification
+
+```
+npm test    → 1367 tests, 41 test files — ALL PASSING
+npm run lint → 2 warnings (pre-existing <img> in frontend files), 0 errors
+npm run build → BUILD SUCCEEDED
+```
 
 ---
 

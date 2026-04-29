@@ -583,6 +583,39 @@ function logExecution(
   )
 }
 
+// ── App capability permission check ──────────────────────────────────────────
+
+/**
+ * Check whether an app's AppAgent record allows a given capability.
+ *
+ * Returns a human-readable denial message if denied, or null if allowed.
+ * Falls back to allowing the request if the DB is unavailable or the agent
+ * record doesn't exist (so existing apps without an agent record are unaffected).
+ */
+async function checkAppCapabilityDenied(
+  appId: string,
+  capability: string,
+): Promise<string | null> {
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const agent = await prisma.appAgent.findUnique({ where: { appSlug: appId } })
+    if (!agent) return null   // no agent record → allow (backward compat)
+    if (!agent.active) {
+      return `App "${appId}" agent is disabled. Contact the platform admin.`
+    }
+    let allowed: string[] = []
+    try { allowed = JSON.parse(agent.allowedCapabilities) as string[] } catch { /* ignore */ }
+    if (allowed.length === 0) return null   // empty → allow all (default)
+    if (!allowed.includes(capability)) {
+      return `Capability "${capability}" is not enabled for app "${appId}". ` +
+        `Enabled: [${allowed.join(', ')}]. Contact the platform admin to enable it.`
+    }
+    return null
+  } catch {
+    return null   // DB unavailable → allow
+  }
+}
+
 // ── Main router ───────────────────────────────────────────────────────────────
 
 export async function executeCapability(
@@ -591,6 +624,27 @@ export async function executeCapability(
   const cap = detectCapability(request.input, request.capability)
   const appSlug = request.appId ?? request.workspaceId ?? '__system__'
   const save = request.saveArtifact ?? false
+
+  // ── App capability permission check ──────────────────────────────────────
+  // If a specific appId (not workspace/system) is provided, verify that the
+  // app's AppAgent record allows this capability.  Skip for internal system calls.
+  if (request.appId && request.appId !== '__system__' && request.appId !== '__admin_test__') {
+    const denied = await checkAppCapabilityDenied(request.appId, cap)
+    if (denied) {
+      logExecution(cap, null, null, false, false, denied)
+      return {
+        success: false,
+        capability: cap,
+        provider: null,
+        model: null,
+        outputType: outputTypeForCapability(cap),
+        output: null,
+        fallbackUsed: false,
+        error: denied,
+        error_category: 'guardrail_block',
+      }
+    }
+  }
 
   // ── Adult content gating ──────────────────────────────────────────────────
   if (cap === 'adult_text' || cap === 'adult_image' || cap === 'adult_video') {

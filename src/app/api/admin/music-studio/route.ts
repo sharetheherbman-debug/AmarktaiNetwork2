@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import {
   createMusic,
+  createMusicJob,
+  listMusicJobs,
   generateLyrics,
   getMusicArtifactAsync,
   getMusicArtifactsByAppAsync,
   getAllMusicArtifactsAsync,
   getMusicStudioStatusAsync,
   getMusicStudioSummaryAsync,
+  validateMusicRequest,
   AVAILABLE_GENRES,
   AVAILABLE_VOCAL_STYLES,
   type MusicCreationRequest,
@@ -53,6 +56,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ styles: AVAILABLE_VOCAL_STYLES })
   }
 
+  if (searchParams.has('jobs')) {
+    // List async music generation jobs
+    const jobs = await listMusicJobs(appSlug ?? undefined, limit)
+    return NextResponse.json({ jobs, count: jobs.length })
+  }
+
   if (id) {
     const artifact = await getMusicArtifactAsync(id)
     if (!artifact) {
@@ -78,8 +87,10 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/music-studio
  *
  * Body:
- *   action: 'create' | 'lyrics_only'
+ *   action: 'create' | 'create_async' | 'lyrics_only'
  *   request: MusicCreationRequest
+ *
+ * create_async — returns a job record immediately; poll /jobs/[jobId] for status.
  */
 export async function POST(request: NextRequest) {
   const session = await getSession()
@@ -98,14 +109,32 @@ export async function POST(request: NextRequest) {
   if (!req) {
     return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
   }
-  if (!req.theme || !req.genre || !req.vocalStyle || !req.appSlug) {
+
+  // Require genre OR genres
+  const hasGenre = req.genre || (req.genres && req.genres.length > 0)
+  if (!req.theme || !hasGenre || !req.vocalStyle || !req.appSlug) {
     return NextResponse.json(
-      { error: 'Required fields: theme, genre, vocalStyle, appSlug' },
+      { error: 'Required fields: theme, genre (or genres[]), vocalStyle, appSlug' },
       { status: 400 },
     )
   }
 
+  // Derive legacy genre from genres[] if only genres[] is provided
+  if (!req.genre && req.genres && req.genres.length > 0) {
+    req.genre = req.genres[0]
+  }
+
   const musicRequest = req as MusicCreationRequest
+
+  // Validate genre/mood limits before any processing
+  try {
+    validateMusicRequest(musicRequest)
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Invalid request' },
+      { status: 400 },
+    )
+  }
 
   try {
     if (action === 'lyrics_only') {
@@ -113,7 +142,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ lyrics })
     }
 
-    // action === 'create' (default)
+    if (action === 'create_async') {
+      const job = await createMusicJob(musicRequest)
+      return NextResponse.json({ job }, { status: 202 })
+    }
+
+    // action === 'create' (default — synchronous)
     const result = await createMusic(musicRequest)
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
