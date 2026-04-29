@@ -396,6 +396,249 @@ export function modelTierFor(modelId?: string): 'manual' | 'fast' | 'balanced' |
   return 'balanced'
 }
 
+export type QualityTier = 'best' | 'good' | 'balanced' | 'cheap'
+
+export async function qualityToModelId(quality: QualityTier): Promise<string | undefined> {
+  const models = await getRepoModelChoices()
+  switch (quality) {
+    case 'best':
+      return models.premium[0]?.id ?? models.recommended[0]?.id
+    case 'good':
+      return models.balanced[0]?.id ?? models.recommended[0]?.id
+    case 'balanced':
+      return models.recommended[0]?.id ?? models.balanced[0]?.id
+    case 'cheap':
+      return models.fast[0]?.id
+    default:
+      return models.recommended[0]?.id
+  }
+}
+
+const MASTER_CODING_SYSTEM_PROMPT = `SYSTEM ROLE:
+You are an elite senior software engineer, system architect, and DevOps engineer.
+
+You are working on a REAL production repository.
+
+Your goal is to:
+- Understand the entire repository
+- Identify problems, missing pieces, and risks
+- Improve code quality
+- Fix bugs
+- Complete missing flows
+- Make the system production-ready
+
+---
+
+RULES:
+
+1. DO NOT GUESS
+2. DO NOT BREAK WORKING FEATURES
+3. DO NOT REMOVE FUNCTIONALITY UNLESS NECESSARY
+4. DO NOT MODIFY FILES OUTSIDE THE PROJECT
+5. ALWAYS PRESERVE EXISTING ARCHITECTURE UNLESS CLEARLY BROKEN
+6. ALWAYS THINK STEP-BY-STEP BEFORE MAKING CHANGES
+7. MINIMIZE CHANGES BUT MAXIMIZE IMPACT
+8. NEVER EXPOSE OR MODIFY SECRETS (.env, keys, tokens)
+
+---
+
+PROCESS:
+
+Step 1: Understand the repository
+- Identify framework, language, structure
+- Identify entry points
+- Identify dependencies
+- Identify broken areas
+
+Step 2: Audit
+- Find errors
+- Find incomplete features
+- Find missing logic
+- Find bad patterns
+
+Step 3: Plan
+- Create a short, clear plan of fixes
+- Focus on stability and production readiness
+
+Step 4: Execute
+- Apply fixes
+- Improve code quality
+- Complete missing functionality
+- Keep changes clean and minimal
+
+Step 5: Validate
+- Ensure code compiles (if applicable)
+- Ensure logic is correct
+- Avoid introducing new issues
+
+---
+
+OUTPUT FORMAT (MANDATORY):
+
+Return JSON with this exact structure:
+
+{
+  "summary": "What was wrong and what was fixed",
+  "changes": [{ "file": string, "description": string }],
+  "diffText": "unified diff of all changes (git diff format)",
+  "filesAffected": [string],
+  "risks": [string],
+  "nextSteps": [string],
+  "riskNotes": [string],
+  "verificationCommands": [string]
+}
+
+---
+
+STYLE:
+
+- Be precise
+- Be safe
+- Be production-focused
+- Avoid overengineering
+- Prefer simple solutions`
+
+export async function runMagicPipeline(input: {
+  workspaceId: string
+  instruction: string
+  quality: QualityTier
+}) {
+  const modelId = await qualityToModelId(input.quality)
+  const workspace = await getWorkspace(input.workspaceId)
+  const summary = await summarizeRepo(input.workspaceId, 'standard')
+
+  const logs: string[] = []
+  logs.push(`[pipeline] Starting magic pipeline for ${workspace.owner}/${workspace.repo}`)
+  logs.push(`[pipeline] Quality: ${input.quality} → model: ${modelId ?? 'auto'}`)
+  logs.push(`[pipeline] Instruction: ${input.instruction}`)
+
+  const task = await prisma.repoTask.create({
+    data: {
+      repoWorkspaceId: workspace.id,
+      title: input.instruction.slice(0, 180),
+      userRequest: input.instruction,
+      agentMode: 'fullstack_builder',
+      selectedModel: modelId ?? '',
+      selectedModelTier: modelTierFor(modelId),
+      status: 'running',
+    },
+  })
+  logs.push(`[pipeline] Task created: ${task.id}`)
+
+  const taskPayload = JSON.stringify({
+    repo: `${workspace.owner}/${workspace.repo}`,
+    branch: workspace.branch,
+    currentCommit: workspace.currentCommit,
+    userInstruction: input.instruction,
+    tree: summary.tree,
+    files: summary.files,
+    requiredOutput: '{ "summary": string, "changes": [{ "file": string, "description": string }], "diffText": string, "filesAffected": string[], "risks": string[], "nextSteps": string[], "riskNotes": string[], "verificationCommands": string[] }',
+  }, null, 2)
+
+  logs.push('[pipeline] Calling GenX master coding agent...')
+
+  const result = await routeWorkspaceTask({
+    task: taskPayload,
+    systemPrompt: MASTER_CODING_SYSTEM_PROMPT,
+    fileContexts: summary.files,
+    capability: 'code_generation',
+    operationType: 'code',
+    policyOverride: modelId ? 'fixed' : 'best',
+    fixedModelOverride: modelId,
+    maxTokens: 14000,
+  })
+
+  if (!result.success || !result.output) {
+    await prisma.repoTask.update({ where: { id: task.id }, data: { status: 'failed' } })
+    throw new Error(result.error ?? 'AI agent did not return output')
+  }
+
+  logs.push(`[pipeline] AI responded (model: ${result.resolvedModel ?? 'unknown'})`)
+
+  const parsed = parseJsonOutput(result.output)
+  const diffText = String(parsed.diffText ?? parsed.diff ?? '')
+  const changes = Array.isArray(parsed.changes) ? parsed.changes as Array<{ file: string; description: string }> : []
+  const filesAffected = Array.isArray(parsed.filesAffected) ? parsed.filesAffected as string[] : Array.isArray(parsed.affectedFiles) ? parsed.affectedFiles as string[] : []
+  const summaryText = String(parsed.summary ?? '')
+  const risks = Array.isArray(parsed.risks) ? parsed.risks as string[] : Array.isArray(parsed.riskNotes) ? parsed.riskNotes as string[] : []
+  const nextSteps = Array.isArray(parsed.nextSteps) ? parsed.nextSteps as string[] : Array.isArray(parsed.nextActions) ? parsed.nextActions as string[] : []
+
+  // Save audit/plan artifact
+  const reportArtifact = await saveRepoArtifact({
+    workspaceId: input.workspaceId,
+    taskId: task.id,
+    type: 'report',
+    subType: 'magic_pipeline_report',
+    title: `AI Run: ${workspace.owner}/${workspace.repo}`,
+    description: summaryText.slice(0, 300),
+    content: JSON.stringify(parsed, null, 2),
+    model: result.resolvedModel,
+    traceId: result.traceId,
+  })
+  logs.push(`[pipeline] Report artifact saved: ${reportArtifact.id}`)
+
+  let patchId: string | null = null
+  let patchArtifactId: string | null = null
+
+  if (diffText.trim()) {
+    logs.push('[pipeline] Patch diff received, saving proposal...')
+    const patch = await prisma.repoPatch.create({
+      data: {
+        repoWorkspaceId: workspace.id,
+        repoTaskId: task.id,
+        title: summaryText.slice(0, 180) || input.instruction.slice(0, 180),
+        diffText,
+        status: 'proposed',
+        branchName: '',
+      },
+    })
+    const patchArtifact = await saveRepoArtifact({
+      workspaceId: input.workspaceId,
+      taskId: task.id,
+      patchId: patch.id,
+      type: 'code',
+      subType: 'patch_diff',
+      title: `Patch: ${workspace.owner}/${workspace.repo}`,
+      description: summaryText.slice(0, 300),
+      content: diffText,
+      model: result.resolvedModel,
+      traceId: result.traceId,
+    })
+    await prisma.repoPatch.update({ where: { id: patch.id }, data: { artifactId: patchArtifact.id } })
+    patchId = patch.id
+    patchArtifactId = patchArtifact.id
+    logs.push(`[pipeline] Patch saved: ${patch.id}`)
+  } else {
+    logs.push('[pipeline] No patch diff in response (analysis/plan only)')
+  }
+
+  await prisma.repoTask.update({
+    where: { id: task.id },
+    data: {
+      status: 'completed',
+      planJson: JSON.stringify(parsed),
+      changedFilesJson: JSON.stringify(filesAffected),
+      artifactIdsJson: JSON.stringify([reportArtifact.id, patchArtifactId].filter(Boolean)),
+    },
+  })
+
+  logs.push('[pipeline] Complete.')
+
+  return {
+    taskId: task.id,
+    patchId,
+    summary: summaryText,
+    changes,
+    filesAffected,
+    risks,
+    nextSteps,
+    diffText,
+    model: result.resolvedModel ?? modelId ?? '',
+    logs,
+    reportArtifactId: reportArtifact.id,
+  }
+}
+
 export async function summarizeRepo(workspaceId: string, depth: 'quick' | 'standard' | 'deep' = 'standard') {
   const { workspace, entries } = await listRepoTree(workspaceId)
   const important = entries
