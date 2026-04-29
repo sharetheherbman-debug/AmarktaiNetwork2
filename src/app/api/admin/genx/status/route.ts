@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session'
 import {
   getGenXStatusAsync,
   listGenXModels,
-  getAdultCapabilityStatus,
+  getAdultCapabilityStatusAsync,
   getCachedEndpointProfile,
 } from '@/lib/genx-client'
 
@@ -25,7 +25,7 @@ export async function GET() {
   }
 
   const status = await getGenXStatusAsync()
-  const adultStatus = getAdultCapabilityStatus()
+  const adultStatus = await getAdultCapabilityStatusAsync()
 
   let modelCount = 0
   if (status.available) {
@@ -61,6 +61,11 @@ export async function GET() {
     adultCapability: {
       supported:   adultStatus.supported,
       route:       adultStatus.route,
+      status:      adultStatus.status,
+      providers:   adultStatus.providers,
+      textModels:  adultStatus.textModels,
+      imageModels: adultStatus.imageModels,
+      videoModels: adultStatus.videoModels,
       reason:      adultStatus.note,
     },
     discoveredEndpoints: profile ? {

@@ -13,16 +13,16 @@ describe('Storage Driver', () => {
     expect(typeof mod.getStorageStatus).toBe('function')
   })
 
-  it('returns local driver by default', async () => {
+  it('returns VPS-local driver by default', async () => {
     const { getStorageDriver } = await import('../storage-driver')
     const driver = getStorageDriver()
-    expect(driver.name).toBe('local')
+    expect(driver.name).toBe('local_vps')
   })
 
   it('getStorageStatus returns driver info', async () => {
     const { getStorageStatus } = await import('../storage-driver')
     const status = getStorageStatus()
-    expect(status.driver).toBe('local')
+    expect(status.driver).toBe('local_vps')
     expect(status.configured).toBe(true)
     expect(typeof status.note).toBe('string')
   })

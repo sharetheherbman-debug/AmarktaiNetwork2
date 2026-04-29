@@ -17,6 +17,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import {
   Hammer, Eye, RefreshCw, Plus, Rocket, Activity, ImageIcon,
   FolderGit2, GitBranch, FileCode, ChevronRight, ChevronDown,
@@ -554,9 +555,9 @@ export default function CockpitTab() {
                   For creating a new app, use the <strong className="text-white">Build Apps</strong> tab
                   which includes app creation with agent linking and repo setup.
                 </p>
-                <a href="/admin/dashboard/apps/new" className="mt-2 inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">
+                <Link href="/admin/dashboard/apps/new" className="mt-2 inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">
                   Create New App <ChevronRight className="h-3.5 w-3.5" />
-                </a>
+                </Link>
               </div>
             )}
 

@@ -324,9 +324,9 @@ describe('HF Fallback Catalog Depth', () => {
  * ================================================================ */
 
 describe('Capability Engine Voice Suggestions', () => {
-  it('voice_input suggests 4 providers', () => {
+  it('voice_input suggests 5 providers', () => {
     const map = CAPABILITY_MAP as Record<string, { suggestedProviders?: string[] }>
-    expect(map.voice_input.suggestedProviders).toEqual(['groq', 'openai', 'gemini', 'huggingface'])
+    expect(map.voice_input.suggestedProviders).toEqual(['groq', 'openai', 'gemini', 'qwen', 'huggingface'])
   })
 
   it('voice_output suggests 4 providers', () => {

@@ -9,7 +9,7 @@
  * Capabilities supported:
  *   chat, code, file_analysis, image_generation, image_edit,
  *   video_generation, image_to_video, music_generation, lyrics_generation,
- *   tts, stt, voice_response, adult_image, adult_video,
+ *   tts, stt, voice_response, adult_text, adult_image, adult_video,
  *   repo_edit, app_build, deploy_plan, research, scrape_website
  *
  * Server-side only. Never import from client components.
@@ -21,11 +21,13 @@ import {
   GENX_TEXT_MODELS,
   GENX_IMAGE_MODELS,
   GENX_VIDEO_MODELS,
+  GENX_AUDIO_MODELS,
   GENX_TTS_MODELS,
 } from '@/lib/genx-client'
 import { callProvider, getVaultApiKey } from '@/lib/brain'
 import { crawlAppWebsite } from '@/lib/firecrawl'
 import { createArtifact } from '@/lib/artifact-store'
+import { getAdultTextModel, getDefaultAdultTextModel } from '@/lib/adult-model-catalog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,10 @@ export interface CapabilityResponse {
   outputType: string
   /** Text, URL, or base64 data URI */
   output: string | null
+  /** Async provider job ID when media is still processing */
+  jobId?: string
+  /** Live provider job status */
+  status?: 'pending' | 'processing' | 'completed' | 'succeeded' | 'failed'
   /** Artifact ID if saveArtifact=true and artifact was persisted */
   artifactId?: string
   fallbackUsed: boolean
@@ -75,6 +81,7 @@ export interface CapabilityResponse {
   error?: string
   /** Structured error category for adult/specialist routes */
   error_category?: 'missing_key' | 'provider_policy_block' | 'model_not_supported' | 'endpoint_error' | 'guardrail_block' | 'unknown'
+  providerAttempts?: Array<{ provider: string; model: string; status: string; error?: string }>
 }
 
 // ── Supported capability set ───────────────────────────────────────────────────
@@ -85,7 +92,7 @@ const ALL_CAPABILITIES = [
   'video_generation', 'image_to_video',
   'music_generation', 'lyrics_generation',
   'tts', 'stt', 'voice_response',
-  'adult_image', 'adult_video',
+  'adult_text', 'adult_image', 'adult_video',
   'suggestive_image', 'suggestive_video',
   'repo_edit', 'app_build', 'deploy_plan',
   'research', 'scrape_website',
@@ -104,6 +111,25 @@ const ADULT_BLOCKED_TERMS: readonly string[] = [
   'young person', 'kid', 'school age', 'preteen', 'infant', 'baby',
   'girl under 18', 'boy under 18', 'girl under 16', 'boy under 16',
   'non-consensual', 'rape', 'forced sex', 'forced intercourse',
+  'degrading', 'dehumanizing', 'dehumanising',
+]
+
+const ADULT_TEXT_SYSTEM_PROMPT =
+  'You are an adult-oriented creative writing and conversation assistant for consenting adults only. ' +
+  'You may handle mature themes when the user and all fictional characters are adults. ' +
+  'Strictly refuse minors, coercion, exploitation, non-consensual content, threats, hate, illegal activity, instructions for harm, or degrading abuse. ' +
+  'Keep the tone respectful, consent-aware, and non-degrading.'
+
+const DEFAULT_TOGETHER_ADULT_TEXT_MODEL = 'NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO'
+const DEFAULT_XAI_ADULT_TEXT_MODEL = 'grok-2-latest'
+
+const ADULT_TEXT_DEGRADING_PATTERNS: RegExp[] = [
+  /\b(degrade|humiliate|worthless|subhuman)\s+(her|him|them|woman|man|person|partner)\b/i,
+  /\b(degrading|humiliating|dehumanizing|dehumanising)\b/i,
+  /\bworthless\b/i,
+  /\bmake\s+(her|him|them)\s+(beg|cry|suffer)\b/i,
+  /\bslave\b/i,
+  /\bowned\s+(woman|man|person|partner)\b/i,
 ]
 
 /** Style prefix injected into suggestive image prompts to enforce non-explicit output */
@@ -185,6 +211,12 @@ function detectCapability(input: string, explicit?: string): Capability {
   ) return 'lyrics_generation'
   if ((includesTerm('song') && includesTerm('lyrics')) || includesTerm('songwriting')) return 'lyrics_generation'
 
+  // Adult-oriented text or roleplay must use specialist adult text routing.
+  if (
+    (includesTerm('adult') || includesTerm('18+') || includesTerm('nsfw') || includesTerm('roleplay')) &&
+    !(includesTerm('image') || includesTerm('picture') || includesTerm('photo') || includesTerm('video'))
+  ) return 'adult_text'
+
   // Voice output (TTS)
   if (
     includesTerm('speak') || includesTerm('tts') ||
@@ -248,6 +280,7 @@ function outputTypeForCapability(cap: string): string {
     case 'tts':
     case 'voice_response': return 'audio'
     case 'stt':           return 'text'
+    case 'adult_text':    return 'text'
     case 'code':
     case 'repo_edit':     return 'code'
     case 'deploy_plan':   return 'markdown'
@@ -274,9 +307,9 @@ async function tryGenXMedia(
   prompt: string,
   type: 'image' | 'video' | 'audio',
   model: string,
-): Promise<{ success: boolean; url: string | null; model: string; error: string | null }> {
+): Promise<{ success: boolean; url: string | null; jobId: string | null; status: 'pending' | 'processing' | 'completed' | 'succeeded' | 'failed'; model: string; error: string | null }> {
   const result = await callGenXMedia({ model, prompt, type })
-  return { success: result.success, url: result.url, model: result.model, error: result.error }
+  return { success: result.success, url: result.url, jobId: result.jobId, status: result.status, model: result.model, error: result.error }
 }
 
 // ── Fallback text chain ───────────────────────────────────────────────────────
@@ -306,6 +339,193 @@ async function tryFallbackText(
   return { success: false, output: null, provider: null, model: null, error: 'All fallback text providers failed' }
 }
 
+function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = metadata?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function validateAdultProviderUrl(raw: string): { ok: true; url: string } | { ok: false; error: string } {
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return { ok: false, error: 'Endpoint URL must use http or https.' }
+    }
+    const host = url.hostname.toLowerCase()
+    if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.)/.test(host) && process.env.NODE_ENV === 'production') {
+      return { ok: false, error: 'Private or loopback endpoint URLs are not allowed in production.' }
+    }
+    return { ok: true, url: url.href.replace(/\/$/, '') }
+  } catch {
+    return { ok: false, error: 'Invalid endpoint URL.' }
+  }
+}
+
+function adultProviderBaseUrl(raw: string): string {
+  return raw
+    .replace(/\/v1\/chat\/completions\/?$/, '')
+    .replace(/\/chat\/completions\/?$/, '')
+    .replace(/\/generate\/?$/, '')
+    .replace(/\/$/, '')
+}
+
+function hasAdultTextDegradingTerms(text: string): boolean {
+  return ADULT_TEXT_DEGRADING_PATTERNS.some((pattern) => pattern.test(text))
+}
+
+function extractOpenAiCompatibleText(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null
+  const record = data as { choices?: Array<{ message?: { content?: string }, text?: string }> }
+  return record.choices?.[0]?.message?.content ?? record.choices?.[0]?.text ?? null
+}
+
+function extractHuggingFaceText(data: unknown): string | null {
+  if (typeof data === 'string') return data
+  if (Array.isArray(data)) {
+    const first = data[0] as { generated_text?: string } | undefined
+    return first?.generated_text ?? null
+  }
+  if (typeof data === 'object' && data !== null) {
+    const record = data as { generated_text?: string; output?: string; text?: string }
+    return record.generated_text ?? record.output ?? record.text ?? null
+  }
+  return null
+}
+
+async function postAdultOpenAiCompatible(opts: {
+  endpoint: string
+  apiKey: string | null
+  model: string
+  input: string
+}): Promise<{ output: string | null; error: string | null; status: number }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`
+  const res = await fetch(`${adultProviderBaseUrl(opts.endpoint)}/v1/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: opts.model,
+      messages: [
+        { role: 'system', content: ADULT_TEXT_SYSTEM_PROMPT },
+        { role: 'user', content: opts.input },
+      ],
+      max_tokens: 900,
+      temperature: 0.75,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) return { output: null, error: text || `HTTP ${res.status}`, status: res.status }
+  try {
+    return { output: extractOpenAiCompatibleText(JSON.parse(text)), error: null, status: res.status }
+  } catch {
+    return { output: text || null, error: null, status: res.status }
+  }
+}
+
+async function postAdultHuggingFaceRaw(opts: {
+  endpoint: string
+  apiKey: string | null
+  input: string
+}): Promise<{ output: string | null; error: string | null; status: number }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (opts.apiKey) headers.Authorization = `Bearer ${opts.apiKey}`
+  const res = await fetch(opts.endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      inputs: `${ADULT_TEXT_SYSTEM_PROMPT}\n\nUser: ${opts.input}\nAssistant:`,
+      parameters: { max_new_tokens: 900, return_full_text: false, temperature: 0.75 },
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) return { output: null, error: text || `HTTP ${res.status}`, status: res.status }
+  try {
+    return { output: extractHuggingFaceText(JSON.parse(text)), error: null, status: res.status }
+  } catch {
+    return { output: text || null, error: null, status: res.status }
+  }
+}
+
+async function tryAdultTextProvider(opts: {
+  provider: 'huggingface' | 'together' | 'xai' | 'custom'
+  input: string
+  model: string
+  endpoint?: string
+  apiKey: string | null
+}): Promise<{ output: string | null; attempt: { provider: string; model: string; status: string; error?: string } }> {
+  if (opts.provider === 'huggingface') {
+    const modelSpec = getAdultTextModel(opts.model)
+    if (!opts.endpoint && modelSpec) {
+      return {
+        output: null,
+        attempt: {
+          provider: 'huggingface',
+          model: opts.model,
+          status: 'needs_endpoint',
+          error: `${modelSpec.label} requires a Hugging Face private endpoint or local GGUF runtime endpoint.`,
+        },
+      }
+    }
+    if (!opts.apiKey && !opts.endpoint) {
+      return {
+        output: null,
+        attempt: { provider: 'huggingface', model: opts.model, status: 'needs_key', error: 'Hugging Face key or endpoint is required.' },
+      }
+    }
+    const endpoint = opts.endpoint ?? `https://api-inference.huggingface.co/models/${opts.model}`
+    const validated = validateAdultProviderUrl(endpoint)
+    if (!validated.ok) {
+      return { output: null, attempt: { provider: 'huggingface', model: opts.model, status: 'test_failed', error: validated.error } }
+    }
+    const chat = await postAdultOpenAiCompatible({ endpoint: validated.url, apiKey: opts.apiKey, model: opts.model, input: opts.input })
+      .catch((err) => ({ output: null, error: err instanceof Error ? err.message : String(err), status: 0 }))
+    if (chat.output) return { output: chat.output, attempt: { provider: 'huggingface', model: opts.model, status: 'ready' } }
+    const raw = await postAdultHuggingFaceRaw({ endpoint: validated.url, apiKey: opts.apiKey, input: opts.input })
+      .catch((err) => ({ output: null, error: err instanceof Error ? err.message : String(err), status: 0 }))
+    if (raw.output) return { output: raw.output, attempt: { provider: 'huggingface', model: opts.model, status: 'ready' } }
+    return {
+      output: null,
+      attempt: {
+        provider: 'huggingface',
+        model: opts.model,
+        status: chat.status === 401 || chat.status === 403 || raw.status === 401 || raw.status === 403 ? 'needs_key' : 'test_failed',
+        error: raw.error ?? chat.error ?? 'Hugging Face endpoint returned no text.',
+      },
+    }
+  }
+
+  if (opts.provider === 'custom' && !opts.endpoint) {
+    return { output: null, attempt: { provider: 'custom', model: opts.model, status: 'needs_endpoint', error: 'Custom adult text provider requires endpoint.' } }
+  }
+  if (!opts.apiKey && opts.provider !== 'custom') {
+    const providerName = opts.provider === 'xai' ? 'xAI/Grok' : 'Together AI'
+    return { output: null, attempt: { provider: opts.provider, model: opts.model, status: 'needs_key', error: `${providerName} key is required.` } }
+  }
+
+  const endpoint =
+    opts.provider === 'together' ? 'https://api.together.xyz'
+    : opts.provider === 'xai' ? 'https://api.x.ai'
+    : opts.endpoint ?? ''
+  const validated = validateAdultProviderUrl(endpoint)
+  if (!validated.ok) {
+    return { output: null, attempt: { provider: opts.provider, model: opts.model, status: 'test_failed', error: validated.error } }
+  }
+  const res = await postAdultOpenAiCompatible({ endpoint: validated.url, apiKey: opts.apiKey, model: opts.model, input: opts.input })
+    .catch((err) => ({ output: null, error: err instanceof Error ? err.message : String(err), status: 0 }))
+  return res.output
+    ? { output: res.output, attempt: { provider: opts.provider, model: opts.model, status: 'ready' } }
+    : {
+        output: null,
+        attempt: {
+          provider: opts.provider,
+          model: opts.model,
+          status: res.status === 401 || res.status === 403 ? 'needs_key' : 'test_failed',
+          error: res.error ?? `${opts.provider} returned no text.`,
+        },
+      }
+}
+
 // ── Artifact saving ───────────────────────────────────────────────────────────
 
 // ── Artifact type mapping ─────────────────────────────────────────────────────
@@ -315,7 +535,7 @@ const ARTIFACT_TYPE_MAP: Record<string, 'image' | 'audio' | 'video' | 'code' | '
   video_generation: 'video', image_to_video: 'video', adult_video: 'video', suggestive_video: 'video',
   video_plan: 'document',
   music_generation: 'audio', tts: 'audio', voice_response: 'audio',
-  code: 'code', repo_edit: 'code',
+  adult_text: 'document', code: 'code', repo_edit: 'code',
 }
 
 async function maybeSaveArtifact(
@@ -373,7 +593,7 @@ export async function executeCapability(
   const save = request.saveArtifact ?? false
 
   // ── Adult content gating ──────────────────────────────────────────────────
-  if (cap === 'adult_image' || cap === 'adult_video') {
+  if (cap === 'adult_text' || cap === 'adult_image' || cap === 'adult_video') {
     const blockReason = checkAdultGuardrails(
       request.input,
       request.adultMode ?? false,
@@ -390,6 +610,7 @@ export async function executeCapability(
         output: null,
         fallbackUsed: false,
         error: blockReason,
+        error_category: 'guardrail_block',
       }
     }
   }
@@ -447,6 +668,20 @@ export async function executeCapability(
         if (save) artifactId = await maybeSaveArtifact(cap, res.url, 'genx', res.model, appSlug, request.traceId)
         logExecution(cap, 'genx', res.model, false, !!artifactId, null)
         return { success: true, capability: cap, provider: 'genx', model: res.model, outputType: 'image', output: res.url, artifactId, fallbackUsed: false }
+      }
+      if (res.success && res.jobId) {
+        logExecution(cap, 'genx', res.model, false, false, null)
+        return {
+          success: true,
+          capability: cap,
+          provider: 'genx',
+          model: res.model,
+          outputType: 'image',
+          output: null,
+          jobId: res.jobId,
+          status: res.status,
+          fallbackUsed: false,
+        }
       }
     }
 
@@ -508,6 +743,143 @@ export async function executeCapability(
       output: null,
       fallbackUsed: true,
       error: 'No image generation provider is configured. Configure GenX, OpenAI, or Together AI.',
+    }
+  }
+
+  // ── Adult text / conversation (specialist adult providers only) ────────────
+  // adult_text MUST NOT fall back to GenX/default safe chat. Provider order:
+  // Hugging Face private/local endpoint -> Together AI -> xAI/Grok.
+  if (cap === 'adult_text') {
+    if (hasAdultTextDegradingTerms(request.input)) {
+      logExecution(cap, null, null, false, false, 'Degrading adult text refused')
+      return {
+        success: false,
+        capability: cap,
+        provider: null,
+        model: null,
+        outputType: 'text',
+        output: null,
+        fallbackUsed: false,
+        error: 'Degrading, coercive, or dehumanizing adult content is not allowed.',
+        error_category: 'guardrail_block',
+      }
+    }
+
+    const requestedProvider = (request.providerOverride ?? 'auto').toLowerCase()
+    const endpoint = metadataString(request.metadata, 'endpoint')
+    const customKey = metadataString(request.metadata, 'apiKey') ?? null
+    const defaultHfModel = getDefaultAdultTextModel().id
+    const requestedModel = request.modelOverride?.trim()
+    const hfModel = requestedModel ?? defaultHfModel
+    const attempts: Array<{ provider: string; model: string; status: string; error?: string }> = []
+
+    const chain: Array<() => Promise<{ output: string | null; attempt: { provider: string; model: string; status: string; error?: string } }>> = []
+
+    if (requestedProvider === 'custom') {
+      chain.push(() => tryAdultTextProvider({
+        provider: 'custom',
+        input: request.input,
+        model: requestedModel ?? 'default',
+        endpoint,
+        apiKey: customKey,
+      }))
+    } else {
+      if (requestedProvider === 'auto' || requestedProvider === 'huggingface') {
+        const hfKey = await getVaultApiKey('huggingface')
+        chain.push(() => tryAdultTextProvider({
+          provider: 'huggingface',
+          input: request.input,
+          model: hfModel,
+          endpoint,
+          apiKey: hfKey,
+        }))
+      }
+      if (requestedProvider === 'auto' || requestedProvider === 'together') {
+        const togetherKey = await getVaultApiKey('together')
+        chain.push(() => tryAdultTextProvider({
+          provider: 'together',
+          input: request.input,
+          model: requestedProvider === 'together' && requestedModel ? requestedModel : DEFAULT_TOGETHER_ADULT_TEXT_MODEL,
+          apiKey: togetherKey,
+        }))
+      }
+      if (requestedProvider === 'auto' || requestedProvider === 'xai' || requestedProvider === 'grok') {
+        const xaiKey = await getVaultApiKey('xai') || await getVaultApiKey('grok')
+        chain.push(() => tryAdultTextProvider({
+          provider: 'xai',
+          input: request.input,
+          model: (requestedProvider === 'xai' || requestedProvider === 'grok') && requestedModel ? requestedModel : DEFAULT_XAI_ADULT_TEXT_MODEL,
+          apiKey: xaiKey,
+        }))
+      }
+    }
+
+    if (chain.length === 0) {
+      return {
+        success: false,
+        capability: cap,
+        provider: null,
+        model: null,
+        outputType: 'text',
+        output: null,
+        fallbackUsed: false,
+        error: `Adult text provider "${request.providerOverride}" is not supported. Use auto, huggingface, together, xai, grok, or custom.`,
+        error_category: 'model_not_supported',
+      }
+    }
+
+    for (const run of chain) {
+      const result = await run()
+      attempts.push(result.attempt)
+      if (result.output) {
+        if (hasAdultTextDegradingTerms(result.output)) {
+          logExecution(cap, result.attempt.provider, result.attempt.model, false, false, 'Adult text output refused')
+          return {
+            success: false,
+            capability: cap,
+            provider: result.attempt.provider,
+            model: result.attempt.model,
+            outputType: 'text',
+            output: null,
+            fallbackUsed: false,
+            error: 'Model output was blocked because it contained degrading or dehumanizing content.',
+            error_category: 'guardrail_block',
+            providerAttempts: attempts,
+          }
+        }
+        let artifactId: string | undefined
+        if (save) artifactId = await maybeSaveArtifact(cap, result.output, result.attempt.provider, result.attempt.model, appSlug, request.traceId)
+        logExecution(cap, result.attempt.provider, result.attempt.model, false, !!artifactId, null)
+        return {
+          success: true,
+          capability: cap,
+          provider: result.attempt.provider,
+          model: result.attempt.model,
+          outputType: 'text',
+          output: result.output,
+          artifactId,
+          fallbackUsed: false,
+          providerAttempts: attempts,
+        }
+      }
+    }
+
+    logExecution(cap, null, null, false, false, 'Adult text providers need setup')
+    const needsKey = attempts.some((attempt) => attempt.status === 'needs_key')
+    const needsEndpoint = attempts.some((attempt) => attempt.status === 'needs_endpoint')
+    return {
+      success: false,
+      capability: cap,
+      provider: null,
+      model: null,
+      outputType: 'text',
+      output: null,
+      fallbackUsed: false,
+      error: needsEndpoint
+        ? 'Adult text needs a Hugging Face private/local endpoint, Together key/model, or xAI/Grok key/model.'
+        : 'Adult text providers were reached in order, but no provider returned text.',
+      error_category: needsKey ? 'missing_key' : 'endpoint_error',
+      providerAttempts: attempts,
     }
   }
 
@@ -759,39 +1131,65 @@ export async function executeCapability(
         logExecution(cap, 'genx', res.model, false, !!artifactId, null)
         return { success: true, capability: cap, provider: 'genx', model: res.model, outputType: 'video', output: res.url, artifactId, fallbackUsed: false }
       }
-    }
-
-    // No real video provider — return an honest storyboard plan
-    const planResult = await tryFallbackText(
-      `Create a detailed video storyboard/script for: "${request.input}". ` +
-      `Structure as: scene list, shot descriptions, narration/dialogue, and visual style notes.`,
-    )
-    if (planResult.success && planResult.output) {
-      let artifactId: string | undefined
-      if (save) artifactId = await maybeSaveArtifact('video_plan', planResult.output, planResult.provider, planResult.model, appSlug, request.traceId)
-      logExecution('video_plan', planResult.provider, planResult.model, true, !!artifactId, null)
-      return {
-        success: true,
-        capability: 'video_plan',
-        provider: planResult.provider,
-        model: planResult.model,
-        outputType: 'video_plan',
-        output: planResult.output,
-        artifactId,
-        fallbackUsed: true,
-        fallbackReason: 'No real video provider configured',
-        warning: 'No real video provider configured — storyboard returned instead of generated video',
+      if (res.success && res.jobId) {
+        logExecution(cap, 'genx', res.model, false, false, null)
+        return {
+          success: true,
+          capability: cap,
+          provider: 'genx',
+          model: res.model,
+          outputType: 'video',
+          output: null,
+          jobId: res.jobId,
+          status: res.status,
+          fallbackUsed: false,
+        }
       }
     }
 
     logExecution(cap, null, null, true, false, 'No video provider available')
-    return { success: false, capability: cap, provider: null, model: null, outputType: 'video', output: null, fallbackUsed: true, error: 'No video generation provider is configured.' }
+    return {
+      success: false,
+      capability: cap,
+      provider: null,
+      model: null,
+      outputType: 'video',
+      output: null,
+      fallbackUsed: true,
+      error: 'No real video generation provider returned a job. Use video_planning explicitly if you want a storyboard instead.',
+      error_category: 'endpoint_error',
+    }
   }
 
-  // ── Music generation ──────────────────────────────────────────────────────
-  // GenX has no known real music models yet — fall to blueprint.
-  // This must NEVER route to image generation.
+  // Music generation. GenX audio models create real async jobs; the text
+  // blueprint is only a planning fallback and never masquerades as audio.
   if (cap === 'music_generation') {
+    const preferredModel = request.modelOverride ?? GENX_AUDIO_MODELS[0]
+
+    if (!request.providerOverride || request.providerOverride === 'genx') {
+      const res = await tryGenXMedia(request.input, 'audio', preferredModel)
+      if (res.success && res.url) {
+        let artifactId: string | undefined
+        if (save) artifactId = await maybeSaveArtifact(cap, res.url, 'genx', res.model, appSlug, request.traceId)
+        logExecution(cap, 'genx', res.model, false, !!artifactId, null)
+        return { success: true, capability: cap, provider: 'genx', model: res.model, outputType: 'audio', output: res.url, artifactId, fallbackUsed: false }
+      }
+      if (res.success && res.jobId) {
+        logExecution(cap, 'genx', res.model, false, false, null)
+        return {
+          success: true,
+          capability: cap,
+          provider: 'genx',
+          model: res.model,
+          outputType: 'audio',
+          output: null,
+          jobId: res.jobId,
+          status: res.status,
+          fallbackUsed: false,
+        }
+      }
+    }
+
     const blueprintResult = await tryFallbackText(
       `Generate a complete music blueprint for: "${request.input}". ` +
       `Include: song title, genre, BPM, key, full verse/chorus/bridge structure, ` +
@@ -810,8 +1208,8 @@ export async function executeCapability(
         output: blueprintResult.output,
         artifactId,
         fallbackUsed: true,
-        fallbackReason: 'No real music provider configured',
-        warning: 'No real music provider configured — creative blueprint returned instead of generated audio',
+        fallbackReason: 'GenX music job unavailable',
+        warning: 'Generated a music blueprint only. No audio job was created.',
       }
     }
     logExecution(cap, null, null, true, false, 'Music generation failed')
@@ -855,6 +1253,20 @@ export async function executeCapability(
         if (save) artifactId = await maybeSaveArtifact(cap, res.url, 'genx', res.model, appSlug, request.traceId)
         logExecution(cap, 'genx', res.model, false, !!artifactId, null)
         return { success: true, capability: cap, provider: 'genx', model: res.model, outputType: 'audio', output: res.url, artifactId, fallbackUsed: false }
+      }
+      if (res.success && res.jobId) {
+        logExecution(cap, 'genx', res.model, false, false, null)
+        return {
+          success: true,
+          capability: cap,
+          provider: 'genx',
+          model: res.model,
+          outputType: 'audio',
+          output: null,
+          jobId: res.jobId,
+          status: res.status,
+          fallbackUsed: false,
+        }
       }
     }
 

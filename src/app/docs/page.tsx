@@ -4,6 +4,7 @@
  * Static page — no auth required. Safe to index.
  */
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'API Reference — Amarktai Network Brain Gateway',
@@ -155,7 +156,7 @@ export default function DocsPage() {
             <span className="text-lg font-bold text-white font-heading">Amarktai Network</span>
             <Badge color="blue">API Docs</Badge>
           </div>
-          <a href="/" className="text-sm text-zinc-500 hover:text-white transition-colors">← Back to site</a>
+          <Link href="/" className="text-sm text-zinc-500 hover:text-white transition-colors">← Back to site</Link>
         </div>
       </header>
 

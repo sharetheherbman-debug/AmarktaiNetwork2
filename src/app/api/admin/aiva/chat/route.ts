@@ -17,6 +17,10 @@ import { prisma } from '@/lib/prisma'
 function detectCapabilityFromMessage(text: string): string {
   const t = text.toLowerCase()
 
+  if (
+    (/\badult\b|18\+|\bnsfw\b|adult roleplay|adult conversation/.test(t)) &&
+    !/image|picture|photo|video/.test(t)
+  ) return 'adult_text'
   if (/create image|generate image|\bdraw\b/.test(t)) return 'image_generation'
   if (/edit image|image edit/.test(t)) return 'image_edit'
   if (/create video|generate video|make video/.test(t)) return 'video_generation'
@@ -49,6 +53,9 @@ export async function POST(req: NextRequest) {
       modelOverride,
       saveArtifact,
       files,
+      adultMode,
+      safeMode,
+      metadata,
     } = body as {
       message: string
       conversationId?: string
@@ -57,6 +64,9 @@ export async function POST(req: NextRequest) {
       modelOverride?: string
       saveArtifact?: boolean
       files?: string[]
+      adultMode?: boolean
+      safeMode?: boolean
+      metadata?: Record<string, unknown>
     }
 
     if (!message || typeof message !== 'string' || !message.trim()) {
@@ -108,8 +118,11 @@ export async function POST(req: NextRequest) {
       files,
       providerOverride,
       modelOverride,
+      adultMode: adultMode === true,
+      safeMode: safeMode === true,
       saveArtifact,
       traceId: `aiva-chat-${Date.now()}`,
+      metadata,
     })
 
     // ── Save assistant message ────────────────────────────────────────────────

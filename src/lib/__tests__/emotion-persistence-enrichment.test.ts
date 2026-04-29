@@ -7,6 +7,7 @@
  *   - Docker deployment readiness
  */
 
+import path from 'path'
 import { describe, it, expect } from 'vitest'
 
 import {
@@ -307,25 +308,27 @@ describe('Emotion Blending', () => {
 // ─── Docker Deployment Readiness ────────────────────────────────────────────
 
 describe('Deployment Readiness', () => {
+  const repoRoot = process.cwd()
+
   it('Dockerfile exists', async () => {
     const fs = await import('fs')
-    expect(fs.existsSync('/home/runner/work/Amarktai-Network/Amarktai-Network/Dockerfile')).toBe(true)
+    expect(fs.existsSync(path.join(repoRoot, 'Dockerfile'))).toBe(true)
   })
 
   it('docker-compose.yml exists', async () => {
     const fs = await import('fs')
-    expect(fs.existsSync('/home/runner/work/Amarktai-Network/Amarktai-Network/docker-compose.yml')).toBe(true)
+    expect(fs.existsSync(path.join(repoRoot, 'docker-compose.yml'))).toBe(true)
   })
 
   it('next.config.mjs has standalone output', async () => {
     const fs = await import('fs')
-    const config = fs.readFileSync('/home/runner/work/Amarktai-Network/Amarktai-Network/next.config.mjs', 'utf-8')
+    const config = fs.readFileSync(path.join(repoRoot, 'next.config.mjs'), 'utf-8')
     expect(config).toContain("output: 'standalone'")
   })
 
   it('.env.example exists with required vars', async () => {
     const fs = await import('fs')
-    const env = fs.readFileSync('/home/runner/work/Amarktai-Network/Amarktai-Network/.env.example', 'utf-8')
+    const env = fs.readFileSync(path.join(repoRoot, '.env.example'), 'utf-8')
     expect(env).toContain('DATABASE_URL')
     expect(env).toContain('SESSION_SECRET')
     expect(env).toContain('REDIS_URL')

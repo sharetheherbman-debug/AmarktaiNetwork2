@@ -43,7 +43,7 @@
     "ioredis": "^5.10.1",
     "iron-session": "^8.0.4",
     "lucide-react": "^0.577.0",
-    "next": "^15.2.9",
+    "next": "^15.5.15",
     "nodemailer": "^8.0.5",
     "react": "^18",
     "react-dom": "^18",
@@ -63,11 +63,14 @@
     "@types/sentiment": "^5.0.4",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^8",
-    "eslint-config-next": "14.2.35",
-    "postcss": "^8",
+    "eslint-config-next": "^15.5.15",
+    "postcss": "^8.5.12",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "vitest": "^4.1.1"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }

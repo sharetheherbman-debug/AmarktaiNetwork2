@@ -11,7 +11,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { getStorageDriver, type StorageDriver } from '@/lib/storage-driver'
+import { getStorageDriver, verifyStorage, type StorageDriver } from '@/lib/storage-driver'
 import { emitSystemEvent } from '@/lib/event-bus'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -105,6 +105,43 @@ function isPreviewable(type: ArtifactType): boolean {
   return ['image', 'audio', 'music', 'video'].includes(type)
 }
 
+function isPublicHttpsUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:') return false
+    const host = url.hostname.toLowerCase()
+    if (
+      host === 'localhost' ||
+      host === '0.0.0.0' ||
+      host.startsWith('127.') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      host.startsWith('169.254.') ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    ) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function fetchExternalArtifact(url: string): Promise<{ content: Buffer; mimeType?: string }> {
+  if (!isPublicHttpsUrl(url)) {
+    throw new Error('External artifact URLs must be public HTTPS URLs before they can be persisted.')
+  }
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+  if (!res.ok) {
+    throw new Error(`External artifact fetch failed with HTTP ${res.status}`)
+  }
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (buf.length === 0) {
+    throw new Error('External artifact fetch returned an empty file.')
+  }
+  return { content: buf, mimeType: res.headers.get('content-type') ?? undefined }
+}
+
 // ── Core Operations ──────────────────────────────────────────────────────────
 
 /**
@@ -112,21 +149,36 @@ function isPreviewable(type: ArtifactType): boolean {
  */
 export async function createArtifact(input: CreateArtifactInput): Promise<ArtifactRecord> {
   const driver: StorageDriver = getStorageDriver()
-  const mimeType = input.mimeType ?? inferMimeType(input.type, input.subType)
+  const storageHealth = await verifyStorage()
+  if (!storageHealth.configured) {
+    throw new Error(`Artifact storage is not ready: ${storageHealth.error ?? storageHealth.note}`)
+  }
+  let content = input.content
+  let contentUrl = input.contentUrl ?? ''
+  let mimeType = input.mimeType ?? inferMimeType(input.type, input.subType)
+
+  if (!content && contentUrl.startsWith('http')) {
+    const fetched = await fetchExternalArtifact(contentUrl)
+    content = fetched.content
+    mimeType = input.mimeType ?? fetched.mimeType ?? mimeType
+    contentUrl = ''
+  }
 
   let storagePath = ''
-  let storageUrl = input.contentUrl ?? ''
+  let storageUrl = contentUrl
   let fileSizeBytes = 0
 
   // Upload content if provided
-  if (input.content) {
-    const buf = typeof input.content === 'string'
-      ? Buffer.from(input.content, 'base64')
-      : input.content
+  if (content) {
+    const buf = typeof content === 'string'
+      ? Buffer.from(content, 'base64')
+      : content
     fileSizeBytes = buf.length
     const ext = mimeType.split('/')[1] ?? 'bin'
     const key = `artifacts/${input.appSlug}/${input.type}/${Date.now()}.${ext}`
     const result = await driver.put(key, buf, mimeType)
+    const exists = await driver.exists(result.path)
+    if (!exists) throw new Error(`Artifact storage verification failed for ${result.path}`)
     storagePath = key
     storageUrl = result.url
   }
