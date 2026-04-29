@@ -398,6 +398,9 @@ export function modelTierFor(modelId?: string): 'manual' | 'fast' | 'balanced' |
 
 export type QualityTier = 'best' | 'good' | 'balanced' | 'cheap'
 
+// Max tokens for the magic pipeline — generous limit to accommodate full diffs on larger repos
+const MAX_TOKENS_MAGIC_PIPELINE = 14000
+
 export async function qualityToModelId(quality: QualityTier): Promise<string | undefined> {
   const models = await getRepoModelChoices()
   switch (quality) {
@@ -545,7 +548,7 @@ export async function runMagicPipeline(input: {
     operationType: 'code',
     policyOverride: modelId ? 'fixed' : 'best',
     fixedModelOverride: modelId,
-    maxTokens: 14000,
+    maxTokens: MAX_TOKENS_MAGIC_PIPELINE,
   })
 
   if (!result.success || !result.output) {
@@ -558,9 +561,12 @@ export async function runMagicPipeline(input: {
   const parsed = parseJsonOutput(result.output)
   const diffText = String(parsed.diffText ?? parsed.diff ?? '')
   const changes = Array.isArray(parsed.changes) ? parsed.changes as Array<{ file: string; description: string }> : []
+  // Accept both 'filesAffected' and 'affectedFiles' — models may return either field name
   const filesAffected = Array.isArray(parsed.filesAffected) ? parsed.filesAffected as string[] : Array.isArray(parsed.affectedFiles) ? parsed.affectedFiles as string[] : []
   const summaryText = String(parsed.summary ?? '')
+  // Accept both 'risks' and 'riskNotes' — models may return either field name
   const risks = Array.isArray(parsed.risks) ? parsed.risks as string[] : Array.isArray(parsed.riskNotes) ? parsed.riskNotes as string[] : []
+  // Accept both 'nextSteps' and 'nextActions' — models may return either field name
   const nextSteps = Array.isArray(parsed.nextSteps) ? parsed.nextSteps as string[] : Array.isArray(parsed.nextActions) ? parsed.nextActions as string[] : []
 
   // Save audit/plan artifact

@@ -15,6 +15,9 @@ import {
   XCircle,
 } from 'lucide-react'
 
+// Git convention: subject line ≤ 72 characters
+const MAX_COMMIT_MESSAGE_LENGTH = 72
+
 type Quality = 'best' | 'good' | 'balanced' | 'cheap'
 
 interface Workspace {
@@ -126,7 +129,7 @@ export default function RepoWorkbenchPage() {
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error ?? 'AI run failed')
       setResult(data as RunResult)
-      if (data.summary) setCommitMessage(String(data.summary).slice(0, 72))
+      if (data.summary) setCommitMessage(String(data.summary).slice(0, MAX_COMMIT_MESSAGE_LENGTH))
       setStatus('done')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI run failed')
@@ -433,7 +436,7 @@ export default function RepoWorkbenchPage() {
               <div>
                 <p className="text-sm font-semibold text-emerald-300">{actionResult.label}</p>
                 {actionResult.detail && (
-                  actionResult.detail.startsWith('http')
+                  actionResult.detail.startsWith('https://')
                     ? <a href={actionResult.detail} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-400 underline">{actionResult.detail}</a>
                     : <p className="text-xs text-emerald-400">{actionResult.detail}</p>
                 )}
