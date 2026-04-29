@@ -70,7 +70,7 @@ const MAX_SESSION_MESSAGES = 20
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000 // 2 hours
 const sessionTimestamps = new Map<string, number>()
 
-function getSession_context(sessionId: string): SessionMessage[] {
+function getSessionContext(sessionId: string): SessionMessage[] {
   // Prune expired sessions
   const now = Date.now()
   for (const [sid, ts] of sessionTimestamps) {
@@ -311,14 +311,14 @@ export async function POST(req: NextRequest) {
     const appHint = typeof body.appHint === 'string' ? body.appHint : undefined
 
     // Load session history
-    const history = getSession_context(sessionId)
+    const history = getSessionContext(sessionId)
 
     // Detect capability
     const { capability, executeInline, navigateTo } = detectAivaCapability(message, appHint)
 
     // Save user message to session
     saveSessionMessage(sessionId, { role: 'user', content: message })
-    const conversationMessages = getSession_context(sessionId)
+    const conversationMessages = getSessionContext(sessionId)
 
     // ── Navigate-only capabilities ──────────────────────────────────────────
     if (!executeInline && navigateTo) {

@@ -239,6 +239,11 @@ export default function AivaCentralChat({ onNavigate }: AivaCentralChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputRows, setInputRows] = useState(1)
 
+  const removePendingMessages = useCallback(
+    (prev: AivaMessage[]) => prev.filter((m: AivaMessage) => !m.pending),
+    [],
+  )
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -305,14 +310,14 @@ export default function AivaCentralChat({ onNavigate }: AivaCentralChatProps) {
         pending: false,
       }
 
-      setMessages((prev: AivaMessage[]) => prev.filter((m: AivaMessage) => !m.pending).concat(assistantMsg))
+      setMessages((prev: AivaMessage[]) => removePendingMessages(prev).concat(assistantMsg))
 
       // Auto-navigate when Aiva routes to a section
       if (data.navigateTo && onNavigate) {
         setTimeout(() => onNavigate(data.navigateTo!), 800)
       }
     } catch (err) {
-      setMessages((prev: AivaMessage[]) => prev.filter((m: AivaMessage) => !m.pending).concat({
+      setMessages((prev: AivaMessage[]) => removePendingMessages(prev).concat({
         id: `error-${Date.now()}`,
         role: 'assistant',
         content: err instanceof Error ? err.message : 'Request failed.',
@@ -321,7 +326,7 @@ export default function AivaCentralChat({ onNavigate }: AivaCentralChatProps) {
     } finally {
       setSending(false)
     }
-  }, [sending, sessionId, onNavigate])
+  }, [sending, sessionId, onNavigate, removePendingMessages])
 
   const handleSubmit = useCallback(() => {
     if (input.trim()) send(input)

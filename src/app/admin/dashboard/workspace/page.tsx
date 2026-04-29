@@ -169,10 +169,10 @@ export default function WorkspacePage() {
             <button
               onClick={() => setPartnerOpen((v) => !v)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs transition-all ${partnerOpen ? 'border-blue-400/40 bg-blue-400/10 text-blue-300' : 'border-white/10 bg-white/5 text-slate-400 hover:text-white'}`}
-              title="Aiva — AmarktAI Voice &amp; Intelligence Assistant"
+              title="AI Partner — AmarktAI Voice &amp; Intelligence Panel"
             >
               {partnerOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-              Aiva Panel
+              AI Partner
             </button>
           </div>
         </div>
