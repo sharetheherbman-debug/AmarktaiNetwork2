@@ -17,9 +17,11 @@ import {
   RefreshCw,
   PanelRightClose,
   PanelRightOpen,
+  Sparkles,
 } from 'lucide-react'
 import type { AssistantAction } from '@/components/AIPartnerWidget'
 
+const AivaCentralChat = dynamic(() => import('@/components/AivaCentralChat'), { ssr: false })
 const TestAITab = dynamic(() => import('../build-studio/tabs/TestAITab'), { ssr: false })
 const CreateAppTab = dynamic(() => import('../build-studio/tabs/CreateAppTab'), { ssr: false })
 const AppBuilderTab = dynamic(() => import('../build-studio/tabs/AppBuilderTab'), { ssr: false })
@@ -30,9 +32,10 @@ const GitHubTab = dynamic(() => import('../build-studio/tabs/GitHubTab'), { ssr:
 const CockpitTab = dynamic(() => import('../build-studio/tabs/CockpitTab'), { ssr: false })
 const AIPartnerWidget = dynamic(() => import('@/components/AIPartnerWidget'), { ssr: false })
 
-type TabKey = 'cockpit' | 'ai-lab' | 'github' | 'build-app' | 'images' | 'voice' | 'video' | 'music' | 'compare' | 'workflows'
+type TabKey = 'aiva' | 'cockpit' | 'ai-lab' | 'github' | 'build-app' | 'images' | 'voice' | 'video' | 'music' | 'compare' | 'workflows'
 
 const tabs: { key: TabKey; label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
+  { key: 'aiva',      label: 'Aiva',      icon: Sparkles    },
   { key: 'cockpit',   label: 'Cockpit',   icon: Workflow    },
   { key: 'ai-lab',    label: 'AI Lab',    icon: FlaskConical },
   { key: 'github',    label: 'GitHub',    icon: FolderGit2  },
@@ -51,6 +54,7 @@ interface UsageSummary {
 }
 
 const SECTION_TO_TAB: Record<string, TabKey> = {
+  'aiva':    'aiva',
   'cockpit':  'cockpit',
   'ai-lab':  'ai-lab',
   'test-ai': 'ai-lab',
@@ -72,7 +76,7 @@ const normalizeCapabilityName = (value: string) => value.replace(/_/g, ' ')
 
 export default function WorkspacePage() {
   const router = useRouter()
-  const [active, setActive] = useState<TabKey>('cockpit')
+  const [active, setActive] = useState<TabKey>('aiva')
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [partnerOpen, setPartnerOpen] = useState(false)
@@ -103,6 +107,14 @@ export default function WorkspacePage() {
       setActive('ai-lab')
     }
   }, [router])
+
+  /** Called by AivaCentralChat when Aiva routes user to a specific section */
+  const handleAivaNavigate = useCallback((tab: string) => {
+    const tabKey = SECTION_TO_TAB[tab] ?? (tab as TabKey)
+    if (tabs.some(t => t.key === tabKey)) {
+      setActive(tabKey)
+    }
+  }, [])
 
   const loadUsage = useCallback(() => {
     setLoadingUsage(true)
@@ -138,7 +150,11 @@ export default function WorkspacePage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">Workspace</h1>
-            <p className="mt-1 text-sm text-slate-400">AI developer cockpit — AI Lab, GitHub, media generation, app builder, and deploy.</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {active === 'aiva'
+                ? 'Aiva · One AI, one interface — chat, generate, build, deploy.'
+                : 'AI developer cockpit — AI Lab, GitHub, media generation, app builder, and deploy.'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -153,10 +169,10 @@ export default function WorkspacePage() {
             <button
               onClick={() => setPartnerOpen((v) => !v)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs transition-all ${partnerOpen ? 'border-blue-400/40 bg-blue-400/10 text-blue-300' : 'border-white/10 bg-white/5 text-slate-400 hover:text-white'}`}
-              title="Aiva — AmarktAI Voice &amp; Intelligence Assistant"
+              title="AI Partner — AmarktAI Voice &amp; Intelligence Panel"
             >
               {partnerOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-              Aiva
+              AI Partner
             </button>
           </div>
         </div>
@@ -183,7 +199,13 @@ export default function WorkspacePage() {
           <button
             key={tab.key}
             onClick={() => setActive(tab.key)}
-            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-sm transition ${active === tab.key ? 'border-cyan-400/40 bg-cyan-400/10 text-white' : 'border-white/10 bg-white/5 text-slate-300 hover:text-white'}`}
+            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-sm transition ${
+              active === tab.key
+                ? tab.key === 'aiva'
+                  ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300'
+                  : 'border-cyan-400/40 bg-cyan-400/10 text-white'
+                : 'border-white/10 bg-white/5 text-slate-300 hover:text-white'
+            }`}
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}
@@ -193,6 +215,7 @@ export default function WorkspacePage() {
 
       <div className={`grid gap-4 ${partnerOpen ? 'xl:grid-cols-[1fr_360px]' : 'grid-cols-1'}`}>
         <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          {active === 'aiva' && <AivaCentralChat onNavigate={handleAivaNavigate} />}
           {active === 'cockpit' && <CockpitTab />}
           {active === 'ai-lab' && <TestAITab />}
           {active === 'github' && <GitHubTab />}
