@@ -74,13 +74,14 @@ const SECTION_TO_TAB: Record<string, TabKey> = {
 
 const normalizeCapabilityName = (value: string) => value.replace(/_/g, ' ')
 
+const VALID_TAB_KEYS = new Set(tabs.map(t => t.key))
+
 function WorkspaceInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab') ?? ''
   const mappedTab = SECTION_TO_TAB[tabParam]
-  const isValidTab = tabs.some(t => t.key === tabParam)
-  const initialTab: TabKey = mappedTab ?? (isValidTab ? (tabParam as TabKey) : 'aiva')
+  const initialTab: TabKey = mappedTab ?? (VALID_TAB_KEYS.has(tabParam as TabKey) ? (tabParam as TabKey) : 'aiva')
   const [active, setActive] = useState<TabKey>(initialTab)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
@@ -116,7 +117,7 @@ function WorkspaceInner() {
   /** Called by AivaCentralChat when Aiva routes user to a specific section */
   const handleAivaNavigate = useCallback((tab: string) => {
     const tabKey = SECTION_TO_TAB[tab] ?? (tab as TabKey)
-    if (tabs.some(t => t.key === tabKey)) {
+    if (VALID_TAB_KEYS.has(tabKey)) {
       setActive(tabKey)
     }
   }, [])

@@ -474,12 +474,16 @@ export default function MusicStudioPage() {
             )}
 
             {/* Job status */}
-            {activeJob && (
-              <div className={`p-4 rounded-xl border ${
-                activeJob.status === 'completed' ? 'border-emerald-500/20 bg-emerald-500/5' :
-                activeJob.status === 'failed' ? 'border-red-500/20 bg-red-500/5' :
-                'border-blue-500/20 bg-blue-500/5'
-              }`}>
+            {activeJob && (() => {
+              const isCompleted = activeJob.status === 'completed'
+              const isFailed = activeJob.status === 'failed'
+              const borderClass = isCompleted
+                ? 'border-emerald-500/20 bg-emerald-500/5'
+                : isFailed
+                  ? 'border-red-500/20 bg-red-500/5'
+                  : 'border-blue-500/20 bg-blue-500/5'
+              return (
+              <div className={`p-4 rounded-xl border ${borderClass}`}>
                 <div className="flex items-center gap-2 mb-2">
                   {activeJob.status === 'completed' ? <CheckCircle className="w-4 h-4 text-emerald-400" /> :
                    activeJob.status === 'failed' ? <XCircle className="w-4 h-4 text-red-400" /> :
@@ -510,7 +514,8 @@ export default function MusicStudioPage() {
                   <img src={activeJob.coverArtUrl} alt="Cover art" className="mt-3 w-24 h-24 rounded-lg object-cover" />
                 )}
               </div>
-            )}
+              )
+            })()}
 
             {/* Generate button */}
             <div>
