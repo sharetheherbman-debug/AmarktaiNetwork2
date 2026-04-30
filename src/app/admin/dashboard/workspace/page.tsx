@@ -77,8 +77,10 @@ const normalizeCapabilityName = (value: string) => value.replace(/_/g, ' ')
 function WorkspaceInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tabParam = searchParams.get('tab')
-  const initialTab: TabKey = (tabParam && SECTION_TO_TAB[tabParam]) ? SECTION_TO_TAB[tabParam] : (tabParam as TabKey | null && tabs.some(t => t.key === tabParam) ? tabParam as TabKey : 'aiva')
+  const tabParam = searchParams.get('tab') ?? ''
+  const mappedTab = SECTION_TO_TAB[tabParam]
+  const isValidTab = tabs.some(t => t.key === tabParam)
+  const initialTab: TabKey = mappedTab ?? (isValidTab ? (tabParam as TabKey) : 'aiva')
   const [active, setActive] = useState<TabKey>(initialTab)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
