@@ -12,11 +12,9 @@ import {
   Workflow,
   Archive,
   Database,
-  Zap,
   FolderGit2,
-  Rocket,
-  AppWindow,
-  Settings2,
+  Music,
+  Sparkles,
   ChevronRight,
 } from 'lucide-react'
 import Header from '@/components/layout/Header'
@@ -24,43 +22,42 @@ import Footer from '@/components/layout/Footer'
 import NetworkPulseBackground from '@/components/visual/NetworkPulseBackground'
 
 const capabilities = [
+  { icon: Sparkles,     label: 'Aiva Assistant',       desc: 'Intelligent chat, routing, and task execution in one interface.' },
   { icon: MessageSquare, label: 'Chat & Reasoning',    desc: 'Task-aware routing across language models.' },
-  { icon: ImageIcon,     label: 'Image Generation',    desc: 'High-fidelity visuals with provider fallback.' },
-  { icon: Mic,           label: 'Voice Stack',          desc: 'STT, TTS, and persona-aware voice flows.' },
-  { icon: Video,         label: 'Video Pipelines',      desc: 'Queue-backed generation under one surface.' },
-  { icon: Bot,           label: 'App Agents',           desc: 'App-scoped agents with policy and memory.' },
-  { icon: Workflow,      label: 'Workflows',            desc: 'Chain multimodal tasks for production ops.' },
-  { icon: Archive,       label: 'Artifacts',            desc: 'Stored outputs across image, audio, code.' },
-  { icon: Database,      label: 'Memory Layer',         desc: 'Cross-session context where configured.' },
-  { icon: FolderGit2,    label: 'GitHub Workspace',     desc: 'Edit, push, PR, and deploy from operator console.' },
-  { icon: Rocket,        label: 'Deployments',          desc: 'Workflow runs and deploy triggers in one view.' },
-  { icon: AppWindow,     label: 'App Management',       desc: 'Configure, monitor, and iterate AI apps.' },
-  { icon: Settings2,     label: 'Operator Controls',    desc: 'Providers, keys, policies — all in one place.' },
+  { icon: ImageIcon,    label: 'Image Generation',     desc: 'High-fidelity visuals with provider fallback.' },
+  { icon: Mic,          label: 'Voice Stack',           desc: 'STT, TTS, and persona-aware voice flows.' },
+  { icon: Video,        label: 'Video Pipelines',       desc: 'Queue-backed generation under one surface.' },
+  { icon: Music,        label: 'Music Creation',        desc: 'AI song generation with lyrics, vocals, and cover art.' },
+  { icon: Bot,          label: 'App Agents',            desc: 'App-scoped agents with policy and memory.' },
+  { icon: Workflow,     label: 'Workflows',             desc: 'Chain multimodal tasks for production ops.' },
+  { icon: Archive,      label: 'Artifacts',             desc: 'Stored outputs across image, audio, code.' },
+  { icon: Database,     label: 'Memory Layer',          desc: 'Cross-session context where configured.' },
+  { icon: FolderGit2,   label: 'Repo Workbench',        desc: 'Edit, push, PR, and deploy from operator console.' },
 ]
 
 const workflowSteps = [
   {
     step: '01',
-    title: 'Task arrives',
-    body: 'An app or operator sends a task through one API gateway with app identity and capability context.',
+    title: 'Describe your task',
+    body: 'Tell Aiva what you need — chat, generate media, build a workflow, edit code, or automate a process.',
     color: 'text-cyan-400',
   },
   {
     step: '02',
-    title: 'GenX routes',
-    body: 'GenX — the primary AI execution layer — selects the optimal model path based on capability, quality, and cost.',
+    title: 'Aiva understands and routes',
+    body: 'Aiva intelligently routes your request to the right capability, model, and provider for the task.',
     color: 'text-blue-400',
   },
   {
     step: '03',
     title: 'Controlled execution',
-    body: 'Execution runs with policy layers, memory hooks, and provider fallback logic attached.',
+    body: 'Smart provider selection runs with policy layers, memory hooks, and fallback logic attached.',
     color: 'text-violet-400',
   },
   {
     step: '04',
-    title: 'Output & trace',
-    body: 'Artifacts, events, and usage traces surface in the operator console for inspection and iteration.',
+    title: 'Output & artifacts',
+    body: 'Generated outputs, artifacts, and traces surface in the workspace for inspection and iteration.',
     color: 'text-emerald-400',
   },
 ]
@@ -80,7 +77,7 @@ function DashboardPreview() {
       <div className="flex h-56 gap-0">
         {/* Sidebar */}
         <div className="w-32 shrink-0 border-r border-white/[0.07] px-2 py-3 space-y-0.5">
-          {['Workspace','Apps & Agents','GenX Models','Artifacts','Deployments','Settings'].map((item, i) => (
+          {['Workspace','Repo Workbench','Music Studio','Image Studio','Artifacts','Settings'].map((item, i) => (
             <motion.div
               key={item}
               initial={{ opacity: 0, x: -8 }}
@@ -151,7 +148,7 @@ export default function HomePage() {
             transition={{ duration: 0.5 }}
             className="text-label mb-5 text-cyan-300"
           >
-            Amarkt<span className="text-blue-400">AI</span> Network · GenX-powered AI orchestration
+            Amarkt<span className="text-blue-400">AI</span> Network · Powered by Aiva
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
@@ -159,8 +156,8 @@ export default function HomePage() {
             transition={{ duration: 0.55, delay: 0.1 }}
             className="text-display max-w-5xl"
           >
-            The AI execution layer for{' '}
-            <span className="gradient-text">real products</span>.
+            Your AI operating system for{' '}
+            <span className="gradient-text">apps, agents, media, code, workflows, and automation.</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 14 }}
@@ -168,9 +165,8 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="mt-6 max-w-2xl text-lg text-slate-300"
           >
-            Amarkt<span className="text-blue-400">AI</span> Network routes your AI tasks through GenX — selecting the best model, 
-            provider, and execution path. One console for chat, image, video, voice, code, 
-            agents, GitHub, and deployments.
+            Meet Aiva — your intelligent operations layer. One console for chat, image, video, voice,
+            music, code, agents, GitHub, and deployments. Every capability connected, every output tracked.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -178,12 +174,31 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-9 flex flex-wrap gap-3"
           >
-            <Link href="/contact" className="btn-primary">
-              Request Operator Access <ArrowRight className="h-4 w-4" />
+            <Link href="/admin/login" className="btn-primary">
+              Enter Workspace <ArrowRight className="h-4 w-4" />
             </Link>
             <Link href="/apps" className="btn-ghost">
               Explore Capabilities
             </Link>
+            <Link href="/contact" className="btn-ghost">
+              Contact
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Meet Aiva ────────────────────────────────────────────────── */}
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <motion.div {...fadeUp()}>
+            <p className="text-label text-cyan-300">Meet Aiva</p>
+            <h2 className="text-headline mt-3 max-w-3xl">
+              Your intelligent operations layer — one AI for everything.
+            </h2>
+            <p className="mt-4 max-w-2xl text-slate-400">
+              Aiva understands your intent, routes tasks to the right capability, manages memory and context,
+              and returns structured outputs — all from one interface. No switching tools. No disconnected workflows.
+            </p>
           </motion.div>
         </div>
       </section>
@@ -194,7 +209,7 @@ export default function HomePage() {
           <motion.div {...fadeUp()}>
             <p className="text-label text-blue-300">How it works</p>
             <h2 className="text-headline mt-3 max-w-3xl">
-              GenX is the execution brain. Every request routes through it.
+              From idea to output in four steps.
             </h2>
           </motion.div>
           <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -233,9 +248,9 @@ export default function HomePage() {
               </div>
               <ul className="space-y-3">
                 {[
-                  { color: 'bg-cyan-400',   text: 'AI task panel with GenX as default execution layer' },
-                  { color: 'bg-blue-400',   text: 'GitHub repo editing, commit, PR, and deploy triggers' },
-                  { color: 'bg-violet-400', text: 'App agent configuration and monitoring' },
+                  { color: 'bg-cyan-400',    text: 'Aiva — intelligent chat, routing, and task execution' },
+                  { color: 'bg-blue-400',    text: 'GitHub repo editing, commit, PR, and deploy triggers' },
+                  { color: 'bg-violet-400',  text: 'App agent configuration and monitoring' },
                   { color: 'bg-emerald-400', text: 'Artifact library — text, image, audio, video, code' },
                 ].map((item) => (
                   <li key={item.text} className="flex items-start gap-3 text-sm text-slate-300">
@@ -258,7 +273,7 @@ export default function HomePage() {
           <motion.div {...fadeUp()}>
             <p className="text-label text-amber-300">Full capability surface</p>
             <h2 className="text-headline mt-3 max-w-3xl">
-              One orchestration layer. Twelve production capabilities.
+              One intelligent layer. Every capability you actually need.
             </h2>
           </motion.div>
           <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -279,41 +294,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── GenX callout — horizontal accent ─────────────────────────── */}
-      <section className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <motion.div
-            {...fadeUp()}
-            className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-[#061424] via-[#07192e] to-[#07152a] px-8 py-10"
-          >
-            {/* Subtle glow */}
-            <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl" />
-            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap className="h-5 w-5 text-cyan-400" />
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-400">GenX — Primary AI Layer</span>
-                </div>
-                <h2 className="text-xl font-semibold text-white max-w-xl">
-                  Every AI request routes through GenX. It picks the best model, applies policies, handles fallback, and returns a clean execution result.
-                </h2>
-                <p className="mt-3 text-sm text-slate-400 max-w-lg">
-                  No vendor lock. No single-model dependency. GenX connects to the model catalog and routes by capability, cost tier, and task context — with fallback to specialist providers when needed.
-                </p>
-              </div>
-              <div className="shrink-0 flex flex-wrap gap-2">
-                {['best', 'balanced', 'cheap', 'fixed'].map(tier => (
-                  <span key={tier} className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.07] px-3 py-1.5 text-xs font-semibold text-cyan-300 uppercase tracking-widest">
-                    {tier}
-                  </span>
-                ))}
-                <p className="w-full text-[10px] text-slate-600 mt-1">Model policy tiers</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
       {/* ── GitHub-to-Deploy flow visual ──────────────────────────────── */}
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -325,7 +305,7 @@ export default function HomePage() {
                   From code edit to deployed branch — without leaving the console.
                 </h2>
                 <p className="mt-4 text-slate-400">
-                  Connect your GitHub repos, browse file trees, let GenX generate or refactor code, review diffs, push branches, create PRs, and trigger workflow_dispatch deploys — all from the Workspace panel.
+                  Connect your GitHub repos, browse file trees, let Aiva generate or refactor code, review diffs, push branches, create PRs, and trigger workflow_dispatch deploys — all from the Workspace panel.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -348,11 +328,11 @@ export default function HomePage() {
             <motion.div {...fadeUp(0.1)}>
               <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 space-y-3">
                 {[
-                  { label: 'GitHub Repo',        color: 'border-slate-600/60  bg-slate-700/20',  dot: 'bg-slate-400' },
-                  { label: 'AI Code Edit (GenX)', color: 'border-blue-500/30   bg-blue-500/[0.05]', dot: 'bg-blue-400' },
-                  { label: 'Diff Review',         color: 'border-violet-500/30 bg-violet-500/[0.05]', dot: 'bg-violet-400' },
-                  { label: 'Commit + PR',         color: 'border-emerald-500/30 bg-emerald-500/[0.05]', dot: 'bg-emerald-400' },
-                  { label: 'Workflow Deploy',     color: 'border-cyan-500/30   bg-cyan-500/[0.05]', dot: 'bg-cyan-400' },
+                  { label: 'GitHub Repo',         color: 'border-slate-600/60  bg-slate-700/20',      dot: 'bg-slate-400' },
+                  { label: 'AI Code Edit (Aiva)',  color: 'border-blue-500/30   bg-blue-500/[0.05]',   dot: 'bg-blue-400' },
+                  { label: 'Diff Review',          color: 'border-violet-500/30 bg-violet-500/[0.05]', dot: 'bg-violet-400' },
+                  { label: 'Commit + PR',          color: 'border-emerald-500/30 bg-emerald-500/[0.05]', dot: 'bg-emerald-400' },
+                  { label: 'Workflow Deploy',      color: 'border-cyan-500/30   bg-cyan-500/[0.05]',   dot: 'bg-cyan-400' },
                 ].map((row, i, arr) => (
                   <div key={row.label} className="relative">
                     <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm text-slate-300 ${row.color}`}>

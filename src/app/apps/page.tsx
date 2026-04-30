@@ -4,13 +4,25 @@ import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import {
   MessageSquare, ImageIcon, Mic, Video, Music, Workflow,
-  Code2, Bot, Archive, Database, FolderGit2, Rocket, ArrowRight,
-  Zap, AppWindow, ChevronRight,
+  Bot, Archive, Database, FolderGit2, ArrowRight,
+  AppWindow, ChevronRight, Sparkles,
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
 const surfaces = [
+  {
+    icon: Sparkles, name: 'Aiva',
+    desc: 'Your intelligent AI assistant. Chat, route tasks, generate content, run workflows, and navigate all capabilities through one unified interface.',
+    tags: ['aiva', 'chat', 'routing'],
+    accent: 'text-cyan-400',
+  },
+  {
+    icon: FolderGit2, name: 'Repo Workbench',
+    desc: 'Browse GitHub repos, edit files with AI assistance, review diffs, commit, push, create PRs, and trigger deployments from the operator console.',
+    tags: ['github', 'code', 'deploy'],
+    accent: 'text-emerald-400',
+  },
   {
     icon: MessageSquare, name: 'Chat & Reasoning',
     desc: 'Task-aware language model routing and execution. Supports code gen, planning, analysis, and Q&A under one execution path.',
@@ -18,26 +30,32 @@ const surfaces = [
     accent: 'text-cyan-400',
   },
   {
-    icon: ImageIcon, name: 'Image Generation',
+    icon: ImageIcon, name: 'Image Generator',
     desc: 'High-fidelity image generation with provider-aware routing. Supports standard and adult-mode generation based on policy.',
     tags: ['image', 'visual', 'creative'],
     accent: 'text-blue-400',
   },
   {
-    icon: Mic, name: 'Voice Stack',
+    icon: ImageIcon, name: 'Image Editor',
+    desc: 'Edit and refine generated images with AI-powered transformations, inpainting, and style adjustments.',
+    tags: ['image', 'edit', 'creative'],
+    accent: 'text-blue-400',
+  },
+  {
+    icon: Mic, name: 'Voice STT / TTS',
     desc: 'STT and TTS pipelines with persona-aware voice routing. Audio artifacts stored in the artifact library.',
     tags: ['stt', 'tts', 'voice'],
     accent: 'text-violet-400',
   },
   {
-    icon: Video, name: 'Video Pipelines',
+    icon: Video, name: 'Video Generator',
     desc: 'Queue-backed video generation and planning with tracking and output artifact storage.',
     tags: ['video', 'generation'],
     accent: 'text-rose-400',
   },
   {
-    icon: Music, name: 'Music Studio',
-    desc: 'Track generation, lyrics, and media artifact creation from one generation surface.',
+    icon: Music, name: 'Music Creator',
+    desc: 'AI song generation with theme, genre, mood, vocals, lyrics, BPM, and cover art — all from one creation surface.',
     tags: ['music', 'audio', 'creative'],
     accent: 'text-amber-400',
   },
@@ -48,40 +66,22 @@ const surfaces = [
     accent: 'text-emerald-400',
   },
   {
-    icon: Code2, name: 'Code Generation',
-    desc: 'GenX-powered code generation, refactor, bug fix, and documentation tasks with GitHub workspace integration.',
-    tags: ['code', 'github', 'diff'],
-    accent: 'text-cyan-400',
-  },
-  {
-    icon: Bot, name: 'App Agents',
-    desc: 'Dedicated AI agents scoped to individual apps with capability controls, system prompts, and model policy selection.',
-    tags: ['agents', 'apps', 'policy'],
-    accent: 'text-blue-400',
-  },
-  {
-    icon: Archive, name: 'Artifact Library',
+    icon: Archive, name: 'Artifacts',
     desc: 'Stored outputs across image, audio, video, text, and code — with provider, model, and prompt metadata.',
     tags: ['artifacts', 'storage', 'history'],
     accent: 'text-violet-400',
+  },
+  {
+    icon: Bot, name: 'App Connectors',
+    desc: 'Dedicated AI agents scoped to individual apps with capability controls, system prompts, and model policy selection.',
+    tags: ['agents', 'apps', 'connectors'],
+    accent: 'text-blue-400',
   },
   {
     icon: Database, name: 'Memory Layer',
     desc: 'Retrieval-aware context and cross-session persistence where enabled. Keeps useful context across app interactions.',
     tags: ['memory', 'retrieval', 'context'],
     accent: 'text-slate-400',
-  },
-  {
-    icon: FolderGit2, name: 'GitHub Workspace',
-    desc: 'Browse repos, edit files with AI, review diffs, commit, push, create PRs, and trigger deployments from the operator console.',
-    tags: ['github', 'code', 'deploy'],
-    accent: 'text-emerald-400',
-  },
-  {
-    icon: Rocket, name: 'Deployments',
-    desc: 'GitHub Actions workflow runs, deploy status, manual triggers, and run logs in the operator deployments view.',
-    tags: ['deploy', 'github', 'workflow'],
-    accent: 'text-amber-400',
   },
 ]
 
@@ -109,15 +109,15 @@ export default function AppsPage() {
               One orchestration layer. Every AI capability you actually need.
             </h1>
             <p className="mt-6 max-w-3xl text-lg text-slate-300">
-              Every surface runs through the same operator runtime: shared GenX routing, shared policy controls, shared artifacts, and shared operator visibility. No disconnected wrappers.
+              Every surface runs through the same operator runtime: shared intelligent routing, shared policy controls, shared artifacts, and shared operator visibility. No disconnected wrappers.
             </p>
           </motion.div>
 
-          {/* GenX badge */}
+          {/* Aiva badge */}
           <motion.div {...fadeUp(0.1)} className="mt-8">
             <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.06] px-4 py-2">
-              <Zap className="h-4 w-4 text-cyan-400" />
-              <span className="text-sm text-cyan-300">All capabilities execute through <strong>GenX</strong> — the primary AI layer</span>
+              <Sparkles className="h-4 w-4 text-cyan-400" />
+              <span className="text-sm text-cyan-300">All capabilities are accessible through <strong>Aiva</strong> — your intelligent operations layer</span>
             </div>
           </motion.div>
 

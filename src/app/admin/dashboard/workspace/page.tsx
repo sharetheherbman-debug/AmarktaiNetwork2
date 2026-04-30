@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import {
@@ -74,9 +74,12 @@ const SECTION_TO_TAB: Record<string, TabKey> = {
 
 const normalizeCapabilityName = (value: string) => value.replace(/_/g, ' ')
 
-export default function WorkspacePage() {
+function WorkspaceInner() {
   const router = useRouter()
-  const [active, setActive] = useState<TabKey>('aiva')
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const initialTab: TabKey = (tabParam && SECTION_TO_TAB[tabParam]) ? SECTION_TO_TAB[tabParam] : (tabParam as TabKey | null && tabs.some(t => t.key === tabParam) ? tabParam as TabKey : 'aiva')
+  const [active, setActive] = useState<TabKey>(initialTab)
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(false)
   const [partnerOpen, setPartnerOpen] = useState(false)
@@ -245,6 +248,14 @@ export default function WorkspacePage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function WorkspacePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-32 text-slate-400 text-sm">Loading workspace…</div>}>
+      <WorkspaceInner />
+    </Suspense>
   )
 }
 

@@ -13,14 +13,14 @@ import NetworkPulseBackground from '@/components/visual/NetworkPulseBackground'
 const pillars = [
   {
     icon: Zap,
-    title: 'GenX Execution Layer',
-    desc: 'The primary AI execution brain. Every request routes through GenX, which selects the best model for the task, capability class, and cost tier.',
+    title: 'Aiva Intelligence',
+    desc: 'Natural language understanding, intelligent routing, and execution. Aiva interprets your intent, selects the right capability, and returns structured outputs.',
     accent: 'text-cyan-400',
   },
   {
     icon: GitBranch,
-    title: 'Provider Orchestration',
-    desc: 'Adaptive routing across multiple AI providers with fallback logic, capability matching, and policy-controlled cost management.',
+    title: 'Multi-Provider Routing',
+    desc: 'Adaptive model selection across providers with fallback logic, capability matching, and policy-controlled cost management.',
     accent: 'text-blue-400',
   },
   {
@@ -31,31 +31,31 @@ const pillars = [
   },
   {
     icon: Bot,
-    title: 'App Agent Runtime',
+    title: 'App Agents',
     desc: 'App-scoped agents with dedicated behavior constraints, capability policies, and per-app model selection.',
     accent: 'text-emerald-400',
   },
   {
     icon: ShieldCheck,
-    title: 'Policy & Governance',
+    title: 'Safety & Policy',
     desc: 'Provider keys, capability restrictions, adult content controls, and execution policies built into the orchestration core.',
     accent: 'text-amber-400',
   },
   {
     icon: Layers,
-    title: 'Unified Operator Surface',
+    title: 'Unified Workspace',
     desc: 'Website, API, and admin console all map to one underlying operating model — one place to build, test, and deploy.',
     accent: 'text-rose-400',
   },
 ]
 
 const routingFlow = [
-  { label: 'App sends task',            detail: 'Task type, app identity, and capability context attached.' },
-  { label: 'GenX classifies',          detail: 'Routes to best model tier: best / balanced / cheap / fixed.' },
-  { label: 'Policy check',             detail: 'Capability permissions, adult flags, fallback rules evaluated.' },
-  { label: 'Execution',                detail: 'Model called with memory hooks and runtime observability.' },
-  { label: 'Output + artifact',        detail: 'Response stored as artifact with provider/model metadata.' },
-  { label: 'Operator trace',           detail: 'Events, usage, and artifacts visible in the operator console.' },
+  { label: 'Describe your task',           detail: 'Tell Aiva what you need in natural language.' },
+  { label: 'Aiva classifies',              detail: 'Routes to the best capability and model for the task.' },
+  { label: 'Policy check',                 detail: 'Capability permissions, content flags, fallback rules evaluated.' },
+  { label: 'Execution',                    detail: 'Model called with memory hooks and runtime observability.' },
+  { label: 'Output + artifact',            detail: 'Response stored as artifact with provider/model metadata.' },
+  { label: 'Operator trace',               detail: 'Events, usage, and artifacts visible in the operator console.' },
 ]
 
 const fadeUp = (delay = 0) => ({
@@ -96,7 +96,7 @@ export default function AboutPage() {
             transition={{ duration: 0.45, delay: 0.2 }}
             className="mt-6 max-w-3xl text-lg text-slate-300"
           >
-            It routes AI tasks through GenX — the primary execution engine — which selects the right model, applies policies, handles fallback, and returns structured output. Built for operators running multiple AI products, not for one-off prompting.
+            It routes AI tasks through Aiva — the intelligent operations layer — which selects the right model, applies policies, handles fallback, and returns structured output. Built for operators running multiple AI products, not for one-off prompting.
           </motion.p>
         </div>
       </section>
@@ -166,14 +166,14 @@ export default function AboutPage() {
           >
             <div className="flex items-center gap-2 mb-4">
               <Zap className="h-4 w-4 text-cyan-400" />
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-400">GenX first</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-400">Smart routing first</p>
             </div>
             <h2 className="text-lg font-semibold text-white">Not a chatbot wrapper.</h2>
-            <p className="mt-2 text-sm text-slate-400">GenX routes to the best model for each task. You are not locked to one provider. Policy, fallback, and cost logic are built in — not bolted on.</p>
+            <p className="mt-2 text-sm text-slate-400">Aiva routes to the best model for each task. You are not locked to one provider. Policy, fallback, and cost logic are built in — not bolted on.</p>
             <ul className="mt-5 space-y-2 text-sm text-slate-300">
               <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 text-cyan-400 shrink-0" /> Multi-provider, not single-model dependent</li>
               <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 text-cyan-400 shrink-0" /> Cost-tier model selection (best / balanced / cheap)</li>
-              <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 text-cyan-400 shrink-0" /> Automatic fallback when GenX is unreachable</li>
+              <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-0.5 text-cyan-400 shrink-0" /> Automatic fallback when primary engine is unreachable</li>
             </ul>
           </motion.div>
 

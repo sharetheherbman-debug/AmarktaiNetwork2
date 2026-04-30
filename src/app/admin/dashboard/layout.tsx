@@ -8,7 +8,6 @@ import {
   Menu,
   X,
   User,
-  LayoutDashboard,
   Sparkles,
   AppWindow,
   Cpu,
@@ -17,6 +16,11 @@ import {
   Settings2,
   Activity,
   GitBranch,
+  Music2,
+  ImageIcon,
+  Film,
+  Workflow,
+  Music,
 } from 'lucide-react'
 import AivaAssistant from '@/components/AivaAssistant'
 
@@ -26,15 +30,24 @@ const NAV_GROUPS: Array<{
 }> = [
   {
     items: [
-      { href: '/admin/dashboard',              label: 'Overview',       icon: LayoutDashboard },
-      { href: '/admin/dashboard/workspace',    label: 'Workspace',      icon: Sparkles        },
-      { href: '/admin/dashboard/repo-workbench', label: 'Repo Workbench', icon: GitBranch      },
-      { href: '/admin/dashboard/apps',         label: 'Apps & Agents',  icon: AppWindow       },
-      { href: '/admin/dashboard/ai-engine',    label: 'AI Engine',      icon: Cpu             },
-      { href: '/admin/dashboard/artifacts',    label: 'Artifacts',      icon: Archive         },
-      { href: '/admin/dashboard/deployments',  label: 'Deployments',    icon: Rocket          },
-      { href: '/admin/dashboard/monitor',      label: 'Monitor',        icon: Activity        },
-      { href: '/admin/dashboard/settings',     label: 'Settings',       icon: Settings2       },
+      { href: '/admin/dashboard/workspace',              label: 'Workspace',      icon: Sparkles    },
+      { href: '/admin/dashboard/workspace?tab=aiva',     label: 'Aiva',           icon: Music2      },
+      { href: '/admin/dashboard/repo-workbench',         label: 'Repo Workbench', icon: GitBranch   },
+      { href: '/admin/dashboard/workspace?tab=music',    label: 'Music Studio',   icon: Music       },
+      { href: '/admin/dashboard/workspace?tab=images',   label: 'Image Studio',   icon: ImageIcon   },
+      { href: '/admin/dashboard/workspace?tab=video',    label: 'Video Studio',   icon: Film        },
+      { href: '/admin/dashboard/artifacts',              label: 'Artifacts',      icon: Archive     },
+      { href: '/admin/dashboard/workspace?tab=workflows',label: 'Workflows',      icon: Workflow    },
+      { href: '/admin/dashboard/apps',                   label: 'Apps & Agents',  icon: AppWindow   },
+      { href: '/admin/dashboard/settings',               label: 'Admin / Settings', icon: Settings2 },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { href: '/admin/dashboard/monitor',      label: 'Monitor',      icon: Activity },
+      { href: '/admin/dashboard/deployments',  label: 'Deployments',  icon: Rocket   },
+      { href: '/admin/dashboard/ai-engine',    label: 'AI Engine',    icon: Cpu      },
     ],
   },
 ]
@@ -53,10 +66,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [router])
 
   const isActive = (href: string) => {
-    // Exact match for Overview (/admin/dashboard) to avoid matching all child routes
-    if (href === '/admin/dashboard') return pathname === '/admin/dashboard'
+    // For workspace sub-tab links (contain ?tab=), just check if we're on workspace
+    if (href.includes('?tab=')) return pathname.startsWith('/admin/dashboard/workspace')
+    // Exact match for workspace itself to avoid double-matching with tab links
+    if (href === '/admin/dashboard/workspace') return pathname === '/admin/dashboard/workspace' || pathname.startsWith('/admin/dashboard/workspace/')
     return pathname === href || pathname.startsWith(href + '/')
   }
+
+  // Suppress floating Aiva widget when workspace Aiva tab is visible
+  const showAivaAssistant = !pathname.startsWith('/admin/dashboard/workspace')
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -144,8 +162,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
       </div>
 
-      {/* Aiva floating assistant — fixed overlay, visible on all admin pages */}
-      <AivaAssistant />
+      {/* Aiva floating assistant — suppressed on workspace (has its own Aiva tab) */}
+      {showAivaAssistant && <AivaAssistant />}
     </div>
   )
 }
