@@ -16,6 +16,12 @@ import { useState, useRef, useCallback } from 'react'
 export interface AudioRecorderProps {
   /** Callback fired when transcription completes. */
   onTranscript?: (transcript: string) => void
+  /**
+   * Callback fired when recording stops and a Blob is ready — before any STT
+   * call. Use this to receive the raw audio Blob (e.g. to feed into a parent
+   * STT workflow instead of the built-in transcribe button).
+   */
+  onBlobReady?: (blob: Blob, filename: string) => void
   /** Optional STT endpoint override (default: /api/brain/stt). */
   sttEndpoint?: string
   /** Whisper model to use (default: whisper-1). */
@@ -28,6 +34,7 @@ export interface AudioRecorderProps {
 
 export default function AudioRecorder({
   onTranscript,
+  onBlobReady,
   sttEndpoint = '/api/brain/stt',
   model = 'whisper-1',
   language,
@@ -64,6 +71,7 @@ export default function AudioRecorder({
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         const url = URL.createObjectURL(blob)
         setAudioUrl(url)
+        onBlobReady?.(blob, 'recording.webm')
 
         // Stop all tracks
         stream.getTracks().forEach((track) => track.stop())
@@ -80,7 +88,7 @@ export default function AudioRecorder({
           : 'Failed to access microphone',
       )
     }
-  }, [onAvailabilityChange])
+  }, [onAvailabilityChange, onBlobReady])
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
