@@ -10,8 +10,9 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Play, Loader2, Copy, Check, Gauge, CheckCircle, XCircle,
-  Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen, Download,
+  Zap, Route, AlertCircle, ShieldAlert, Radio, BookOpen, Download, Mic,
 } from 'lucide-react'
+import AudioRecorder from '@/components/AudioRecorder'
 
 const CAPABILITIES = [
   'chat', 'code', 'reasoning', 'image', 'image_editing', 'video', 'video_planning',
@@ -464,10 +465,22 @@ export default function TestAITab() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-3">
           {capability === 'stt' ? (
-            <div className="flex items-center gap-3">
-              <input ref={sttFileRef} type="file" accept="audio/*" onChange={e => setSttFile(e.target.files?.[0] ?? null)}
-                className="flex-1 text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-blue-500/10 file:text-blue-400 file:cursor-pointer" />
-              {sttFile && <span className="text-xs text-slate-500">{sttFile.name}</span>}
+            <div className="space-y-3">
+              {/* File upload */}
+              <div className="flex items-center gap-3">
+                <input ref={sttFileRef} type="file" accept="audio/*" onChange={e => setSttFile(e.target.files?.[0] ?? null)}
+                  className="flex-1 text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-blue-500/10 file:text-blue-400 file:cursor-pointer" />
+                {sttFile && <span className="text-xs text-slate-500">{sttFile.name}</span>}
+              </div>
+              {/* Browser recording — sets the same sttFile so the existing STT flow handles it */}
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500">
+                  <Mic className="h-3 w-3" /> Or record from microphone
+                </p>
+                <AudioRecorder
+                  onBlobReady={(blob, filename) => setSttFile(new File([blob], filename, { type: blob.type }))}
+                />
+              </div>
             </div>
           ) : (
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder={capability === 'tts' ? 'Enter text to convert to speech…' : 'Enter your prompt…'}

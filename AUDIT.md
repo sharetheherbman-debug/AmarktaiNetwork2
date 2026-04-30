@@ -165,7 +165,7 @@ The AmarktAI Network is a full-stack AI orchestration platform built on **Next.j
 | Image generation routing | `multimodal-router.ts` | ✅ Working |
 | Multimodal status dashboard | `dashboard/multimodal/` | ✅ Working |
 | Video generation endpoint | `api/brain/video/` | ✅ Working |
-| Audio recording UI component | — | ❌ Missing |
+| Audio recording UI component | `components/AudioRecorder.tsx` | ✅ Working |
 
 ### 8. Content Safety & Compliance
 
@@ -181,7 +181,7 @@ The AmarktAI Network is a full-stack AI orchestration platform built on **Next.j
 | User-friendly blocking messages | `content-filter.ts` | ✅ Working |
 | Moderation alert generation | `content-filter.ts` | ✅ Working |
 | Appeals process (documented) | `docs/safety-policies.md` | ✅ Documented |
-| OpenAI Moderation API integration | — | ⚠️ Documented but not implemented |
+| OpenAI Moderation API integration | `moderation-pipeline.ts` | ✅ Working |
 | Input scanning (pre-generation) | `api/brain/request/` | ✅ Working |
 
 ### 9. Budget Management
@@ -338,9 +338,8 @@ The AmarktAI Network is a full-stack AI orchestration platform built on **Next.j
 
 1. **Embedding Cache** — No caching layer for embedding requests
 2. **Retrieval Cache** — No caching for retrieval results
-3. **Audio Recording UI** — No browser-based audio capture component
-4. **Streaming Responses** — TTS returns full buffer, not streaming chunks
-5. **Load Testing** — No load test scripts
+3. **Streaming Responses** — TTS returns full buffer, not streaming chunks
+4. **Load Testing** — No load test scripts
 
 ### ⚠️ PARTIAL / NEEDS IMPROVEMENT
 
@@ -354,6 +353,7 @@ The AmarktAI Network is a full-stack AI orchestration platform built on **Next.j
 3. **Per-request Audit Trail / Output Scanning / Fallback Moderation** — `moderation-pipeline.ts`: Every content scan (input + output) records an immutable audit entry. Fallback chain: OpenAI Moderation API → keyword scanner → guardrails engine. Wired into Brain request route.
 4. **First-run Onboarding Wizard** — `onboarding.ts` + `/api/admin/onboarding` endpoint: 4-step detection (admin account → provider → first app → health check) with progress percentage and next-step routing.
 5. **OpenAI Moderation API** — Now fully integrated as primary classifier in `scanContentWithModeration()`, with keyword fallback. Used by moderation pipeline.
+6. **Audio Recording UI** — `components/AudioRecorder.tsx`: Browser-based microphone capture using MediaRecorder API. Supports start/stop recording, audio playback, and STT transcription via `/api/brain/stt`. Integrated into TestAITab (AI Lab → STT capability) so users can record directly in the browser instead of uploading a file.
 
 ---
 
@@ -386,7 +386,7 @@ The AmarktAI Network is a full-stack AI orchestration platform built on **Next.j
 | # | Improvement | Effort | Impact |
 |---|-----------|--------|--------|
 | 13 | Migrate app profiles to Prisma tables | High | Database-driven configuration |
-| 14 | Add audio recording UI component | Medium | Browser-based voice input |
+| 14 | ~~Add audio recording UI component~~ | ~~Medium~~ | ✅ Done |
 | 15 | Add load testing scripts | Medium | Capacity planning |
 | 16 | Add WebSocket real-time dashboard updates | Medium | Live monitoring |
 | 17 | Add provider benchmark automation | Medium | Data-driven cost tuning |
